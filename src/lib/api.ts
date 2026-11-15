@@ -43,6 +43,7 @@ import {
 //   usernames/{lower} { uid }   keeps usernames unique
 //   lobbies/{CODE}    match state, hostId, playerIds[], matchId (per-player tallies live in players{})
 //   lobbies/{CODE}/results/{uid}  each player's own result for the current round (the host reads them all)
+//   lobbies/{CODE}/ready/{uid}    "I finished reading this round's intro" (the host starts the boards when all are in)
 // ---------------------------------------------------------------------------
 
 export type LobbyPlayer = PlayerState;
@@ -265,6 +266,43 @@ export const nextRound = (code: string) => hostAction(code, (lobby) => matchFiel
 // the players' results; games that are not built yet use the temporary host buttons.
 export const resolveRound = (code: string, winnerId: string | null) =>
   hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId).state));
+
+// ------------------------------------------------------------ round start ----
+// Fair start: every player says "ready" once they have read the intro. When all are ready the
+// host's phone sets currentRound.go = true and every phone starts its 3-2-1 countdown.
+export type ReadyMark = { uid: string; matchId: string; roundNo: number };
+
+export async function markReady(rawCode: string, round: { matchId: string; roundNo: number }): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  await setDoc(doc(database(), 'lobbies', code, 'ready', uid), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+  });
+}
+
+export function subscribeReady(
+  rawCode: string,
+  onData: (marks: ReadyMark[]) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'ready'),
+    (snap) => onData(snap.docs.map((d) => d.data() as ReadyMark)),
+    onError
+  );
+}
+
+// HOST: everybody is ready (or the host does not want to wait any longer): start the boards.
+export const startRound = (code: string) =>
+  hostAction(code, (lobby) => {
+    if (lobby.status !== 'playing' || lobby.currentRound?.status !== 'active') {
+      throw new RuleError('There is no active round.');
+    }
+    return { currentRound: { ...lobby.currentRound, go: true } };
+  });
 
 // ---------------------------------------------------------- round results ----
 // Every player saves THEIR OWN result for the round that is being played; the host's phone

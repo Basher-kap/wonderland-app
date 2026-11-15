@@ -48,6 +48,9 @@ export type RoundState = {
   no: number;
   gameId: string;
   difficulty?: Difficulty; // missing on rounds saved before difficulty existed
+  // false when the round is drawn; the host sets it to true once EVERY player has finished
+  // reading the intro, and that is the moment all the boards start together.
+  go?: boolean;
   status: 'active' | 'done';
   winnerId: string | null;
 };
@@ -137,6 +140,7 @@ export function drawNextGame(state: MatchState, rand: () => number = Math.random
       no: (state.currentRound?.no ?? 0) + 1,
       gameId,
       difficulty: game ? difficultyOf(game) : DEFAULT_DIFFICULTY,
+      go: false,
       status: 'active',
       winnerId: null,
     },

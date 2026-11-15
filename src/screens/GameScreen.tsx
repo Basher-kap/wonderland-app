@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -18,8 +18,11 @@ import type { RootStackParamList } from '../navigation/types';
 
 // One round, as every player sees it:
 //   1. the intro dialogs (RoundIntro): domain + difficulty, Japanese name, rule, clear condition
-//   2. the game itself (games/registry.ts), which reports this player's result when done
-//   3. waiting for the others; the HOST's phone then asks the game who won and ends the round
+//   2. "waiting for the others": everybody has to finish reading; when ALL are ready the host's
+//      phone sets round.go and every phone counts 3-2-1, so the timers start together
+//   3. the game itself (games/registry.ts), which reports this player's result when done
+//   4. waiting for the others; the HOST's phone then asks the game who won and ends the round
+// While a round is being played there is no way out (no Back button, swipe or Android back).
 // Games that are not built yet (no entry in the registry) still use the temporary host buttons.
 // Without a lobby (opened from the Home list) the game is a solo practice run.
 export function GameScreen() {
@@ -28,12 +31,17 @@ export function GameScreen() {
   const { uid } = useAuth();
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [results, setResults] = useState<api.RoundResult[]>([]);
+  const [ready, setReady] = useState<api.ReadyMark[]>([]);
+  const [startedKey, setStartedKey] = useState<string | null>(null); // round whose countdown has ended
+  const [count, setCount] = useState<number | null>(null); // 3, 2, 1 before the board starts
   const [busy, setBusy] = useState(false);
   const [introDoneFor, setIntroDoneFor] = useState<string | null>(null);
   // This player's own result for the round, kept here so the screen reacts at once
   // (the copy in Firestore arrives a moment later).
   const [local, setLocal] = useState<{ key: string; result: GameResult; sent: boolean } | null>(null);
   const resolving = useRef<string | null>(null);
+  const readySent = useRef<string | null>(null);
+  const starting = useRef<string | null>(null);
   const practiceSeed = useMemo(() => Math.random().toString(36).slice(2), []);
   const code = params.code;
 
@@ -45,6 +53,11 @@ export function GameScreen() {
   useEffect(() => {
     if (isDemoMode || !code) return;
     return api.subscribeResults(code, setResults, (e) => console.warn('results listener failed', e));
+  }, [code]);
+
+  useEffect(() => {
+    if (isDemoMode || !code) return;
+    return api.subscribeReady(code, setReady, (e) => console.warn('ready listener failed', e));
   }, [code]);
 
   const round = lobby?.currentRound ?? null;
@@ -65,6 +78,24 @@ export function GameScreen() {
   const multiplier = DIFFICULTY_MULTIPLIER[difficulty];
   const introDone = introDoneFor === roundKey;
 
+  // No way out while a round is being played: no Back button, no swipe, no Android back.
+  const locked = !!lobby && roundActive;
+  useEffect(() => {
+    navigation.setOptions({ headerBackVisible: !locked, gestureEnabled: !locked });
+    if (!locked) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [navigation, locked]);
+
+  // Fair start. Games with a board wait until everybody has read the intro.
+  const needsStart = !!lobby && !!gameModule && roundActive;
+  const go = round?.go === true;
+  const readyNow = lobby && round
+    ? ready.filter((r) => r.matchId === lobby.matchId && r.roundNo === round.no && !!lobby.players[r.uid])
+    : [];
+  const allReady = !!lobby && lobby.playerIds.every((id) => readyNow.some((r) => r.uid === id));
+  const started = lobby ? startedKey === roundKey : true; // a practice run starts straight away
+
   // Only this round's results (older rounds' results stay in the lobby until overwritten).
   const roundResults = useMemo(
     () =>
@@ -78,6 +109,43 @@ export function GameScreen() {
   const myResult = roundResults.find((r) => r.uid === uid);
   const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
   const mine = local?.key === roundKey ? local : null;
+
+  // 1. I finished reading the intro: tell the lobby.
+  useEffect(() => {
+    if (!needsStart || !introDone || !lobby || !round || !code) return;
+    if (readySent.current === roundKey) return;
+    readySent.current = roundKey;
+    api.markReady(code, { matchId: lobby.matchId, roundNo: round.no }).catch((e) => {
+      readySent.current = null;
+      console.warn('ready failed', e);
+    });
+  }, [needsStart, introDone, lobby, round, code, roundKey]);
+
+  // 2. HOST: everybody is ready, so start the boards.
+  useEffect(() => {
+    if (!isHost || !needsStart || go || !allReady || !code) return;
+    if (starting.current === roundKey) return;
+    starting.current = roundKey;
+    api.startRound(code).catch((e) => {
+      starting.current = null;
+      console.warn('start failed', e);
+    });
+  }, [isHost, needsStart, go, allReady, code, roundKey]);
+
+  // 3. Everybody: once the host says go, count 3-2-1 and then show the board.
+  useEffect(() => {
+    if (!needsStart || !introDone || !go || startedKey === roundKey) return;
+    setCount(3);
+    const timers = [
+      setTimeout(() => setCount(2), 1000),
+      setTimeout(() => setCount(1), 2000),
+      setTimeout(() => {
+        setCount(null);
+        setStartedKey(roundKey);
+      }, 3000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [needsStart, introDone, go, startedKey, roundKey]);
 
   // HOST: as soon as everybody has handed in a result, the game decides the winner.
   useEffect(() => {
@@ -148,7 +216,8 @@ export function GameScreen() {
     return <RoundIntro key={roundKey} game={game} difficulty={difficulty} onDone={() => setIntroDoneFor(roundKey)} />;
   }
 
-  const playing = inRound && !!gameModule && !mine;
+  const waitingToStart = !!lobby && !!gameModule && roundActive && !started && !mine;
+  const playing = inRound && !!gameModule && !mine && started;
   const describe = (r: ResultRow) => (gameModule ? gameModule.describe(r) : '');
 
   return (
@@ -163,7 +232,32 @@ export function GameScreen() {
           </Text>
         )}
 
-        {/* 2. The game board */}
+        {/* 2. Waiting until everybody has read the intro, then the countdown */}
+        {waitingToStart && (
+          <View style={styles.box}>
+            {count !== null ? (
+              <Text style={styles.countdown}>{count}</Text>
+            ) : (
+              <>
+                <Text style={styles.boxTitle}>Waiting for the other players…</Text>
+                <Text style={styles.boxText}>
+                  {readyNow.length}/{lobby!.playerIds.length} ready. The game starts for everyone at the same time.
+                </Text>
+                {isHost && !go && !allReady && (
+                  <Button
+                    label="Start now (don't wait)"
+                    variant="secondary"
+                    disabled={busy}
+                    onPress={() => run(() => api.startRound(code!))}
+                    style={{ marginTop: 10 }}
+                  />
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* 3. The game board */}
         {playing && gameModule && (
           <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} />
         )}
@@ -222,7 +316,7 @@ export function GameScreen() {
             )}
             {roundActive && gameModule && mine && (myResult || mine.sent) && (
               <Text style={[styles.boxText, { marginTop: 8 }]}>
-                Result sent. Waiting for the other players…
+                Result sent. Waiting for the other players… ({roundResults.length}/{lobby.playerIds.length} finished)
               </Text>
             )}
             {roundActive && gameModule && isHost && !everyoneIn && (
@@ -285,9 +379,11 @@ export function GameScreen() {
           </View>
         )}
       </ScrollView>
-      <View style={styles.footer}>
-        <Button label="Back" variant="secondary" onPress={() => navigation.goBack()} />
-      </View>
+      {!locked && (
+        <View style={styles.footer}>
+          <Button label="Back" variant="secondary" onPress={() => navigation.goBack()} />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -317,5 +413,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: colors.muted },
+  countdown: { color: colors.text, fontSize: 72, fontWeight: '800', textAlign: 'center', paddingVertical: 24 },
   footer: { padding: 20 },
 });
