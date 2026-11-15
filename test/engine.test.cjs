@@ -2,7 +2,12 @@
 //   npx tsc src/game/engine.ts --ignoreConfig --outDir .test-build --module commonjs --target es2020 --skipLibCheck
 //   node test/engine.test.cjs .test-build/game/engine.js
 const assert = require('node:assert/strict');
-const e = require(require('node:path').resolve(process.argv[2] || '.test-build/game/engine.js'));
+const path = require('node:path');
+const enginePath = path.resolve(process.argv[2] || '.test-build/game/engine.js');
+const e = require(enginePath);
+// The compiled game list sits next to the engine (tsc compiles what the engine imports).
+const { GAMES } = require(path.resolve(path.dirname(enginePath), '../data/games.js'));
+const domainOf = (id) => GAMES.find((g) => g.id === id).domain;
 
 let passed = 0;
 function test(name, fn) {
@@ -120,6 +125,59 @@ test('bystanders in a 3-player match get ticket change 0', () => {
   assert.equal(e.settlementFor(r.state, 'b').ticketDelta, 1);
   assert.equal(e.settlementFor(r.state, 'a').ticketDelta, 0);
   assert.equal(e.settlementFor(r.state, 'c').ticketDelta, -1);
+});
+
+test('points: a win adds 10 and a loss takes 5, in the domain of the game played', () => {
+  const s = start(['a', 'b', 'c']);
+  const domain = domainOf(s.currentRound.gameId);
+  const { state } = play(s, 'a');
+  assert.equal(state.players.a.wins[domain], 1);
+  assert.equal(state.players.b.losses[domain], 1);
+  assert.equal(state.players.c.losses[domain], 1);
+  assert.equal(sum(state.players.a.losses), 0);
+  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'a').pointsDelta[domain], 10);
+  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'b').pointsDelta[domain], -5);
+});
+
+test('points: a draw changes nobody\'s points', () => {
+  const { state } = play(start(['a', 'b']), null);
+  const fin = { ...state, status: 'finished', winnerId: 'a' };
+  for (const id of ['a', 'b']) {
+    const d = e.settlementFor(fin, id).pointsDelta;
+    assert.deepEqual(d, { logic: 0, experience: 0, chance: 0 });
+  }
+});
+
+test('points: a whole match nets wins x 10 minus losses x 5 per domain', () => {
+  let s = start(['a', 'b', 'c']);
+  const order = ['a', 'a', 'b', 'a', 'c', 'a', 'b', 'a'];
+  let result;
+  for (let i = 0; i < order.length; i++) {
+    result = play(s, order[i]);
+    s = result.finished ? result.state : e.drawNextGame(result.state);
+    if (result.finished) break;
+  }
+  const fin = result.state.status === 'finished' ? result.state : { ...result.state, status: 'finished', winnerId: 'a' };
+  for (const id of ['a', 'b', 'c']) {
+    const p = fin.players[id];
+    const d = e.settlementFor(fin, id).pointsDelta;
+    assert.equal(sum(d), sum(p.wins) * 10 - sum(p.losses) * 5);
+  }
+  // plays = wins + losses + draws, and this match had no draws
+  for (const id of ['a', 'b', 'c']) {
+    const p = fin.players[id];
+    assert.equal(sum(p.plays), sum(p.wins) + sum(p.losses));
+  }
+});
+
+test('points: never below 0 per domain, and domains are independent', () => {
+  const out = e.applyPoints({ logic: 3, experience: 20, chance: 0 }, { logic: -25, experience: 10, chance: -5 });
+  assert.deepEqual(out, { logic: 0, experience: 30, chance: 0 });
+});
+
+test('start resets losses too', () => {
+  const s = start(['a', 'b']);
+  assert.ok(Object.values(s.players).every((p) => sum(p.losses) === 0));
 });
 
 test('leg 1 plays each of the 11 games once, then leg 2 starts', () => {

@@ -6,6 +6,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { getGame } from '../data/games';
+import { settlementFor } from '../game/engine';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, radius } from '../theme';
@@ -35,6 +36,14 @@ export function GameScreen() {
   const roundDone = !finished && round?.status === 'done';
   const players = lobby ? Object.entries<api.LobbyPlayer>(lobby.players) : [];
   const winnerName = lobby?.winnerId ? lobby.players[lobby.winnerId]?.username : undefined;
+
+  // What this finished match did to MY ranking points (saved to my profile automatically).
+  let pointsLine: string | null = null;
+  if (finished && lobby && uid && lobby.players[uid]?.losses) {
+    const d = settlementFor(lobby, uid).pointsDelta;
+    const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
+    pointsLine = `Your points this match:   ♠ ${fmt(d.logic)}   ♣ ${fmt(d.experience)}   ♥ ${fmt(d.chance)}`;
+  }
 
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
@@ -83,6 +92,7 @@ export function GameScreen() {
                 Match over.{winnerName ? ` Winner: ${winnerName}` : ''} Tickets update automatically.
               </Text>
             )}
+            {finished && pointsLine && <Text style={[styles.boxText, { color: colors.text }]}>{pointsLine}</Text>}
 
             {roundActive && isHost && (
               <View style={{ gap: 8, marginTop: 10 }}>

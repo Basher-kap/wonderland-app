@@ -7,23 +7,25 @@ import {
   getDoc,
   limit,
   onSnapshot,
-  orderBy,
   query,
   runTransaction,
   serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import {
+  DomainCount,
   MAX_PLAYERS,
   MatchState,
   PlayerState,
   RuleError,
+  applyPoints,
   applyRoundResult,
   applyTickets,
   drawNextGame,
   newPlayer,
   settlementFor,
   startMatch,
+  zeroCounts,
 } from '../game/engine';
 
 // ---------------------------------------------------------------------------
@@ -33,7 +35,8 @@ import {
 // (start, draw next game, resolve round); every player updates only their OWN
 // profile (tickets and scores) once a match is finished.
 //
-//   users/{uid}       username, usernameLower, tickets, wins{}, plays{}, totalWins, lastMatchSettled
+//   users/{uid}       username, usernameLower, tickets, wins{}, plays{}, points{} (ranking points per domain),
+//                     totalWins, lastMatchSettled
 //   usernames/{lower} { uid }   keeps usernames unique
 //   lobbies/{CODE}    match state, hostId, playerIds[], matchId (per-player tallies live in players{})
 // ---------------------------------------------------------------------------
@@ -50,10 +53,11 @@ export type LeaderboardRow = {
   uid: string;
   username: string;
   tickets: number;
-  logic: number;
+  logic: number; // ranking POINTS in each domain
   experience: number;
   chance: number;
-  total: number;
+  total: number; // total points
+  wins: number; // rounds won overall (tie-breaker)
 };
 
 export function errorMessage(e: unknown): string {
@@ -110,6 +114,7 @@ export async function ensureProfile(): Promise<void> {
         tickets: 5,
         wins: { logic: 0, experience: 0, chance: 0 },
         plays: { logic: 0, experience: 0, chance: 0 },
+        points: { logic: 0, experience: 0, chance: 0 },
         totalWins: 0,
         lastMatchSettled: '',
         createdAt: serverTimestamp(),
@@ -280,6 +285,8 @@ export async function settleMatch(rawCode: string): Promise<boolean> {
     const s = settlementFor(lobby, uid);
     const oldWins = user.wins as Record<string, number>;
     const oldPlays = user.plays as Record<string, number>;
+    // Profiles made before points existed have no `points` yet: they start from 0.
+    const oldPoints = (user.points ?? zeroCounts()) as DomainCount;
 
     tx.update(userRef(uid), {
       tickets: applyTickets(user.tickets as number, s.ticketDelta),
@@ -293,6 +300,7 @@ export async function settleMatch(rawCode: string): Promise<boolean> {
         experience: oldPlays.experience + s.plays.experience,
         chance: oldPlays.chance + s.plays.chance,
       },
+      points: applyPoints(oldPoints, s.pointsDelta),
       totalWins: (user.totalWins as number) + s.totalWins,
       lastMatchSettled: key,
     });
@@ -318,23 +326,30 @@ export function subscribeLobby(
 export function subscribeLeaderboard(onData: (rows: LeaderboardRow[]) => void, onError?: (e: unknown) => void) {
   if (!db) return () => {};
   return onSnapshot(
-    query(collection(db, 'users'), orderBy('totalWins', 'desc'), limit(50)),
-    (snap) =>
-      onData(
-        snap.docs.map((d) => {
-          const u = d.data();
-          const wins = (u.wins ?? {}) as Record<string, number>;
-          return {
-            uid: d.id,
-            username: u.username as string,
-            tickets: (u.tickets ?? 0) as number,
-            logic: wins.logic ?? 0,
-            experience: wins.experience ?? 0,
-            chance: wins.chance ?? 0,
-            total: (u.totalWins ?? 0) as number,
-          };
-        })
-      ),
+    // Sorted here (not in the query) so profiles without `points` yet still show up.
+    // Fine for a friends game; a big player base would need a stored total to query on.
+    query(collection(db, 'users'), limit(200)),
+    (snap) => {
+      const rows: LeaderboardRow[] = snap.docs.map((d) => {
+        const u = d.data();
+        const pts = (u.points ?? {}) as Record<string, number>;
+        const logic = pts.logic ?? 0;
+        const experience = pts.experience ?? 0;
+        const chance = pts.chance ?? 0;
+        return {
+          uid: d.id,
+          username: u.username as string,
+          tickets: (u.tickets ?? 0) as number,
+          logic,
+          experience,
+          chance,
+          total: logic + experience + chance,
+          wins: (u.totalWins ?? 0) as number,
+        };
+      });
+      rows.sort((a, b) => b.total - a.total || b.wins - a.wins || a.username.localeCompare(b.username));
+      onData(rows.slice(0, 50));
+    },
     onError
   );
 }

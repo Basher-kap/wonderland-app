@@ -8,6 +8,14 @@ import type { Domain } from '../theme';
 export const START_LIVES = 10;
 export const MAX_PLAYERS = 8;
 
+// Personal ranking points, kept per domain on each player's own profile. They have
+// nothing to do with lives or tickets. A round WON adds WIN_POINTS in that game's
+// domain, a round LOST takes away LOSS_POINTS (a draw changes nothing). A domain's
+// points never go below 0. IMPORTANT: backend/firestore.rules repeats these two
+// numbers (10 and 5), so change them in both places.
+export const WIN_POINTS = 10;
+export const LOSS_POINTS = 5;
+
 export type DomainCount = Record<Domain, number>;
 export const zeroCounts = (): DomainCount => ({ logic: 0, experience: 0, chance: 0 });
 
@@ -16,6 +24,7 @@ export type PlayerState = {
   lives: number;
   joinedAt: number;
   wins: DomainCount; // rounds won in this match, per domain
+  losses: DomainCount; // rounds lost in this match, per domain (a draw is neither)
   plays: DomainCount; // rounds played in this match, per domain
 };
 
@@ -24,6 +33,7 @@ export const newPlayer = (username: string, joinedAt: number = Date.now()): Play
   lives: START_LIVES,
   joinedAt,
   wins: zeroCounts(),
+  losses: zeroCounts(),
   plays: zeroCounts(),
 });
 
@@ -71,7 +81,13 @@ export function startMatch(
 
   const players: Record<string, PlayerState> = {};
   for (const id of ids) {
-    players[id] = { ...state.players[id], lives: START_LIVES, wins: zeroCounts(), plays: zeroCounts() };
+    players[id] = {
+      ...state.players[id],
+      lives: START_LIVES,
+      wins: zeroCounts(),
+      losses: zeroCounts(),
+      plays: zeroCounts(),
+    };
   }
 
   return drawNextGame(
@@ -140,6 +156,7 @@ export function applyRoundResult(state: MatchState, winnerId: string | null): Ro
       ...p,
       lives: loses ? Math.max(0, p.lives - 1) : p.lives,
       wins: { ...p.wins, [domain]: p.wins[domain] + (id === winnerId ? 1 : 0) },
+      losses: { ...p.losses, [domain]: p.losses[domain] + (loses ? 1 : 0) },
       plays: { ...p.plays, [domain]: p.plays[domain] + 1 },
     };
   }
@@ -174,6 +191,7 @@ export type Settlement = {
   wins: DomainCount;
   plays: DomainCount;
   totalWins: number;
+  pointsDelta: DomainCount; // per domain: wins x WIN_POINTS minus losses x LOSS_POINTS (can be negative)
 };
 
 // What a finished match changes on ONE player's profile. Each phone applies its
@@ -187,7 +205,21 @@ export function settlementFor(state: MatchState, uid: string): Settlement {
     wins: me.wins,
     plays: me.plays,
     totalWins: me.wins.logic + me.wins.experience + me.wins.chance,
+    pointsDelta: {
+      logic: me.wins.logic * WIN_POINTS - me.losses.logic * LOSS_POINTS,
+      experience: me.wins.experience * WIN_POINTS - me.losses.experience * LOSS_POINTS,
+      chance: me.wins.chance * WIN_POINTS - me.losses.chance * LOSS_POINTS,
+    },
   };
 }
 
 export const applyTickets = (tickets: number, delta: number) => Math.max(0, tickets + delta);
+
+// Adds a match's points to a profile's points. Each domain stops at 0.
+export function applyPoints(current: DomainCount, delta: DomainCount): DomainCount {
+  return {
+    logic: Math.max(0, current.logic + delta.logic),
+    experience: Math.max(0, current.experience + delta.experience),
+    chance: Math.max(0, current.chance + delta.chance),
+  };
+}
