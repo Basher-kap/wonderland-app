@@ -51,6 +51,8 @@ export type RoundState = {
   // false when the round is drawn; the host sets it to true once EVERY player has finished
   // reading the intro, and that is the moment all the boards start together.
   go?: boolean;
+  // Set when the match was ended because this player forfeited it (the round counts for nobody).
+  quitBy?: string;
   status: 'active' | 'done';
   winnerId: string | null;
 };
@@ -213,6 +215,34 @@ export function applyRoundResult(state: MatchState, winnerId: string | null): Ro
     finished,
     eliminated,
     matchWinnerId,
+  };
+}
+
+// A player forfeits the WHOLE match: they are out (0 lives), so the match ends for everybody,
+// exactly like when someone runs out of lives. The winner is whoever has the most lives left
+// (ties: whoever joined first). The unfinished round counts for nobody: no lives, no wins, no
+// losses, no points. The quitter's ticket goes down and the winner's goes up when the match is
+// settled, like any other match.
+export function forfeitMatch(state: MatchState, uid: string): MatchState {
+  if (state.status !== 'playing') throw new RuleError('The lobby is not in play.');
+  if (!state.players[uid]) throw new RuleError('That player is not in this lobby.');
+
+  const players: Record<string, PlayerState> = {
+    ...state.players,
+    [uid]: { ...state.players[uid], lives: 0 },
+  };
+  const alive = Object.entries(players)
+    .filter(([, p]) => p.lives > 0)
+    .sort(([, a], [, b]) => b.lives - a.lives || a.joinedAt - b.joinedAt);
+
+  return {
+    ...state,
+    status: 'finished',
+    winnerId: alive.length ? alive[0][0] : null,
+    players,
+    currentRound: state.currentRound
+      ? { ...state.currentRound, status: 'done', winnerId: null, quitBy: uid }
+      : state.currentRound,
   };
 }
 

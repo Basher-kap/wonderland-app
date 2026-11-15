@@ -25,6 +25,7 @@ import {
   applyRoundResult,
   applyTickets,
   drawNextGame,
+  forfeitMatch as forfeitMatchRule,
   newPlayer,
   settlementFor,
   startMatch,
@@ -44,6 +45,7 @@ import {
 //   lobbies/{CODE}    match state, hostId, playerIds[], matchId (per-player tallies live in players{})
 //   lobbies/{CODE}/results/{uid}  each player's own result for the current round (the host reads them all)
 //   lobbies/{CODE}/ready/{uid}    "I finished reading this round's intro" (the host starts the boards when all are in)
+//   lobbies/{CODE}/quits/{uid}    "I forfeit the whole match" (the host's phone ends the match)
 // ---------------------------------------------------------------------------
 
 export type LobbyPlayer = PlayerState;
@@ -304,6 +306,40 @@ export const startRound = (code: string) =>
     return { currentRound: { ...lobby.currentRound, go: true } };
   });
 
+// ----------------------------------------------------------- forfeit match ----
+// Quit the WHOLE match: you are out (0 lives), so the match ends for everybody. Only the host's
+// phone can write the lobby, so a player asks by writing a "quit" mark and the host's phone
+// applies it (see GameScreen). The host applies their own quit directly.
+export type QuitMark = { uid: string; matchId: string };
+
+export async function forfeitMatch(rawCode: string, matchId: string): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  const lobby = await getDoc(lobbyRef(code));
+  if (lobby.exists() && (lobby.data() as LobbyDoc).hostId === uid) {
+    await hostAction(code, (l) => matchFields(forfeitMatchRule(l, uid)));
+    return;
+  }
+  await setDoc(doc(database(), 'lobbies', code, 'quits', uid), { uid, matchId });
+}
+
+// HOST: apply somebody else's quit mark.
+export const applyQuit = (code: string, quitterId: string) =>
+  hostAction(code, (lobby) => matchFields(forfeitMatchRule(lobby, quitterId)));
+
+export function subscribeQuits(
+  rawCode: string,
+  onData: (marks: QuitMark[]) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'quits'),
+    (snap) => onData(snap.docs.map((d) => d.data() as QuitMark)),
+    onError
+  );
+}
+
 // ---------------------------------------------------------- round results ----
 // Every player saves THEIR OWN result for the round that is being played; the host's phone
 // reads all of them, asks the game who won (games/registry.ts) and calls resolveRound.
@@ -313,6 +349,7 @@ export type RoundResult = {
   roundNo: number;
   finished: boolean;
   totalMs: number;
+  forfeited?: boolean; // the player gave up this game: it counts as a loss
 };
 
 export async function submitResult(
@@ -328,6 +365,26 @@ export async function submitResult(
     roundNo: round.roundNo,
     finished: result.finished,
     totalMs: Math.max(0, Math.round(result.totalMs)),
+  });
+}
+
+// Give up THIS game only: it counts as a loss for this round, and everybody sees "forfeited".
+export async function forfeitGame(rawCode: string, round: { matchId: string; roundNo: number }): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // So the others do not keep waiting for a "ready" from somebody who gave up (ignore if already there).
+  try {
+    await markReady(code, round);
+  } catch {
+    /* already marked ready for this round */
+  }
+  await setDoc(doc(database(), 'lobbies', code, 'results', uid), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    finished: false,
+    totalMs: 0,
+    forfeited: true,
   });
 }
 

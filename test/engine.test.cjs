@@ -153,6 +153,13 @@ test('difficulty: the drawn round carries the game\'s difficulty (schulte easy, 
   assert.equal(seen['wordle'], 'normal');
 });
 
+test('a freshly drawn round has not started yet (go = false)', () => {
+  const s = start(['a', 'b']);
+  assert.equal(s.currentRound.go, false);
+  const next = e.drawNextGame(play(s, 'a').state);
+  assert.equal(next.currentRound.go, false);
+});
+
 test('points: easy x2, normal x3, hard x5, on wins AND losses', () => {
   for (const [difficulty, m] of Object.entries(MULT)) {
     const s0 = start(['a', 'b']);
@@ -219,6 +226,51 @@ test('start resets losses and match points too', () => {
   const dirty = lobby(['a', 'b']);
   dirty.players.a.pts = { logic: 50, experience: 0, chance: 0 };
   assert.equal(sum(e.startMatch(dirty, 'm2').players.a.pts), 0);
+});
+
+test('forfeit match: the quitter is out, the match ends, the other player wins', () => {
+  const s = start(['a', 'b']);
+  const f = e.forfeitMatch(s, 'b');
+  assert.equal(f.status, 'finished');
+  assert.equal(f.players.b.lives, 0);
+  assert.equal(f.players.a.lives, 10);
+  assert.equal(f.winnerId, 'a');
+  assert.equal(f.currentRound.status, 'done');
+  assert.equal(f.currentRound.winnerId, null);
+  assert.equal(f.currentRound.quitBy, 'b');
+  assert.equal(e.settlementFor(f, 'a').ticketDelta, 1);
+  assert.equal(e.settlementFor(f, 'b').ticketDelta, -1);
+});
+
+test('forfeit match: the unfinished round counts for nobody', () => {
+  const f = e.forfeitMatch(start(['a', 'b', 'c']), 'c');
+  for (const id of ['a', 'b', 'c']) {
+    assert.equal(sum(f.players[id].plays), 0);
+    assert.equal(sum(f.players[id].wins) + sum(f.players[id].losses), 0);
+    assert.deepEqual(e.settlementFor(f, id).pointsDelta, { logic: 0, experience: 0, chance: 0 });
+  }
+});
+
+test('forfeit match with 3 players ends it for everybody; most lives wins, ties go to the earlier joiner', () => {
+  let s = start(['a', 'b', 'c']);
+  s = { ...s, players: { a: { ...s.players.a, lives: 6 }, b: { ...s.players.b, lives: 8 }, c: { ...s.players.c, lives: 9 } } };
+  const f = e.forfeitMatch(s, 'c');
+  assert.equal(f.status, 'finished');
+  assert.equal(f.winnerId, 'b');
+  assert.equal(e.settlementFor(f, 'a').ticketDelta, 0);
+  assert.equal(e.settlementFor(f, 'c').ticketDelta, -1);
+  const tie = e.forfeitMatch(start(['a', 'b', 'c']), 'a'); // b and c both have 10, b joined first
+  assert.equal(tie.winnerId, 'b');
+});
+
+test('forfeit match: only in play, only a real player, input not mutated', () => {
+  const s = start(['a', 'b']);
+  const copy = JSON.parse(JSON.stringify(s));
+  assert.throws(() => e.forfeitMatch(s, 'zzz'), /not in this lobby/);
+  e.forfeitMatch(s, 'a');
+  assert.deepEqual(s, copy);
+  assert.throws(() => e.forfeitMatch(e.forfeitMatch(s, 'a'), 'b'), /not in play/);
+  assert.throws(() => e.forfeitMatch(lobby(['a', 'b']), 'a'), /not in play/);
 });
 
 test('leg 1 plays each of the 11 games once, then leg 2 starts', () => {

@@ -32,6 +32,8 @@ export function GameScreen() {
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [results, setResults] = useState<api.RoundResult[]>([]);
   const [ready, setReady] = useState<api.ReadyMark[]>([]);
+  const [quits, setQuits] = useState<api.QuitMark[]>([]);
+  const [quitSent, setQuitSent] = useState(false); // I forfeited the match, waiting for the host's phone
   const [startedKey, setStartedKey] = useState<string | null>(null); // round whose countdown has ended
   const [count, setCount] = useState<number | null>(null); // 3, 2, 1 before the board starts
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,7 @@ export function GameScreen() {
   const resolving = useRef<string | null>(null);
   const readySent = useRef<string | null>(null);
   const starting = useRef<string | null>(null);
+  const quitting = useRef<string | null>(null);
   const practiceSeed = useMemo(() => Math.random().toString(36).slice(2), []);
   const code = params.code;
 
@@ -58,6 +61,11 @@ export function GameScreen() {
   useEffect(() => {
     if (isDemoMode || !code) return;
     return api.subscribeReady(code, setReady, (e) => console.warn('ready listener failed', e));
+  }, [code]);
+
+  useEffect(() => {
+    if (isDemoMode || !code) return;
+    return api.subscribeQuits(code, setQuits, (e) => console.warn('quits listener failed', e));
   }, [code]);
 
   const round = lobby?.currentRound ?? null;
@@ -132,6 +140,18 @@ export function GameScreen() {
     });
   }, [isHost, needsStart, go, allReady, code, roundKey]);
 
+  // HOST: somebody forfeited the whole match, so end it (the quitter is out, which ends it for all).
+  useEffect(() => {
+    if (!isHost || !lobby || lobby.status !== 'playing' || !code) return;
+    const q = quits.find((x) => x.matchId === lobby.matchId && !!lobby.players[x.uid]);
+    if (!q || quitting.current === q.uid) return;
+    quitting.current = q.uid;
+    api.applyQuit(code, q.uid).catch((e) => {
+      quitting.current = null;
+      console.warn('apply quit failed', e);
+    });
+  }, [isHost, lobby, quits, code]);
+
   // 3. Everybody: once the host says go, count 3-2-1 and then show the board.
   useEffect(() => {
     if (!needsStart || !introDone || !go || startedKey === roundKey) return;
@@ -192,15 +212,41 @@ export function GameScreen() {
     void sendResult(roundKey, result);
   };
 
-  // HOST, when somebody is stuck: end the round now. Whoever has not finished counts as "did not finish".
-  const endRoundNow = () => {
-    if (!gameModule || !lobby || !code) return;
-    const list: ResultRow[] = lobby.playerIds.map(
-      (id) => roundResults.find((r) => r.uid === id) ?? { uid: id, finished: false, totalMs: 0 }
+  // Leaving options. Giving up this game counts as a loss for this round; giving up the match
+  // ends the whole match for everybody (the quitter loses it).
+  const confirmForfeitGame = () =>
+    Alert.alert('Forfeit this game?', 'You lose this round (and a life), and everyone will see that you forfeited.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Forfeit game',
+        style: 'destructive',
+        onPress: () =>
+          void run(async () => {
+            if (!lobby || !round || !code) return;
+            await api.forfeitGame(code, { matchId: lobby.matchId, roundNo: round.no });
+            setLocal({ key: roundKey, result: { finished: false, totalMs: 0 }, sent: true });
+          }),
+      },
+    ]);
+
+  const confirmForfeitMatch = () =>
+    Alert.alert(
+      'Forfeit the match?',
+      'You lose the match and a ticket, and the match ends for everyone in this lobby.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Forfeit match',
+          style: 'destructive',
+          onPress: () =>
+            void run(async () => {
+              if (!lobby || !code) return;
+              await api.forfeitMatch(code, lobby.matchId);
+              setQuitSent(true);
+            }),
+        },
+      ]
     );
-    resolving.current = roundKey;
-    void run(() => api.resolveRound(code, gameModule.pickWinner(list)));
-  };
 
   if (!game) {
     return (
@@ -218,7 +264,8 @@ export function GameScreen() {
 
   const waitingToStart = !!lobby && !!gameModule && roundActive && !started && !mine;
   const playing = inRound && !!gameModule && !mine && started;
-  const describe = (r: ResultRow) => (gameModule ? gameModule.describe(r) : '');
+  const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');
+  const forfeiters = roundResults.filter((r) => r.forfeited);
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
@@ -296,6 +343,11 @@ export function GameScreen() {
                 Match over.{winnerName ? ` Winner: ${winnerName}` : ''} Tickets update automatically.
               </Text>
             )}
+            {finished && round?.quitBy && (
+              <Text style={[styles.boxText, { color: colors.accent }]}>
+                {`${lobby.players[round.quitBy]?.username ?? 'A player'} forfeited the match.`}
+              </Text>
+            )}
             {finished && pointsDelta && (
               <View style={{ gap: 6, marginTop: 4 }}>
                 <Text style={[styles.boxText, { color: colors.text }]}>Your points this match:</Text>
@@ -318,15 +370,6 @@ export function GameScreen() {
               <Text style={[styles.boxText, { marginTop: 8 }]}>
                 Result sent. Waiting for the other players… ({roundResults.length}/{lobby.playerIds.length} finished)
               </Text>
-            )}
-            {roundActive && gameModule && isHost && !everyoneIn && (
-              <Button
-                label="End round now (unfinished players lose)"
-                variant="secondary"
-                disabled={busy}
-                onPress={endRoundNow}
-                style={{ marginTop: 10 }}
-              />
             )}
 
             {/* Games that are not built yet: temporary host buttons */}
@@ -363,6 +406,12 @@ export function GameScreen() {
                   : 'Draw: nobody loses a life.'}
               </Text>
             )}
+            {(roundDone || finished) &&
+              forfeiters.map((r) => (
+                <Text key={r.uid} style={[styles.boxText, { color: colors.accent }]}>
+                  {`${lobby.players[r.uid]?.username ?? 'A player'} forfeited this game.`}
+                </Text>
+              ))}
             {roundDone && isHost && (
               <Button
                 label="Draw next game"
@@ -377,6 +426,19 @@ export function GameScreen() {
               </Text>
             )}
           </View>
+        )}
+
+        {/* The only ways out while a round is being played */}
+        {lobby && roundActive && !quitSent && (
+          <View style={styles.leave}>
+            {gameModule && !mine && !myResult && (
+              <Button label="Forfeit game" variant="secondary" disabled={busy} onPress={confirmForfeitGame} />
+            )}
+            <Button label="Forfeit match" variant="secondary" disabled={busy} onPress={confirmForfeitMatch} />
+          </View>
+        )}
+        {lobby && roundActive && quitSent && (
+          <Text style={styles.boxText}>You forfeited the match. Ending it now…</Text>
         )}
       </ScrollView>
       {!locked && (
@@ -413,6 +475,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: colors.muted },
+  leave: { gap: 8, marginTop: 8 },
   countdown: { color: colors.text, fontSize: 72, fontWeight: '800', textAlign: 'center', paddingVertical: 24 },
   footer: { padding: 20 },
 });

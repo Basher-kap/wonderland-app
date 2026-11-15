@@ -5,7 +5,7 @@ import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
 // no entry still uses the temporary "host picks the winner" buttons.
-export type ResultRow = { uid: string; finished: boolean; totalMs: number };
+export type ResultRow = { uid: string; finished: boolean; totalMs: number; forfeited?: boolean };
 
 export type GameModule = {
   Component: React.ComponentType<GameProps>;
