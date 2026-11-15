@@ -12,6 +12,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import {
@@ -41,6 +42,7 @@ import {
 //                     totalWins, lastMatchSettled
 //   usernames/{lower} { uid }   keeps usernames unique
 //   lobbies/{CODE}    match state, hostId, playerIds[], matchId (per-player tallies live in players{})
+//   lobbies/{CODE}/results/{uid}  each player's own result for the current round (the host reads them all)
 // ---------------------------------------------------------------------------
 
 export type LobbyPlayer = PlayerState;
@@ -259,10 +261,50 @@ export const startLobby = (code: string) =>
 
 export const nextRound = (code: string) => hostAction(code, (lobby) => matchFields(drawNextGame(lobby)));
 
-// Losers lose 1 life, a null winner is a draw. For now the host picks the winner by
-// hand (game boards are not built yet); later each game will report its own result.
+// Losers lose 1 life, a null winner is a draw. Games that are built decide the winner from
+// the players' results; games that are not built yet use the temporary host buttons.
 export const resolveRound = (code: string, winnerId: string | null) =>
   hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId).state));
+
+// ---------------------------------------------------------- round results ----
+// Every player saves THEIR OWN result for the round that is being played; the host's phone
+// reads all of them, asks the game who won (games/registry.ts) and calls resolveRound.
+export type RoundResult = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  finished: boolean;
+  totalMs: number;
+};
+
+export async function submitResult(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  result: { finished: boolean; totalMs: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  await setDoc(doc(database(), 'lobbies', code, 'results', uid), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    finished: result.finished,
+    totalMs: Math.max(0, Math.round(result.totalMs)),
+  });
+}
+
+export function subscribeResults(
+  rawCode: string,
+  onData: (results: RoundResult[]) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'results'),
+    (snap) => onData(snap.docs.map((d) => d.data() as RoundResult)),
+    onError
+  );
+}
 
 // ------------------------------------------------------ settle a match ----
 // Each player calls this for themselves once the lobby is finished: it applies

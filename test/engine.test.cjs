@@ -127,16 +127,52 @@ test('bystanders in a 3-player match get ticket change 0', () => {
   assert.equal(e.settlementFor(r.state, 'c').ticketDelta, -1);
 });
 
-test('points: a win adds 10 and a loss takes 5, in the domain of the game played', () => {
+const MULT = { easy: 2, normal: 3, hard: 5 };
+
+test('points: a win adds 10 and a loss takes 5, times the round difficulty, in the game domain', () => {
   const s = start(['a', 'b', 'c']);
   const domain = domainOf(s.currentRound.gameId);
+  const m = MULT[s.currentRound.difficulty];
   const { state } = play(s, 'a');
   assert.equal(state.players.a.wins[domain], 1);
   assert.equal(state.players.b.losses[domain], 1);
   assert.equal(state.players.c.losses[domain], 1);
   assert.equal(sum(state.players.a.losses), 0);
-  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'a').pointsDelta[domain], 10);
-  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'b').pointsDelta[domain], -5);
+  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'a').pointsDelta[domain], 10 * m);
+  assert.equal(e.settlementFor({ ...state, status: 'finished', winnerId: 'a' }, 'b').pointsDelta[domain], -5 * m);
+});
+
+test('difficulty: the drawn round carries the game\'s difficulty (schulte easy, the rest normal for now)', () => {
+  let s = start(['a', 'b', 'c']);
+  const seen = {};
+  for (let i = 0; i < 11; i++) {
+    seen[s.currentRound.gameId] = s.currentRound.difficulty;
+    if (i < 10) s = e.drawNextGame(play(s, ['a', 'b', 'c'][i % 3]).state);
+  }
+  assert.equal(seen['schulte-table'], 'easy');
+  assert.equal(seen['wordle'], 'normal');
+});
+
+test('points: easy x2, normal x3, hard x5, on wins AND losses', () => {
+  for (const [difficulty, m] of Object.entries(MULT)) {
+    const s0 = start(['a', 'b']);
+    const s = { ...s0, currentRound: { ...s0.currentRound, difficulty } };
+    const domain = domainOf(s.currentRound.gameId);
+    const { state } = play(s, 'b');
+    assert.equal(state.players.b.pts[domain], 10 * m, difficulty + ' win');
+    assert.equal(state.players.a.pts[domain], -5 * m, difficulty + ' loss');
+    const other = ['logic', 'experience', 'chance'].filter((d) => d !== domain);
+    assert.ok(other.every((d) => state.players.a.pts[d] === 0 && state.players.b.pts[d] === 0), 'other domains untouched');
+  }
+});
+
+test('points: a round saved without difficulty falls back to the game\'s difficulty', () => {
+  const s0 = start(['a', 'b']);
+  const { difficulty, ...round } = s0.currentRound;
+  const domain = domainOf(round.gameId);
+  const expected = round.gameId === 'schulte-table' ? 2 : 3;
+  const { state } = play({ ...s0, currentRound: round }, 'a');
+  assert.equal(state.players.a.pts[domain], 10 * expected);
 });
 
 test('points: a draw changes nobody\'s points', () => {
@@ -148,20 +184,22 @@ test('points: a draw changes nobody\'s points', () => {
   }
 });
 
-test('points: a whole match nets wins x 10 minus losses x 5 per domain', () => {
+test('points: a whole match adds up every round\'s multiplied win or loss, per domain', () => {
   let s = start(['a', 'b', 'c']);
   const order = ['a', 'a', 'b', 'a', 'c', 'a', 'b', 'a'];
+  const expected = { a: { logic: 0, experience: 0, chance: 0 }, b: { logic: 0, experience: 0, chance: 0 }, c: { logic: 0, experience: 0, chance: 0 } };
   let result;
   for (let i = 0; i < order.length; i++) {
+    const domain = domainOf(s.currentRound.gameId);
+    const m = MULT[s.currentRound.difficulty];
+    for (const id of ['a', 'b', 'c']) expected[id][domain] += id === order[i] ? 10 * m : -5 * m;
     result = play(s, order[i]);
     s = result.finished ? result.state : e.drawNextGame(result.state);
     if (result.finished) break;
   }
   const fin = result.state.status === 'finished' ? result.state : { ...result.state, status: 'finished', winnerId: 'a' };
   for (const id of ['a', 'b', 'c']) {
-    const p = fin.players[id];
-    const d = e.settlementFor(fin, id).pointsDelta;
-    assert.equal(sum(d), sum(p.wins) * 10 - sum(p.losses) * 5);
+    assert.deepEqual(e.settlementFor(fin, id).pointsDelta, expected[id]);
   }
   // plays = wins + losses + draws, and this match had no draws
   for (const id of ['a', 'b', 'c']) {
@@ -175,9 +213,12 @@ test('points: never below 0 per domain, and domains are independent', () => {
   assert.deepEqual(out, { logic: 0, experience: 30, chance: 0 });
 });
 
-test('start resets losses too', () => {
+test('start resets losses and match points too', () => {
   const s = start(['a', 'b']);
-  assert.ok(Object.values(s.players).every((p) => sum(p.losses) === 0));
+  assert.ok(Object.values(s.players).every((p) => sum(p.losses) === 0 && sum(p.pts) === 0));
+  const dirty = lobby(['a', 'b']);
+  dirty.players.a.pts = { logic: 50, experience: 0, chance: 0 };
+  assert.equal(sum(e.startMatch(dirty, 'm2').players.a.pts), 0);
 });
 
 test('leg 1 plays each of the 11 games once, then leg 2 starts', () => {

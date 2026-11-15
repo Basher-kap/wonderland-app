@@ -1,26 +1,40 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge, DomainStat } from '../components/ui';
+import { RoundIntro } from '../components/RoundIntro';
 import { useAuth } from '../context/AuthContext';
-import { getGame } from '../data/games';
+import { DIFFICULTY_MULTIPLIER, difficultyOf, getGame } from '../data/games';
 import { DomainCount, settlementFor } from '../game/engine';
+import { GAME_MODULES } from '../games/registry';
+import type { ResultRow } from '../games/registry';
+import type { GameResult } from '../games/types';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, DOMAIN_ORDER, radius } from '../theme';
 import type { RootStackParamList } from '../navigation/types';
 
-// PLACEHOLDER: rules per game are TBA, so this screen shows what the game is plus
-// TEMPORARY host controls that let you finish rounds by hand and test the whole
-// loop (lives, next game, tickets). Each game will become its own component.
+// One round, as every player sees it:
+//   1. the intro dialogs (RoundIntro): domain + difficulty, Japanese name, rule, clear condition
+//   2. the game itself (games/registry.ts), which reports this player's result when done
+//   3. waiting for the others; the HOST's phone then asks the game who won and ends the round
+// Games that are not built yet (no entry in the registry) still use the temporary host buttons.
+// Without a lobby (opened from the Home list) the game is a solo practice run.
 export function GameScreen() {
   const navigation = useNavigation();
   const { params } = useRoute<RouteProp<RootStackParamList, 'Game'>>();
   const { uid } = useAuth();
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
+  const [results, setResults] = useState<api.RoundResult[]>([]);
   const [busy, setBusy] = useState(false);
+  const [introDoneFor, setIntroDoneFor] = useState<string | null>(null);
+  // This player's own result for the round, kept here so the screen reacts at once
+  // (the copy in Firestore arrives a moment later).
+  const [local, setLocal] = useState<{ key: string; result: GameResult; sent: boolean } | null>(null);
+  const resolving = useRef<string | null>(null);
+  const practiceSeed = useMemo(() => Math.random().toString(36).slice(2), []);
   const code = params.code;
 
   useEffect(() => {
@@ -28,19 +42,58 @@ export function GameScreen() {
     return api.subscribeLobby(code, setLobby, (e) => console.warn('lobby listener failed', e));
   }, [code]);
 
+  useEffect(() => {
+    if (isDemoMode || !code) return;
+    return api.subscribeResults(code, setResults, (e) => console.warn('results listener failed', e));
+  }, [code]);
+
   const round = lobby?.currentRound ?? null;
   const game = getGame(round?.gameId ?? params.gameId);
+  const gameModule = game ? GAME_MODULES[game.id] : undefined;
   const isHost = !!lobby && lobby.hostId === uid;
   const finished = lobby?.status === 'finished';
   const roundActive = !finished && round?.status === 'active';
   const roundDone = !finished && round?.status === 'done';
   const players = lobby ? Object.entries<api.LobbyPlayer>(lobby.players) : [];
   const winnerName = lobby?.winnerId ? lobby.players[lobby.winnerId]?.username : undefined;
+  const roundWinnerName = round?.winnerId ? lobby?.players[round.winnerId]?.username : undefined;
+
+  // "<matchId>:<round number>" is the same for everybody, so it is also the game's seed
+  // (everyone gets the same first board). A practice run has its own random seed.
+  const roundKey = lobby && round ? `${lobby.matchId}:${round.no}` : `practice:${practiceSeed}`;
+  const difficulty = round?.difficulty ?? (game ? difficultyOf(game) : 'normal');
+  const multiplier = DIFFICULTY_MULTIPLIER[difficulty];
+  const introDone = introDoneFor === roundKey;
+
+  // Only this round's results (older rounds' results stay in the lobby until overwritten).
+  const roundResults = useMemo(
+    () =>
+      lobby && round
+        ? results.filter(
+            (r) => r.matchId === lobby.matchId && r.roundNo === round.no && !!lobby.players[r.uid]
+          )
+        : [],
+    [results, lobby, round]
+  );
+  const myResult = roundResults.find((r) => r.uid === uid);
+  const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
+  const mine = local?.key === roundKey ? local : null;
+
+  // HOST: as soon as everybody has handed in a result, the game decides the winner.
+  useEffect(() => {
+    if (!isHost || !roundActive || !gameModule || !code || !everyoneIn) return;
+    if (resolving.current === roundKey) return;
+    resolving.current = roundKey;
+    api.resolveRound(code, gameModule.pickWinner(roundResults)).catch((e) => {
+      resolving.current = null; // allow another try (the other phone may also have raced us)
+      console.warn('resolve failed', e);
+    });
+  }, [isHost, roundActive, gameModule, code, everyoneIn, roundKey, roundResults]);
 
   // What this finished match did to MY ranking points (saved to my profile automatically).
   const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
   let pointsDelta: DomainCount | null = null;
-  if (finished && lobby && uid && lobby.players[uid]?.losses) {
+  if (finished && lobby && uid && lobby.players[uid]?.pts) {
     pointsDelta = settlementFor(lobby, uid).pointsDelta;
   }
 
@@ -55,6 +108,32 @@ export function GameScreen() {
     }
   };
 
+  const sendResult = async (key: string, result: GameResult) => {
+    if (!lobby || !round || !code) return; // practice run: nothing to send
+    try {
+      await api.submitResult(code, { matchId: lobby.matchId, roundNo: round.no }, result);
+      setLocal({ key, result, sent: true });
+    } catch (e) {
+      setLocal({ key, result, sent: false });
+      Alert.alert('Game', api.errorMessage(e));
+    }
+  };
+
+  const onFinish = (result: GameResult) => {
+    setLocal({ key: roundKey, result, sent: !lobby });
+    void sendResult(roundKey, result);
+  };
+
+  // HOST, when somebody is stuck: end the round now. Whoever has not finished counts as "did not finish".
+  const endRoundNow = () => {
+    if (!gameModule || !lobby || !code) return;
+    const list: ResultRow[] = lobby.playerIds.map(
+      (id) => roundResults.find((r) => r.uid === id) ?? { uid: id, finished: false, totalMs: 0 }
+    );
+    resolving.current = roundKey;
+    void run(() => api.resolveRound(code, gameModule.pickWinner(list)));
+  };
+
   if (!game) {
     return (
       <SafeAreaView style={styles.root}>
@@ -63,28 +142,60 @@ export function GameScreen() {
     );
   }
 
+  // 1. Intro dialogs, full screen, for an active round (or a practice run).
+  const inRound = lobby ? roundActive : !code; // a lobby that is still loading is not a practice run
+  if (inRound && !introDone) {
+    return <RoundIntro key={roundKey} game={game} difficulty={difficulty} onDone={() => setIntroDoneFor(roundKey)} />;
+  }
+
+  const playing = inRound && !!gameModule && !mine;
+  const describe = (r: ResultRow) => (gameModule ? gameModule.describe(r) : '');
+
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.body}>
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
-        <Text style={styles.desc}>{game.description}</Text>
+        {!playing && <Text style={styles.desc}>{game.description}</Text>}
+        {inRound && (
+          <Text style={styles.desc}>
+            Difficulty: {difficulty[0].toUpperCase() + difficulty.slice(1)} · points x{multiplier}
+          </Text>
+        )}
 
-        <View style={styles.box}>
-          <Text style={styles.boxTitle}>Rules</Text>
-          <Text style={styles.boxText}>To be announced.</Text>
-        </View>
+        {/* 2. The game board */}
+        {playing && gameModule && (
+          <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} />
+        )}
+
+        {/* Practice run: show the result and let the player leave */}
+        {!lobby && mine && gameModule && (
+          <View style={styles.box}>
+            <Text style={styles.boxTitle}>Practice result</Text>
+            <Text style={styles.boxText}>{describe({ uid: uid ?? 'practice', ...mine.result })}</Text>
+          </View>
+        )}
+        {!lobby && !gameModule && (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>This game board is not built yet</Text>
+          </View>
+        )}
 
         {lobby && (
           <View style={styles.box}>
             <Text style={styles.boxTitle}>
               Round {round?.no ?? '-'} · Leg {lobby.leg}
             </Text>
-            {players.map(([id, p]) => (
-              <Text key={id} style={styles.boxText}>
-                {p.username}   ♥ {p.lives}
-              </Text>
-            ))}
+            {players.map(([id, p]) => {
+              const r = roundResults.find((x) => x.uid === id);
+              return (
+                <Text key={id} style={styles.boxText}>
+                  {p.username}   ♥ {p.lives}
+                  {gameModule && (roundActive || roundDone) && r ? `   ${describe(r)}` : ''}
+                  {gameModule && roundActive && !r ? '   playing…' : ''}
+                </Text>
+              );
+            })}
 
             {finished && (
               <Text style={[styles.boxText, { marginTop: 8, color: colors.accent }]}>
@@ -102,10 +213,33 @@ export function GameScreen() {
               </View>
             )}
 
-            {roundActive && isHost && (
+            {/* 3. Waiting for the others / ending the round */}
+            {roundActive && gameModule && mine && !myResult && !mine.sent && (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                <Text style={styles.boxText}>Your result was not sent yet.</Text>
+                <Button label="Send my result again" disabled={busy} onPress={() => void sendResult(roundKey, mine.result)} />
+              </View>
+            )}
+            {roundActive && gameModule && mine && (myResult || mine.sent) && (
+              <Text style={[styles.boxText, { marginTop: 8 }]}>
+                Result sent. Waiting for the other players…
+              </Text>
+            )}
+            {roundActive && gameModule && isHost && !everyoneIn && (
+              <Button
+                label="End round now (unfinished players lose)"
+                variant="secondary"
+                disabled={busy}
+                onPress={endRoundNow}
+                style={{ marginTop: 10 }}
+              />
+            )}
+
+            {/* Games that are not built yet: temporary host buttons */}
+            {roundActive && !gameModule && isHost && (
               <View style={{ gap: 8, marginTop: 10 }}>
                 <Text style={styles.boxText}>
-                  Temporary host controls (game boards are not built yet): who won this round?
+                  Temporary host controls (this game board is not built yet): who won this round?
                 </Text>
                 {players.map(([id, p]) => (
                   <Button
@@ -124,10 +258,17 @@ export function GameScreen() {
                 />
               </View>
             )}
-            {roundActive && !isHost && (
+            {roundActive && !gameModule && !isHost && (
               <Text style={[styles.boxText, { marginTop: 8 }]}>Round in progress…</Text>
             )}
 
+            {roundDone && (
+              <Text style={[styles.boxText, { marginTop: 8, color: colors.accent }]}>
+                {round?.winnerId
+                  ? `${roundWinnerName ?? 'A player'} won the round. Everyone else lost a life.`
+                  : 'Draw: nobody loses a life.'}
+              </Text>
+            )}
             {roundDone && isHost && (
               <Button
                 label="Draw next game"
@@ -141,12 +282,6 @@ export function GameScreen() {
                 Round finished. Waiting for the host to draw the next game…
               </Text>
             )}
-          </View>
-        )}
-
-        {!lobby && (
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>Game board goes here</Text>
           </View>
         )}
       </ScrollView>

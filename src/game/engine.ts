@@ -2,7 +2,8 @@
 // a new state, so it can be tested on its own (see app/test/engine.test.cjs).
 // The app runs these rules on the host's phone and saves the result to Firestore.
 
-import { GAMES } from '../data/games';
+import { DEFAULT_DIFFICULTY, DIFFICULTY_MULTIPLIER, GAMES, difficultyOf } from '../data/games';
+import type { Difficulty } from '../data/games';
 import type { Domain } from '../theme';
 
 export const START_LIVES = 10;
@@ -10,9 +11,11 @@ export const MAX_PLAYERS = 8;
 
 // Personal ranking points, kept per domain on each player's own profile. They have
 // nothing to do with lives or tickets. A round WON adds WIN_POINTS in that game's
-// domain, a round LOST takes away LOSS_POINTS (a draw changes nothing). A domain's
-// points never go below 0. IMPORTANT: backend/firestore.rules repeats these two
-// numbers (10 and 5), so change them in both places.
+// domain, a round LOST takes away LOSS_POINTS (a draw changes nothing). Both are
+// multiplied by the difficulty of that one game (x2 easy, x3 normal, x5 hard, see
+// DIFFICULTY_MULTIPLIER in data/games.ts). A domain's points never go below 0.
+// IMPORTANT: backend/firestore.rules repeats the base numbers (10 and 5) and the largest
+// multiplier (5) as a sanity limit, so change them in both places.
 export const WIN_POINTS = 10;
 export const LOSS_POINTS = 5;
 
@@ -26,6 +29,9 @@ export type PlayerState = {
   wins: DomainCount; // rounds won in this match, per domain
   losses: DomainCount; // rounds lost in this match, per domain (a draw is neither)
   plays: DomainCount; // rounds played in this match, per domain
+  // Ranking points earned in this match per domain: signed, already multiplied by each round's
+  // difficulty. Added to the player's profile points when the match is settled.
+  pts: DomainCount;
 };
 
 export const newPlayer = (username: string, joinedAt: number = Date.now()): PlayerState => ({
@@ -35,11 +41,13 @@ export const newPlayer = (username: string, joinedAt: number = Date.now()): Play
   wins: zeroCounts(),
   losses: zeroCounts(),
   plays: zeroCounts(),
+  pts: zeroCounts(),
 });
 
 export type RoundState = {
   no: number;
   gameId: string;
+  difficulty?: Difficulty; // missing on rounds saved before difficulty existed
   status: 'active' | 'done';
   winnerId: string | null;
 };
@@ -87,6 +95,7 @@ export function startMatch(
       wins: zeroCounts(),
       losses: zeroCounts(),
       plays: zeroCounts(),
+      pts: zeroCounts(),
     };
   }
 
@@ -118,12 +127,19 @@ export function drawNextGame(state: MatchState, rand: () => number = Math.random
     queue = shuffle(allGameIds(), rand);
   }
   const [gameId, ...rest] = queue;
+  const game = GAMES.find((g) => g.id === gameId);
 
   return {
     ...state,
     leg,
     gameQueue: rest,
-    currentRound: { no: (state.currentRound?.no ?? 0) + 1, gameId, status: 'active', winnerId: null },
+    currentRound: {
+      no: (state.currentRound?.no ?? 0) + 1,
+      gameId,
+      difficulty: game ? difficultyOf(game) : DEFAULT_DIFFICULTY,
+      status: 'active',
+      winnerId: null,
+    },
   };
 }
 
@@ -146,8 +162,11 @@ export function applyRoundResult(state: MatchState, winnerId: string | null): Ro
   if (winnerId !== null && !state.players[winnerId]) {
     throw new RuleError('That player is not in this lobby.');
   }
-  const domain = GAMES.find((g) => g.id === state.currentRound?.gameId)?.domain;
-  if (!domain) throw new Error('Unknown game in current round.');
+  const game = GAMES.find((g) => g.id === state.currentRound?.gameId);
+  if (!game) throw new Error('Unknown game in current round.');
+  const domain = game.domain;
+  const difficulty = state.currentRound.difficulty ?? difficultyOf(game);
+  const multiplier = DIFFICULTY_MULTIPLIER[difficulty];
 
   const players: Record<string, PlayerState> = {};
   for (const [id, p] of Object.entries(state.players)) {
@@ -158,6 +177,13 @@ export function applyRoundResult(state: MatchState, winnerId: string | null): Ro
       wins: { ...p.wins, [domain]: p.wins[domain] + (id === winnerId ? 1 : 0) },
       losses: { ...p.losses, [domain]: p.losses[domain] + (loses ? 1 : 0) },
       plays: { ...p.plays, [domain]: p.plays[domain] + 1 },
+      pts: {
+        ...zeroCounts(),
+        ...p.pts,
+        [domain]:
+          (p.pts?.[domain] ?? 0) +
+          (id === winnerId ? WIN_POINTS * multiplier : loses ? -LOSS_POINTS * multiplier : 0),
+      },
     };
   }
 
@@ -191,7 +217,7 @@ export type Settlement = {
   wins: DomainCount;
   plays: DomainCount;
   totalWins: number;
-  pointsDelta: DomainCount; // per domain: wins x WIN_POINTS minus losses x LOSS_POINTS (can be negative)
+  pointsDelta: DomainCount; // per domain: the match's difficulty-multiplied win/loss points (can be negative)
 };
 
 // What a finished match changes on ONE player's profile. Each phone applies its
@@ -205,11 +231,7 @@ export function settlementFor(state: MatchState, uid: string): Settlement {
     wins: me.wins,
     plays: me.plays,
     totalWins: me.wins.logic + me.wins.experience + me.wins.chance,
-    pointsDelta: {
-      logic: me.wins.logic * WIN_POINTS - me.losses.logic * LOSS_POINTS,
-      experience: me.wins.experience * WIN_POINTS - me.losses.experience * LOSS_POINTS,
-      chance: me.wins.chance * WIN_POINTS - me.losses.chance * LOSS_POINTS,
-    },
+    pointsDelta: { ...zeroCounts(), ...me.pts },
   };
 }
 
