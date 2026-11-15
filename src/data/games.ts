@@ -7,8 +7,8 @@ export type Game = {
   description: string;
 };
 
-// Keep the ids in sync with GAMES in backend/functions/src/engine.ts: the server
-// draws games by id. Rules per game are TBA, so the game screens are placeholders.
+// The game engine (src/game/engine.ts) draws games from this list by id.
+// Rules per game are TBA, so the game screens are placeholders.
 export const GAMES: Game[] = [
   { id: 'wordle', name: 'Wordle', domain: 'logic', description: 'Guess a 5-letter word within 5 tries.' },
   { id: 'human-calculator', name: 'Human Calculator', domain: 'logic', description: 'Calculate the numbers shown on screen as fast as possible.' },

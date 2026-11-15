@@ -24,24 +24,32 @@ export function LobbyScreen() {
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Live lobby: players joining, lives, and the game the server picked.
+  // Live lobby: players joining, lives, and the game the host's phone drew.
   useEffect(() => {
     if (isDemoMode) return;
-    return api.subscribeLobby(
-      params.code,
-      setLobby,
-      (e) => Alert.alert('Lobby', api.errorMessage(e))
-    );
+    return api.subscribeLobby(params.code, setLobby, (e) => Alert.alert('Lobby', api.errorMessage(e)));
   }, [params.code]);
 
-  // When the server starts a round, everyone in the lobby is taken to that game.
+  // When a round starts, everyone in the lobby is taken to that game.
   const roundNo = lobby?.currentRound?.no;
   const roundGame = lobby?.currentRound?.gameId;
   const roundActive = lobby?.status === 'playing' && lobby.currentRound?.status === 'active';
   useEffect(() => {
-    if (roundActive && roundGame) navigation.navigate('Game', { gameId: roundGame });
-  }, [roundActive, roundNo, roundGame, navigation]);
+    if (roundActive && roundGame) {
+      navigation.navigate('Game', { gameId: roundGame, code: params.code, round: roundNo });
+    }
+  }, [roundActive, roundNo, roundGame, params.code, navigation]);
 
+  // When the match ends, each player records their own result (tickets and scores).
+  const finished = lobby?.status === 'finished';
+  const matchId = lobby?.matchId;
+  useEffect(() => {
+    if (finished && matchId) {
+      api.settleMatch(params.code).catch((e) => console.warn('settleMatch failed', e));
+    }
+  }, [finished, matchId, params.code]);
+
+  const status = isDemoMode ? 'waiting' : lobby?.status ?? 'waiting';
   const isHost = isDemoMode ? params.host : lobby?.hostId === uid;
 
   const rows: Row[] = isDemoMode
@@ -55,6 +63,8 @@ export function LobbyScreen() {
         .map(([id, p]) => ({ id, name: p.username, lives: p.lives, isHost: lobby?.hostId === id }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
+  const winnerName = lobby?.winnerId ? lobby.players[lobby.winnerId]?.username : undefined;
+
   const start = async () => {
     if (isDemoMode) {
       const game = GAMES[Math.floor(Math.random() * GAMES.length)];
@@ -63,7 +73,7 @@ export function LobbyScreen() {
     }
     setBusy(true);
     try {
-      await api.startLobby(params.code); // the server draws the first game
+      await api.startLobby(params.code); // the host's phone draws the first game
     } catch (e) {
       Alert.alert('Could not start', api.errorMessage(e));
     } finally {
@@ -105,7 +115,11 @@ export function LobbyScreen() {
       />
 
       <View style={styles.footer}>
-        {isHost ? (
+        {status === 'finished' ? (
+          <Text style={styles.waiting}>Match finished.{winnerName ? ` Winner: ${winnerName}` : ''}</Text>
+        ) : status === 'playing' ? (
+          <Text style={styles.waiting}>Game in progress…</Text>
+        ) : isHost ? (
           <Button label="Start game" onPress={start} disabled={busy} />
         ) : (
           <Text style={styles.waiting}>Waiting for the host to start…</Text>

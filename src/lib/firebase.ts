@@ -2,10 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
-
-// Must match the region the Cloud Functions are deployed to (backend/functions/src/index.ts).
-export const FUNCTIONS_REGION = 'asia-southeast1';
 
 const config = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -32,4 +28,3 @@ function makeAuth(a: FirebaseApp) {
 
 export const auth = app ? makeAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
-export const functions = app ? getFunctions(app, FUNCTIONS_REGION) : null;

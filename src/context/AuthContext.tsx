@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 // Demo mode (no Firebase keys): everything lives in memory so you can click
 // through the UI. With keys, the signed-in user's profile is read live from
-// Firestore (users/{uid}) and changes go through Cloud Functions.
+// Firestore (users/{uid}) and changes are saved with Firestore transactions.
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(!isDemoMode);
   const [demoSignedIn, setDemoSignedIn] = useState(false);

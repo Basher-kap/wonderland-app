@@ -1,24 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { isDemoMode } from '../lib/firebase';
+import { getGoogleIdToken, googleErrorMessage } from '../lib/googleSignIn';
 import { colors } from '../theme';
 
 export function LoginScreen() {
-  const { signInDemo } = useAuth();
+  const { signInDemo, signInWithGoogleIdToken } = useAuth();
+  const [busy, setBusy] = useState(false);
 
-  const onGoogle = () => {
+  const onGoogle = async () => {
     if (isDemoMode) {
       signInDemo();
       return;
     }
-    // TODO: open the Google sign-in prompt, then call
-    // signInWithGoogleIdToken(idToken) from useAuth(). Needs a development build
-    // (it does not work in Expo Go). See SETUP.md, "Google sign-in".
-    Alert.alert('Google sign-in', 'Google sign-in is not connected yet. See SETUP.md.');
+    setBusy(true);
+    try {
+      const idToken = await getGoogleIdToken();
+      if (!idToken) return; // the player closed the Google prompt
+      // Firebase now knows the player; the app moves to the home screen on its own.
+      await signInWithGoogleIdToken(idToken);
+    } catch (e) {
+      Alert.alert('Google sign-in', googleErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -27,7 +36,7 @@ export function LoginScreen() {
         <Logo size={220} wordmark tagline />
       </View>
       <View style={styles.bottom}>
-        <Button label="Continue with Google" onPress={onGoogle} />
+        <Button label={busy ? 'Signing in…' : 'Continue with Google'} onPress={onGoogle} disabled={busy} />
         <Text style={styles.note}>
           {isDemoMode
             ? 'Demo mode: no Firebase keys found, so nothing is saved.'
