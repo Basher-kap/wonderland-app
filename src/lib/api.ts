@@ -1,5 +1,6 @@
 import {
   arrayRemove,
+  addDoc,
   arrayUnion,
   collection,
   deleteField,
@@ -7,6 +8,7 @@ import {
   getDoc,
   limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -366,6 +368,42 @@ export function subscribeProfile(
       const d = snap.data();
       if (d) onData({ username: d.username as string, tickets: (d.tickets ?? 0) as number });
     },
+    onError
+  );
+}
+
+// ------------------------------------------------------------ public chat ----
+export type ChatMessage = { id: string; uid: string; username: string; text: string; at: number };
+
+export const CHAT_MAX = 200;
+
+export async function sendChat(username: string, rawText: string): Promise<void> {
+  const text = rawText.trim().slice(0, CHAT_MAX);
+  if (!text) return;
+  if (!db || !auth?.currentUser) throw new Error('Not signed in.');
+  await addDoc(collection(db, 'chat'), {
+    uid: auth.currentUser.uid,
+    username,
+    text,
+    createdAt: serverTimestamp(),
+  });
+}
+
+// Newest 50 messages, delivered oldest first. Older ones simply scroll out of view.
+export function subscribeChat(onData: (msgs: ChatMessage[]) => void, onError?: (e: unknown) => void) {
+  if (!db) return () => {};
+  const q = query(collection(db, 'chat'), orderBy('createdAt', 'desc'), limit(50));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onData(
+        snap.docs
+          .map((d) => {
+            const v = d.data({ serverTimestamps: 'estimate' });
+            return { id: d.id, uid: v.uid, username: v.username, text: v.text, at: v.createdAt?.toMillis?.() ?? 0 };
+          })
+          .reverse()
+      ),
     onError
   );
 }

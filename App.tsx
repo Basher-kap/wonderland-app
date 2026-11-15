@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,12 +10,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
+import { ChatBubble } from './src/components/ChatBubble';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LeaderboardScreen } from './src/screens/LeaderboardScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LobbyScreen } from './src/screens/LobbyScreen';
 import { GameScreen } from './src/screens/GameScreen';
+
+const navRef = createNavigationContainerRef<RootStackParamList>();
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
@@ -85,12 +88,15 @@ function RootNavigator() {
 }
 
 export default function App() {
+  const [routeName, setRouteName] = useState<string | undefined>();
+  const track = () => setRouteName(navRef.getCurrentRoute()?.name);
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer theme={navTheme}>
+        <NavigationContainer ref={navRef} theme={navTheme} onReady={track} onStateChange={track}>
           <StatusBar style="light" />
           <RootNavigator />
+          <ChatBubble navRef={navRef} routeName={routeName} />
         </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
