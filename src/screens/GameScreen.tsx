@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
@@ -248,6 +248,43 @@ export function GameScreen() {
       ]
     );
 
+  // "Forfeit game" and "Forfeit match" live in the screen header, the only way out of a round.
+  // The handlers are kept in a ref so the header is not rebuilt on every render.
+  const forfeitActions = useRef({ game: confirmForfeitGame, match: confirmForfeitMatch });
+  forfeitActions.current = { game: confirmForfeitGame, match: confirmForfeitMatch };
+  const showForfeitMatch = !!lobby && roundActive && !quitSent;
+  const showForfeitGame = showForfeitMatch && !!gameModule && !mine && !myResult;
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: showForfeitMatch
+        ? () => (
+            <View style={styles.headerButtons}>
+              {showForfeitGame && (
+                <Pressable
+                  disabled={busy}
+                  onPress={() => forfeitActions.current.game()}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  style={[styles.headerButton, busy && { opacity: 0.5 }]}
+                >
+                  <Text style={styles.headerButtonText}>Forfeit game</Text>
+                </Pressable>
+              )}
+              <Pressable
+                disabled={busy}
+                onPress={() => forfeitActions.current.match()}
+                hitSlop={8}
+                accessibilityRole="button"
+                style={[styles.headerButton, styles.headerButtonDanger, busy && { opacity: 0.5 }]}
+              >
+                <Text style={[styles.headerButtonText, { color: '#FF5252' }]}>Forfeit match</Text>
+              </Pressable>
+            </View>
+          )
+        : undefined,
+    });
+  }, [navigation, showForfeitMatch, showForfeitGame, busy]);
+
   if (!game) {
     return (
       <SafeAreaView style={styles.root}>
@@ -428,15 +465,6 @@ export function GameScreen() {
           </View>
         )}
 
-        {/* The only ways out while a round is being played */}
-        {lobby && roundActive && !quitSent && (
-          <View style={styles.leave}>
-            {gameModule && !mine && !myResult && (
-              <Button label="Forfeit game" variant="secondary" disabled={busy} onPress={confirmForfeitGame} />
-            )}
-            <Button label="Forfeit match" variant="secondary" disabled={busy} onPress={confirmForfeitMatch} />
-          </View>
-        )}
         {lobby && roundActive && quitSent && (
           <Text style={styles.boxText}>You forfeited the match. Ending it now…</Text>
         )}
@@ -475,7 +503,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: colors.muted },
-  leave: { gap: 8, marginTop: 8 },
+  headerButtons: { flexDirection: 'row', gap: 8 },
+  headerButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  headerButtonDanger: { borderColor: '#FF5252' },
+  headerButtonText: { color: colors.text, fontSize: 13, fontWeight: '600' },
   countdown: { color: colors.text, fontSize: 72, fontWeight: '800', textAlign: 'center', paddingVertical: 24 },
   footer: { padding: 20 },
 });
