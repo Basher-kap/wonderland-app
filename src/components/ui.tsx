@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, Domain, domainInfo, radius } from '../theme';
 
 type ButtonProps = {
@@ -30,13 +31,38 @@ export function Button({ label, onPress, variant = 'primary', disabled, style }:
   );
 }
 
+// The icon of a domain: brain = Logic, world = Experience, dice = Chance (set in theme.ts).
+export function DomainIcon({ domain, size = 18, color }: { domain: Domain; size?: number; color?: string }) {
+  const d = domainInfo[domain];
+  return <MaterialCommunityIcons name={d.icon} size={size} color={color ?? d.color} />;
+}
+
+// A domain icon followed by a value, e.g. the points earned in that domain.
+export function DomainStat({
+  domain,
+  value,
+  size = 14,
+  color,
+}: {
+  domain: Domain;
+  value: string | number;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <DomainIcon domain={domain} size={size + 3} color={color} />
+      <Text style={{ color: color ?? colors.muted, fontSize: size }}>{value}</Text>
+    </View>
+  );
+}
+
 export function DomainBadge({ domain }: { domain: Domain }) {
   const d = domainInfo[domain];
   return (
     <View style={[styles.badge, { borderColor: d.color }]}>
-      <Text style={{ color: d.color, fontSize: 13, fontWeight: '600' }}>
-        {d.glyph} {d.label}
-      </Text>
+      <DomainIcon domain={domain} size={16} />
+      <Text style={{ color: d.color, fontSize: 13, fontWeight: '600' }}>{d.label}</Text>
     </View>
   );
 }
@@ -66,6 +92,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   ticket: {
     backgroundColor: colors.card,

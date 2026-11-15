@@ -3,13 +3,13 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { Button, DomainBadge } from '../components/ui';
+import { Button, DomainBadge, DomainStat } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { getGame } from '../data/games';
-import { settlementFor } from '../game/engine';
+import { DomainCount, settlementFor } from '../game/engine';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors, radius } from '../theme';
+import { colors, DOMAIN_ORDER, radius } from '../theme';
 import type { RootStackParamList } from '../navigation/types';
 
 // PLACEHOLDER: rules per game are TBA, so this screen shows what the game is plus
@@ -38,11 +38,10 @@ export function GameScreen() {
   const winnerName = lobby?.winnerId ? lobby.players[lobby.winnerId]?.username : undefined;
 
   // What this finished match did to MY ranking points (saved to my profile automatically).
-  let pointsLine: string | null = null;
+  const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
+  let pointsDelta: DomainCount | null = null;
   if (finished && lobby && uid && lobby.players[uid]?.losses) {
-    const d = settlementFor(lobby, uid).pointsDelta;
-    const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
-    pointsLine = `Your points this match:   ♠ ${fmt(d.logic)}   ♣ ${fmt(d.experience)}   ♥ ${fmt(d.chance)}`;
+    pointsDelta = settlementFor(lobby, uid).pointsDelta;
   }
 
   const run = async (work: () => Promise<void>) => {
@@ -92,7 +91,16 @@ export function GameScreen() {
                 Match over.{winnerName ? ` Winner: ${winnerName}` : ''} Tickets update automatically.
               </Text>
             )}
-            {finished && pointsLine && <Text style={[styles.boxText, { color: colors.text }]}>{pointsLine}</Text>}
+            {finished && pointsDelta && (
+              <View style={{ gap: 6, marginTop: 4 }}>
+                <Text style={[styles.boxText, { color: colors.text }]}>Your points this match:</Text>
+                <View style={{ flexDirection: 'row', gap: 18 }}>
+                  {DOMAIN_ORDER.map((d) => (
+                    <DomainStat key={d} domain={d} value={fmt(pointsDelta![d])} size={16} color={colors.text} />
+                  ))}
+                </View>
+              </View>
+            )}
 
             {roundActive && isHost && (
               <View style={{ gap: 8, marginTop: 10 }}>

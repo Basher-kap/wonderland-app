@@ -14,22 +14,28 @@ export const colors = {
 
 export type Domain = 'logic' | 'experience' | 'chance';
 
-export const domainInfo: Record<Domain, { label: string; glyph: string; color: string; blurb: string }> = {
+// `icon` is a MaterialCommunityIcons name (from @expo/vector-icons, already installed):
+// brain = Logic, earth = Experience, dice = Chance. Change an icon here and it changes everywhere
+// (the logo badges are set in src/components/Logo.tsx).
+export const domainInfo: Record<
+  Domain,
+  { label: string; icon: 'brain' | 'earth' | 'dice-5'; color: string; blurb: string }
+> = {
   logic: {
     label: 'Logic',
-    glyph: '♠',
+    icon: 'brain',
     color: colors.logic,
     blurb: 'Critical thinking and pure analysis.',
   },
   experience: {
     label: 'Experience',
-    glyph: '♣',
+    icon: 'earth',
     color: colors.experience,
     blurb: 'Personal knowledge, great ideas and visual sense.',
   },
   chance: {
     label: 'Chance',
-    glyph: '♥',
+    icon: 'dice-5',
     color: colors.chance,
     blurb: 'Randomness, probability and luck.',
   },

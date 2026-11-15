@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DomainIcon, DomainStat } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { LADDERS, Track, nextTitle, titleFor } from '../data/ranks';
 import * as api from '../lib/api';
@@ -56,12 +57,15 @@ export function LeaderboardScreen() {
               const pts = me[d];
               const next = nextTitle(d, pts);
               return (
-                <Text key={d} style={styles.meLine}>
-                  <Text style={{ color: domainInfo[d].color }}>
-                    {domainInfo[d].glyph} {domainInfo[d].label}  {pts}
+                <View key={d} style={styles.meRow}>
+                  <DomainIcon domain={d} size={18} />
+                  <Text style={styles.meLine}>
+                    <Text style={{ color: domainInfo[d].color }}>
+                      {domainInfo[d].label}  {pts}
+                    </Text>
+                    {next ? `   ·   ${next.missing} to ${next.title}` : '   ·   top title reached'}
                   </Text>
-                  {next ? `   ·   ${next.missing} to ${next.title}` : '   ·   top title reached'}
-                </Text>
+                </View>
               );
             })}
           </View>
@@ -77,9 +81,11 @@ export function LeaderboardScreen() {
                 {r.username}
                 {r.uid === uid ? '  (you)' : ''}
               </Text>
-              <Text style={styles.scores}>
-                {domainInfo.logic.glyph} {r.logic}   {domainInfo.experience.glyph} {r.experience}   {domainInfo.chance.glyph} {r.chance}
-              </Text>
+              <View style={styles.scoresRow}>
+                {DOMAIN_ORDER.map((d) => (
+                  <DomainStat key={d} domain={d} value={r[d]} size={13} />
+                ))}
+              </View>
               <Text style={styles.titles}>{r.titles.length ? r.titles.join(' · ') : 'No title yet'}</Text>
             </View>
             <Text style={styles.total}>{r.total}</Text>
@@ -119,7 +125,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   meTitle: { color: colors.accent, fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  meLine: { color: colors.muted, fontSize: 13 },
+  meLine: { color: colors.muted, fontSize: 13, flexShrink: 1 },
+  meRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  scoresRow: { flexDirection: 'row', gap: 16, marginTop: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

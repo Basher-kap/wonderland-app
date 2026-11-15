@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo } from '../components/Logo';
-import { Button, TicketChip } from '../components/ui';
+import { Button, DomainIcon, TicketChip } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { GAMES } from '../data/games';
 import * as api from '../lib/api';
@@ -93,9 +93,10 @@ export function HomeScreen() {
           const info = domainInfo[domain];
           return (
             <View key={domain} style={{ marginBottom: 18 }}>
-              <Text style={[styles.domainTitle, { color: info.color }]}>
-                {info.glyph} {info.label}
-              </Text>
+              <View style={styles.domainHeader}>
+                <DomainIcon domain={domain} size={22} />
+                <Text style={[styles.domainTitle, { color: info.color }]}>{info.label}</Text>
+              </View>
               <Text style={styles.domainBlurb}>{info.blurb}</Text>
               {GAMES.filter((g) => g.domain === domain).map((g) => (
                 <Pressable
@@ -144,6 +145,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 12 },
+  domainHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   domainTitle: { fontSize: 18, fontWeight: '600' },
   domainBlurb: { color: colors.muted, fontSize: 13, marginBottom: 8 },
   gameCard: {
