@@ -38,9 +38,10 @@ function pickDistinct(min: number, max: number, count: number, rnd: () => number
   return shuffle(pool, rnd).slice(0, count);
 }
 
-// Equation whose answer is exactly `answer` (1-30), basic + - x.
+// Equation whose answer is exactly `answer` (1-25), basic + - x.
 function equationFor(answer: number, rnd: () => number): string {
-  const kind = Math.floor(rnd() * 3);
+  let kind = Math.floor(rnd() * 3);
+  if (kind === 0 && answer < 2) kind = 1; // no "0 + 1"; use a subtraction instead
   if (kind === 0) {
     const a = Math.floor(rnd() * answer); // 0..answer-1
     return `${a} + ${answer - a}`;
@@ -55,22 +56,36 @@ function equationFor(answer: number, rnd: () => number): string {
   return `${d} x ${answer / d}`;
 }
 
+// Level specifications:
+//   1: all numbers 1-25 in 25 cells, tapped ascending
+//   2: numbers 1-25 in 25 cells, tapped DESCENDING (25 down to 1)
+//   3: 25 random numbers from 1-99, ascending
+//   4: numbers 1-50 in 50 cells, ascending
+//   5: 25 equations whose answers are 1-25, tapped in ascending order of their answers
+// Picking 25 different numbers out of 1-25 (level 2) or 50 out of 1-50 (level 4) takes all of
+// them, so those levels differ from level 1 only by their order / size.
+export type Direction = 'asc' | 'desc';
+
+export const levelDirection = (level: number): Direction => (level === 2 ? 'desc' : 'asc');
+
 // The cells of a level (the set of things to tap), in no particular order.
 // Uses `seed` so the same seed gives the same set for everyone.
 export function levelCells(level: number, seed: string): Cell[] {
   const rnd = makeRng(`${seed}:set`);
+  const plain = (min: number, max: number, count: number): Cell[] =>
+    pickDistinct(min, max, count, rnd).map((n) => ({ id: n, label: String(n), value: n }));
   switch (level) {
     case 1:
-      return pickDistinct(1, 25, 25, rnd).map((n) => ({ id: n, label: String(n), value: n }));
+      return plain(1, 25, 25);
     case 2:
-      return pickDistinct(1, 50, 25, rnd).map((n) => ({ id: n, label: String(n), value: n }));
+      return plain(1, 25, 25);
     case 3:
-      return pickDistinct(100, 999, 25, rnd).map((n) => ({ id: n, label: String(n), value: n }));
+      return plain(1, 99, 25);
     case 4:
-      return pickDistinct(100, 999, 50, rnd).map((n) => ({ id: n, label: String(n), value: n }));
+      return plain(1, 50, 50);
     case 5: {
-      // 30 cells, answers are 1..30 once each, shown as equations.
-      const answers = pickDistinct(1, 30, 30, rnd);
+      // 25 cells, answers are 1..25 once each, shown as equations.
+      const answers = pickDistinct(1, 25, 25, rnd);
       return answers.map((n) => ({ id: n, label: equationFor(n, rnd), value: n }));
     }
     default:
@@ -86,16 +101,16 @@ export function arrange(cells: Cell[], arrangeSeed: string): Cell[] {
 // 25 and 30 cells fit 5 columns; 50 cells use 5 columns of 10 rows (scroll or shrink cells on small phones).
 export const GRID_COLUMNS = 5;
 
-// Tap order: ascending by value. Returns the value that must be tapped next.
-export function nextTarget(cells: Cell[], tapped: number): number {
-  const sorted = cells.map((c) => c.value).sort((a, b) => a - b);
-  return sorted[tapped];
+// The values in the order they must be tapped (ascending, or descending on level 2).
+export function tapOrder(cells: Cell[], level: number): number[] {
+  const asc = cells.map((c) => c.value).sort((a, b) => a - b);
+  return levelDirection(level) === 'desc' ? asc.reverse() : asc;
 }
 
 export type TapResult = 'correct' | 'wrong' | 'levelDone';
 
-export function tap(cells: Cell[], tapped: number, value: number): TapResult {
-  if (value !== nextTarget(cells, tapped)) return 'wrong';
+export function tap(cells: Cell[], tapped: number, value: number, level: number): TapResult {
+  if (value !== tapOrder(cells, level)[tapped]) return 'wrong';
   return tapped + 1 === cells.length ? 'levelDone' : 'correct';
 }
 

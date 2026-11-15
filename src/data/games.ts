@@ -44,8 +44,8 @@ export const GAMES: Game[] = [
     rules: [
       'Each player gets the same randomly arranged numbered grid for each level.',
       'Tap the numbered cells in the correct ascending order.',
-      'Tapping a wrong number creates a new randomly arranged grid for the current level.',
-      'A refreshed grid does not advance you to the next level. You must restart and complete the same level before moving on.',
+      'Tapping a wrong number does not change the grid: the cell you tapped blinks red as a warning.',
+      'The clock keeps running, so every mistake costs you time.',
     ],
     clearConditions: [
       'Complete all 5 levels.',

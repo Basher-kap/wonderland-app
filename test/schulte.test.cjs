@@ -6,7 +6,7 @@ t('same seed gives same set', () => {
   assert.deepStrictEqual(s.levelCells(3, 'm:1:L3'), s.levelCells(3, 'm:1:L3'));
 });
 t('level sizes and ranges', () => {
-  const spec = { 1: [25, 1, 25], 2: [25, 1, 50], 3: [25, 100, 999], 4: [50, 100, 999], 5: [30, 1, 30] };
+  const spec = { 1: [25, 1, 25], 2: [25, 1, 25], 3: [25, 1, 99], 4: [50, 1, 50], 5: [25, 1, 25] };
   for (const [lv, [count, lo, hi]] of Object.entries(spec)) {
     for (let k = 0; k < 50; k++) {
       const c = s.levelCells(+lv, 'x' + k);
@@ -14,6 +14,20 @@ t('level sizes and ranges', () => {
       assert.strictEqual(new Set(c.map(x => x.value)).size, count, 'distinct values');
       c.forEach(x => assert.ok(x.value >= lo && x.value <= hi));
     }
+  }
+});
+t('levels 1, 2, 4, 5 use every number of their range; level 3 varies', () => {
+  const vals = (lv, seed) => s.levelCells(lv, seed).map(c => c.value).sort((a, b) => a - b);
+  assert.deepStrictEqual(vals(2, 'q'), Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.deepStrictEqual(vals(4, 'q'), Array.from({ length: 50 }, (_, i) => i + 1));
+  assert.deepStrictEqual(vals(5, 'q'), Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.notDeepStrictEqual(vals(3, 'q1'), vals(3, 'q2'));
+});
+t('level 2 is tapped descending, the others ascending', () => {
+  assert.deepStrictEqual(s.tapOrder(s.levelCells(2, 'z'), 2), Array.from({ length: 25 }, (_, i) => 25 - i));
+  for (const lv of [1, 3, 4, 5]) {
+    const o = s.tapOrder(s.levelCells(lv, 'z'), lv);
+    assert.deepStrictEqual(o, [...o].sort((a, b) => a - b));
   }
 });
 t('level 5 equations evaluate to their value', () => {
@@ -34,11 +48,13 @@ t('arrange keeps same cells, changes order by seed', () => {
   assert.notDeepStrictEqual(a, b);
 });
 t('tap flow: ascending, wrong, done', () => {
-  const cells = s.levelCells(2, 'b');
-  const sorted = cells.map(c => c.value).sort((x, y) => x - y);
-  assert.strictEqual(s.tap(cells, 0, sorted[1]), 'wrong');
-  for (let i = 0; i < sorted.length - 1; i++) assert.strictEqual(s.tap(cells, i, sorted[i]), 'correct');
-  assert.strictEqual(s.tap(cells, sorted.length - 1, sorted[sorted.length - 1]), 'levelDone');
+  for (const lv of [1, 2, 3, 4, 5]) {
+    const cells = s.levelCells(lv, 'b');
+    const order = s.tapOrder(cells, lv);
+    assert.strictEqual(s.tap(cells, 0, order[1], lv), 'wrong');
+    for (let i = 0; i < order.length - 1; i++) assert.strictEqual(s.tap(cells, i, order[i], lv), 'correct');
+    assert.strictEqual(s.tap(cells, order.length - 1, order[order.length - 1], lv), 'levelDone');
+  }
 });
 t('winner: fastest finisher; unfinished lose; tie = null', () => {
   assert.strictEqual(s.pickWinner([{uid:'a',finished:true,totalMs:9000},{uid:'b',finished:true,totalMs:8000},{uid:'c',finished:false,totalMs:1}]), 'b');

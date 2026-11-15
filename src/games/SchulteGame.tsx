@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, tap } from '../game/schulte';
+import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, levelDirection, tap, tapOrder } from '../game/schulte';
 import { colors, radius } from '../theme';
 import type { GameProps } from './types';
 
 // Schulte Table ("Shurute Hyou"): 5 levels, tap the cells in ascending order.
 // The numbers of each level come from `seed`, so every player gets the same first grid.
-// A wrong tap reshuffles the SAME cells into a new arrangement and restarts the level.
-// The clock runs from the moment the board appears until the 5th level is cleared (wrong
-// taps cost time). All the rules live in src/game/schulte.ts; this file is only the screen.
+// A wrong tap does NOT change the grid or the progress: the tapped cell just blinks red as a
+// warning (and the Misses counter goes up). The clock runs from the moment the board appears
+// until the 5th level is cleared, so wrong taps only cost time. All the rules live in
+// src/game/schulte.ts; this file is only the screen.
 
 const GAP = 6;
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -17,13 +18,32 @@ const clock = (ms: number) => `${pad(Math.floor(ms / 60000))}:${pad(Math.floor(m
 export function SchulteGame({ seed, uid, onFinish }: GameProps) {
   const { width, height } = useWindowDimensions();
   const [level, setLevel] = useState(1);
-  const [attempt, setAttempt] = useState(0); // grows with every wrong tap on this level
+  const [wrong, setWrong] = useState<{ value: number; on: boolean } | null>(null); // red blink
   const [tapped, setTapped] = useState(0); // correct taps so far on this level
   const [mistakes, setMistakes] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [finishedMs, setFinishedMs] = useState<number | null>(null);
   const startedAt = useRef(Date.now());
   const done = useRef(false);
+  const blinkTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const clearBlink = () => {
+    blinkTimers.current.forEach(clearTimeout);
+    blinkTimers.current = [];
+  };
+
+  // Blink the wrong cell red 3 times (on/off every 110 ms), then go back to normal.
+  const blink = (value: number) => {
+    clearBlink();
+    setWrong({ value, on: true });
+    for (let i = 1; i <= 5; i++) {
+      blinkTimers.current.push(
+        setTimeout(() => setWrong(i === 5 ? null : { value, on: i % 2 === 0 }), i * 110)
+      );
+    }
+  };
+
+  useEffect(() => clearBlink, []);
 
   useEffect(() => {
     startedAt.current = Date.now();
@@ -35,24 +55,22 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
 
   const levelSeed = `${seed}:L${level}`;
   const cells = useMemo(() => levelCells(level, levelSeed), [level, levelSeed]);
-  const sorted = useMemo(() => cells.map((c) => c.value).sort((a, b) => a - b), [cells]);
-  const grid = useMemo(
-    () => arrange(cells, attempt === 0 ? `${levelSeed}:a0` : `${levelSeed}:${uid}:a${attempt}`),
-    [cells, levelSeed, uid, attempt]
-  );
+  const order = useMemo(() => tapOrder(cells, level), [cells, level]); // the order to tap them in
+  // The same arrangement for everybody, and it never changes during a level.
+  const grid = useMemo(() => arrange(cells, `${levelSeed}:a0`), [cells, levelSeed]);
 
   const onPressCell = (value: number) => {
     if (done.current) return;
-    const result = tap(cells, tapped, value);
+    const result = tap(cells, tapped, value, level);
     if (result === 'wrong') {
-      setAttempt((a) => a + 1);
-      setTapped(0);
       setMistakes((m) => m + 1);
+      blink(value);
     } else if (result === 'correct') {
       setTapped((t) => t + 1);
     } else if (level < LEVEL_COUNT) {
+      clearBlink();
+      setWrong(null);
       setLevel((l) => l + 1);
-      setAttempt(0);
       setTapped(0);
     } else {
       done.current = true;
@@ -70,7 +88,8 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
   const cellH = Math.max(34, Math.min(cellW, Math.floor((height - 330 - GAP * (rows - 1)) / rows)));
   const isEquation = level === 5;
   const fontSize = isEquation ? 14 : level >= 3 ? 18 : 22;
-  const doneUpTo = tapped > 0 ? sorted[tapped - 1] : -Infinity;
+  const clearedValues = useMemo(() => new Set(order.slice(0, tapped)), [order, tapped]);
+  const descending = levelDirection(level) === 'desc';
 
   return (
     <View style={styles.root}>
@@ -82,13 +101,18 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
         <Text style={styles.headerText}>Misses {mistakes}</Text>
       </View>
 
+      {descending && finishedMs === null && (
+        <Text style={styles.hint}>Descending order: start from the biggest number!</Text>
+      )}
+
       {finishedMs === null ? (
         <View style={styles.grid}>
           {grid.map((cell) => {
-            const cleared = cell.value <= doneUpTo;
+            const cleared = clearedValues.has(cell.value);
+            const red = wrong?.on === true && wrong.value === cell.value;
             return (
               <Pressable
-                key={`${attempt}-${cell.id}`}
+                key={cell.id}
                 onPress={() => onPressCell(cell.value)}
                 disabled={cleared}
                 accessibilityRole="button"
@@ -96,6 +120,7 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
                   styles.cell,
                   { width: cellW, height: cellH },
                   cleared && styles.cellCleared,
+                  red && styles.cellWrong,
                   pressed && { opacity: 0.7 },
                 ]}
               >
@@ -125,6 +150,7 @@ const styles = StyleSheet.create({
   root: { gap: 12 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerText: { color: colors.muted, fontSize: 15, fontWeight: '600' },
+  hint: { color: colors.experience, fontSize: 15, fontWeight: '700', textAlign: 'center' },
   clock: { color: colors.text, fontSize: 22, fontVariant: ['tabular-nums'] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: {
@@ -137,6 +163,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   cellCleared: { backgroundColor: colors.bg, borderColor: colors.border },
+  cellWrong: { backgroundColor: '#C62828', borderColor: '#FF5252' },
   cellText: { color: colors.text, fontWeight: '700' },
   finished: { alignItems: 'center', gap: 6, paddingVertical: 30 },
   finishedTitle: { color: colors.experience, fontSize: 28, fontWeight: '800' },
