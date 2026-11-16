@@ -173,6 +173,42 @@ test('points: easy x2, normal x3, hard x5, on wins AND losses', () => {
   }
 });
 
+test('extras: every player keeps their own extra points, win, lose or draw; flat (not multiplied)', () => {
+  for (const [difficulty, m] of Object.entries(MULT)) {
+    const s0 = start(['a', 'b', 'c']);
+    const s = { ...s0, currentRound: { ...s0.currentRound, difficulty } };
+    const domain = domainOf(s.currentRound.gameId);
+    const { state } = e.applyRoundResult(s, 'b', { a: 5, b: 20, c: 0 });
+    assert.equal(state.players.b.pts[domain], 10 * m + 20, difficulty + ' winner');
+    assert.equal(state.players.a.pts[domain], -5 * m + 5, difficulty + ' loser with extra points');
+    assert.equal(state.players.c.pts[domain], -5 * m, difficulty + ' loser without');
+  }
+  const draw = e.applyRoundResult(start(['a', 'b']), null, { a: 10, b: 35 }).state;
+  const dom = domainOf(draw.currentRound.gameId);
+  assert.equal(draw.players.a.pts[dom], 10);
+  assert.equal(draw.players.b.pts[dom], 35);
+  assert.equal(draw.players.a.lives, 10, 'a draw still costs nobody a life');
+});
+
+test('extras: whole numbers 0..35 for players in the lobby only', () => {
+  const s = start(['a', 'b']);
+  assert.doesNotThrow(() => e.applyRoundResult(s, 'a', { a: 0, b: 35 }));
+  assert.doesNotThrow(() => e.applyRoundResult(s, 'a', {}));
+  for (const bad of [-1, 36, 2.5, NaN]) assert.throws(() => e.applyRoundResult(s, 'a', { a: bad }), /bonus is not allowed/);
+  assert.throws(() => e.applyRoundResult(s, 'a', { zzz: 5 }), /not in this lobby/);
+});
+
+test('extras do not change lives, wins or losses', () => {
+  const s = start(['a', 'b']);
+  const plain = e.applyRoundResult(s, 'a').state;
+  const withExtras = e.applyRoundResult(s, 'a', { a: 10, b: 20 }).state;
+  for (const id of ['a', 'b']) {
+    assert.equal(withExtras.players[id].lives, plain.players[id].lives);
+    assert.deepEqual(withExtras.players[id].wins, plain.players[id].wins);
+    assert.deepEqual(withExtras.players[id].losses, plain.players[id].losses);
+  }
+});
+
 test('points: a round saved without difficulty falls back to the game\'s difficulty', () => {
   const s0 = start(['a', 'b']);
   const { difficulty, ...round } = s0.currentRound;

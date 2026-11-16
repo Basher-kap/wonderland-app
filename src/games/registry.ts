@@ -1,10 +1,12 @@
 import type React from 'react';
 import { pickWinner as pickFastestFinisher } from '../game/schulte';
 import {
-  bonusFor as wordleBonus,
+  extraPoints as wordleExtraPoints,
+  LEVEL_COUNT,
+  LEVEL_NAMES,
   pickAnswer,
-  pickWinner as pickFirstSolver,
-  roundIsOver as wordleRoundIsOver,
+  pickWinner as pickMostPoints,
+  solvedCount,
 } from '../game/wordle';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
@@ -17,7 +19,7 @@ export type ResultRow = {
   finished: boolean;
   totalMs: number;
   forfeited?: boolean;
-  attempts?: number;
+  score?: number;
 };
 
 export type GameModule = {
@@ -26,14 +28,13 @@ export type GameModule = {
   pickWinner: (results: ResultRow[]) => string | null;
   // How a result is shown in the round summary.
   describe: (result: ResultRow) => string;
-  // When is the round over? Default: when every player has handed in a result. Games where the
-  // first solver ends the round for everybody (Wordle) say so here; the host then ends the round
-  // with the results it has, and the other players' boards close.
-  roundOver?: (results: ResultRow[], playerCount: number) => boolean;
-  // Extra points for the winner on top of the normal win points (not multiplied by difficulty).
-  // Not shown to the players.
-  bonusFor?: (winner: ResultRow) => number;
-  // A line shown in the round summary once the round is over (Wordle: the hidden word).
+  // The game has several levels and stays on screen between them, with the other players'
+  // progress passed in as `room` (Wordle). The player's board is NOT closed when they finish.
+  multiStage?: boolean;
+  // Extra points a player earns from the game on top of the win/loss points (0 if none), whether
+  // they win or lose. Not multiplied by the difficulty. Not shown to the players.
+  extraPoints?: (result: ResultRow) => number;
+  // A line shown to EVERYONE once the round is over (Wordle: the hidden words).
   // `seed` is the same seed the game was given.
   summary?: (seed: string) => string | null;
 };
@@ -48,13 +49,12 @@ export const GAME_MODULES: Record<string, GameModule> = {
   },
   wordle: {
     Component: WordleGame,
-    pickWinner: pickFirstSolver,
-    describe: (r) =>
-      r.finished
-        ? `solved in ${r.attempts ?? '?'} ${r.attempts === 1 ? 'attempt' : 'attempts'}`
-        : 'did not solve it',
-    roundOver: wordleRoundIsOver,
-    bonusFor: (r) => (r.finished ? wordleBonus(r.attempts ?? 0) : 0),
-    summary: (seed) => `The word was ${pickAnswer(seed).toUpperCase()}.`,
+    pickWinner: pickMostPoints,
+    describe: (r) => (r.finished ? `guessed ${solvedCount(r.score ?? 0)} of ${LEVEL_COUNT} words` : 'did not finish'),
+    multiStage: true,
+    extraPoints: wordleExtraPoints,
+    summary: (seed) =>
+      'The words were:\n' +
+      Array.from({ length: LEVEL_COUNT }, (_, i) => `${LEVEL_NAMES[i]}: ${pickAnswer(seed, i + 1).toUpperCase()}`).join('\n'),
   },
 };

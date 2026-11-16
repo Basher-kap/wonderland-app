@@ -36,17 +36,19 @@ export const GAMES: Game[] = [
     japaneseName: 'Waadoru',
     difficulty: 'normal',
     rules: [
+      'There are 3 levels: an easy word, a moderate word and a hard word.',
       'Each player must guess the same hidden 5-letter word.',
       'After each guess, the letters are color-coded:',
       '🟩 Green: the letter is correct and in the correct position.',
       '🟨 Yellow: the letter is in the hidden word but in the wrong position.',
       '⬜ Gray: the letter is not in the hidden word.',
     ],
-    // The attempts bonus (1st try +10, 2nd +8, 3rd +5, 4th +2, 5th +0) is applied by the game
-    // (game/wordle.ts) but is NOT listed here on purpose: it is not shown to the players.
+    // The points per word (easy +5, moderate +10, hard +20) are applied by the game
+    // (game/wordle.ts) but are NOT listed here on purpose: they are not shown to the players.
     clearConditions: [
-      'Each player has only 5 attempts to guess the hidden word.',
-      'The game ends as soon as the first player correctly guesses the word.',
+      'Each player has only 5 attempts for each word.',
+      'A level ends when every player has guessed the word or used all 5 attempts. Then the answer is shown and the next level starts once everybody is ready.',
+      'The player with the most points after the 3 levels wins.',
     ],
     prohibitions: ['Players are not allowed to guess an invalid or unrecognized word.'],
   },

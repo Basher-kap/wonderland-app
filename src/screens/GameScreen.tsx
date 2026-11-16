@@ -10,7 +10,7 @@ import { DIFFICULTY_MULTIPLIER, difficultyOf, getGame } from '../data/games';
 import { DomainCount, settlementFor } from '../game/engine';
 import { GAME_MODULES } from '../games/registry';
 import type { ResultRow } from '../games/registry';
-import type { GameResult } from '../games/types';
+import type { GameResult, GameRoom } from '../games/types';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, DOMAIN_ORDER, radius } from '../theme';
@@ -20,8 +20,10 @@ import type { RootStackParamList } from '../navigation/types';
 //   1. the intro dialogs (RoundIntro): domain + difficulty, Japanese name, rule, clear condition
 //   2. "waiting for the others": everybody has to finish reading; when ALL are ready the host's
 //      phone sets round.go and every phone counts 3-2-1, so the timers start together
-//   3. the game itself (games/registry.ts), which reports this player's result when done
-//   4. waiting for the others; the HOST's phone then asks the game who won and ends the round
+//   3. the game itself (games/registry.ts), which reports this player's result when done. A game
+//      with several levels (Wordle) gets `room` so it can wait for the others between levels
+//   4. waiting for the others; the HOST's phone then asks the game who won (and each player's
+//      extra points) and ends the round. The game's summary (Wordle: the words) is shown to all
 // While a round is being played there is no way out (no Back button, swipe or Android back).
 // Games that are not built yet (no entry in the registry) still use the temporary host buttons.
 // Without a lobby (opened from the Home list) the game is a solo practice run.
@@ -32,6 +34,7 @@ export function GameScreen() {
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [results, setResults] = useState<api.RoundResult[]>([]);
   const [ready, setReady] = useState<api.ReadyMark[]>([]);
+  const [stages, setStages] = useState<api.StageDoc[]>([]);
   const [quits, setQuits] = useState<api.QuitMark[]>([]);
   const [quitSent, setQuitSent] = useState(false); // I forfeited the match, waiting for the host's phone
   const [startedKey, setStartedKey] = useState<string | null>(null); // round whose countdown has ended
@@ -61,6 +64,11 @@ export function GameScreen() {
   useEffect(() => {
     if (isDemoMode || !code) return;
     return api.subscribeReady(code, setReady, (e) => console.warn('ready listener failed', e));
+  }, [code]);
+
+  useEffect(() => {
+    if (isDemoMode || !code) return;
+    return api.subscribeStages(code, setStages, (e) => console.warn('stages listener failed', e));
   }, [code]);
 
   useEffect(() => {
@@ -117,10 +125,11 @@ export function GameScreen() {
   const myResult = roundResults.find((r) => r.uid === uid);
   const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
   const mine = local?.key === roundKey ? local : null;
-  // The round is over when the game says so: by default when everybody has a result; for Wordle
-  // as soon as the first player solved it.
-  const over =
-    !!lobby && !!gameModule && (gameModule.roundOver ? gameModule.roundOver(roundResults, lobby.playerIds.length) : everyoneIn);
+  // The round is over when every player has handed in a result (finished, or forfeited the game).
+  const over = !!lobby && !!gameModule && everyoneIn;
+  // A player who finished a one-board game, or forfeited any game, no longer sees the board.
+  // In a game with levels (Wordle) the board stays after finishing, to show the other players' progress.
+  const mineOut = !!mine && (!gameModule?.multiStage || !mine.result.finished);
 
   // 1. I finished reading the intro: tell the lobby.
   useEffect(() => {
@@ -171,15 +180,18 @@ export function GameScreen() {
     return () => timers.forEach(clearTimeout);
   }, [needsStart, introDone, go, startedKey, roundKey]);
 
-  // HOST: as soon as the round is over, the game decides the winner (and the winner's bonus, if any).
+  // HOST: as soon as the round is over, the game decides the winner and each player's extra points.
   useEffect(() => {
     if (!isHost || !roundActive || !gameModule || !code || !over) return;
     if (resolving.current === roundKey) return;
     resolving.current = roundKey;
     const winnerId = gameModule.pickWinner(roundResults);
-    const winnerRow = roundResults.find((r) => r.uid === winnerId);
-    const bonus = winnerId && winnerRow && gameModule.bonusFor ? gameModule.bonusFor(winnerRow) : 0;
-    api.resolveRound(code, winnerId, bonus).catch((e) => {
+    const extras: Record<string, number> = {};
+    for (const r of roundResults) {
+      const extra = gameModule.extraPoints?.(r) ?? 0;
+      if (extra > 0) extras[r.uid] = extra;
+    }
+    api.resolveRound(code, winnerId, extras).catch((e) => {
       resolving.current = null; // allow another try (the other phone may also have raced us)
       console.warn('resolve failed', e);
     });
@@ -260,7 +272,7 @@ export function GameScreen() {
   const forfeitActions = useRef({ game: confirmForfeitGame, match: confirmForfeitMatch });
   forfeitActions.current = { game: confirmForfeitGame, match: confirmForfeitMatch };
   const showForfeitMatch = !!lobby && roundActive && !quitSent;
-  const showForfeitGame = showForfeitMatch && !!gameModule && !mine && !myResult && !over;
+  const showForfeitGame = showForfeitMatch && !!gameModule && !mineOut && !myResult && !over;
   useEffect(() => {
     navigation.setOptions({
       headerRight: showForfeitMatch
@@ -307,8 +319,24 @@ export function GameScreen() {
   }
 
   const waitingToStart = !!lobby && !!gameModule && roundActive && !started && !mine;
-  // The board closes for everybody who is still playing once the round is over (Wordle: first solver).
-  const playing = inRound && !!gameModule && !mine && started && !over;
+  const playing = inRound && !!gameModule && !mineOut && started && !over;
+
+  // For a game with levels: what the other players did, so the game can wait for them between levels.
+  const room: GameRoom | undefined =
+    lobby && round && code && gameModule?.multiStage
+      ? {
+          playerIds: lobby.playerIds,
+          usernames: Object.fromEntries(Object.entries(lobby.players).map(([id, p]) => [id, p.username])),
+          stages: stages.filter(
+            (s) => s.matchId === lobby.matchId && s.roundNo === round.no && !!lobby.players[s.uid]
+          ),
+          readyStage: Object.fromEntries(readyNow.map((r) => [r.uid, r.level ?? 1])),
+          out: roundResults.filter((r) => r.forfeited).map((r) => r.uid),
+          reportStage: (stage, result) =>
+            api.submitStage(code, { matchId: lobby.matchId, roundNo: round.no }, stage, result),
+          readyFor: (stage) => api.markReady(code, { matchId: lobby.matchId, roundNo: round.no }, stage),
+        }
+      : undefined;
   const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');
   const forfeiters = roundResults.filter((r) => r.forfeited);
 
@@ -349,22 +377,7 @@ export function GameScreen() {
           </View>
         )}
 
-        {/* The round ended while this player was still playing (Wordle: somebody solved it first) */}
-        {lobby && roundActive && !!gameModule && over && !mine && started && (
-          <View style={styles.box}>
-            <Text style={styles.boxTitle}>Round over</Text>
-            <Text style={styles.boxText}>
-              {roundResults.some((r) => r.finished && !r.forfeited)
-                ? `${
-                    lobby.players[roundResults.filter((r) => r.finished && !r.forfeited).sort((a, b) => a.totalMs - b.totalMs)[0].uid]
-                      ?.username ?? 'A player'
-                  } finished first. Ending the round…`
-                : 'Ending the round…'}
-            </Text>
-          </View>
-        )}
-
-        {/* The game is over (first solver, or everybody used their attempts): show the answer to EVERYONE */}
+        {/* The game is over (every player is done): show the answer(s) to EVERYONE */}
         {lobby && !!gameModule?.summary && (over || roundDone || finished) && !round?.quitBy && (
           <View style={[styles.box, styles.reveal]}>
             <Text style={styles.revealTitle}>Game over</Text>
@@ -374,7 +387,7 @@ export function GameScreen() {
 
         {/* 3. The game board */}
         {playing && gameModule && (
-          <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} />
+          <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
         )}
 
         {/* Practice run: show the result and let the player leave */}
@@ -536,7 +549,7 @@ const styles = StyleSheet.create({
   placeholderText: { color: colors.muted },
   reveal: { borderColor: colors.accent, borderWidth: 2, alignItems: 'center', paddingVertical: 18 },
   revealTitle: { color: colors.muted, fontSize: 14, fontWeight: '600' },
-  revealText: { color: colors.accent, fontSize: 24, fontWeight: '800', textAlign: 'center' },
+  revealText: { color: colors.accent, fontSize: 20, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
   headerButtons: { flexDirection: 'row', gap: 8 },
   headerButton: {
     borderWidth: 1,

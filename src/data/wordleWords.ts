@@ -1,55 +1,80 @@
-// Word lists for Wordle. Generated once (see the project notes), no need to edit by hand.
-//   ANSWERS      684 common 5-letter words: the hidden word is always one of these.
-//   VALID_WORDS  6541 5-letter words (English dictionary incl. plurals and -ed/-er/-ing
-//                forms, and every answer): a guess must be in this list, otherwise it is not allowed.
-// To add or remove a word just edit the text below (lowercase, one space or line break between words).
+// Word lists for Wordle (3 levels). Generated once, no need to edit by hand: to change a list just
+// edit the text below (lowercase, one space or line break between words).
+//   EASY_WORDS      294 very common everyday words        (level 1)
+//   MODERATE_WORDS  390 common words, a bit less everyday (level 2)
+//   HARD_WORDS      238 trickier words (rarer letters, double letters, less common) (level 3)
+//   VALID_WORDS     6541 5-letter words (English dictionary incl. plurals and -ed/-er/-ing forms, plus
+//                   every word above): a guess must be in this list, otherwise it is not allowed.
+// A word must be in only ONE of the three level lists.
 
 const split = (text: string) => text.split(/\s+/).filter(Boolean);
 
-export const ANSWERS: string[] = split(`
-abide about above abuse actor acute admit adopt adult after again agent agree ahead alarm album
-alert alien align alike alive allow alone along alter among angel anger angle angry ankle apart
-apple apply arena argue arise armor aroma array arrow aside asset avoid awake award aware awful
-basic beach beard beast begin being belly below bench berry birth black blade blame blank blast
-blaze bleed blend bless blind block blood bloom blown board boast bonus boost booth bound brain
-brake brand brass brave bread break breed brick bride brief bring broad broke brown brush build
-built bunch burst buyer cabin cable candy carry carve catch cause chain chair chalk charm chart
-chase cheap cheat check cheek cheer chess chest chief child chill choir chose civil claim class
-clean clear clerk click cliff climb clock close cloth cloud coach coast color couch could count
-court cover crack craft crane crash crawl crazy cream crime crisp cross crowd crown cruel crush
-curve cycle daily dance dealt death debut delay depth devil diary dirty doubt dozen draft drain
-drama drank drawn dream dress dried drift drill drink drive drown eager early earth eight elbow
-elder elect elite empty enjoy enter entry equal error essay event every exact exist extra faint
-faith false fancy fault feast fence fever fiber field fifth fifty fight final first flame flash
-fleet flesh float flood floor flour fluid focus force forth forty forum found frame frank fraud
-fresh front frost fruit fully funny ghost giant given glass globe glory glove grace grade grain
-grand grant grape graph grasp grass grave great green greet grief grill grind gross group grown
-guard guess guest guide habit happy harsh heart heavy hello hence honey honor horse hotel house
-human humor hurry ideal image imply index inner input irony issue ivory jelly jewel joint judge
-juice knife knock known label labor large laser later laugh layer learn lease least leave legal
-lemon level light limit linen liver local logic loose lover lower loyal lucky lunch magic major
-maker march match maybe mayor meant medal media melon mercy merge merit metal meter might minor
-minus mixed model money month moral motor mount mouse mouth movie music naive nasty naval nerve
-never newly night noble noise north novel nurse occur ocean offer often olive onion opera orbit
-order organ other ought outer owner paint panel panic paper party pasta patch pause peace pearl
-phase phone photo piano piece pilot pitch pizza place plain plane plant plate plaza point polar
-pound power press price pride prime print prior prize proof proud prove pulse punch pupil queen
-query quest quick quiet quite quote radar radio raise rally ranch range rapid ratio reach react
-ready realm rebel refer relax reply rider ridge rifle right rigid rival river roast robot rocky
-rough round route royal rural sadly saint salad sauce scale scare scene scope score sense serve
-seven shade shake shall shape share sharp sheep sheet shelf shell shift shine shirt shock shoot
-shore short shout shown sight silly since sixth sixty skill skirt sleep slice slide slope small
-smart smell smile smoke snake solid solve sorry sound south space spare speak speed spell spend
-spice spine split spoke spoon sport spray squad stack staff stage stair stake stand stare start
-state steak steam steel steep steer stick stiff still stock stone stood store storm story stove
-strap straw strip stuck study stuff style sugar suite sunny super swamp swear sweat sweet swift
-swing sword table taste teach tenth thank theft their theme there these thick thief thing think
-third those three threw throw thumb tiger tight timer tired title toast today tooth topic total
-touch tough towel tower toxic trace track trade trail train trait trash treat trend trial tribe
-trick tried troop truck truly trust truth twice twist uncle under union unity until upper upset
-urban usage usual valid value video virus visit vital vivid vocal voice waste watch water weary
-weave weigh weird whale wheat wheel where which while white whole whose width woman world worry
-worse worst worth would wound wrist write wrong yield young youth zebra
+export const EASY_WORDS: string[] = split(`
+above after again alarm alive angry apple beach beard bench birth black blood board brain brave
+bread break bride bring brown brush build cabin candy carry catch chair chase cheap cheer chest
+chief child clean clock cloud color count cream cross crowd daily dance death dirty dream dress
+drink drive early earth eight empty enjoy equal every extra fancy field fight final first flame
+float flood floor force found frame fresh front fruit funny glass great green group guard guess
+guest guide habit happy heart heavy hello honey horse hotel house human hurry image juice knife
+large later laugh layer learn leave level light limit local lucky lunch magic major maybe medal
+metal model money month mouse mouth movie music night noise north nurse ocean offer often olive
+onion order other paint panel paper party peace phone piano pilot pitch pizza place plain plane
+plant plate point power press price pride proud queen quick quiet quote radio raise range reach
+ready right river rough round royal salad sauce scene score sense serve seven shade shake shape
+share sharp sheet shelf shell shift shine shirt shoot shore short shout sight skill skirt sleep
+slide small smart smell smile smoke snake solid solve sorry sound south space speak speed spend
+split spoon sport stage stair stand start state steak steam steel stick stock stone store storm
+story study stuff sugar super sweet swing sword table taste teach thank their there these thick
+thing think those three throw tired title toast today tooth total touch tower track trade trail
+train treat trial trick truck trust truth twice uncle under union until upper usual value video
+visit voice waste watch water wheat wheel where which while white whole woman world worry worth
+would write wrong young youth zebra
+`);
+
+export const MODERATE_WORDS: string[] = split(`
+abide about abuse actor acute admit adopt adult agent agree ahead album alert alien align alike
+allow alone along alter among angel anger angle ankle apart apply arena argue arise armor aroma
+array arrow aside asset avoid awake award aware awful basic beast begin being belly below berry
+blade blame blank blast blaze bleed blend bless blind block bloom blown boast bonus boost booth
+bound brake brand brass breed brick brief broad broke built bunch burst buyer cable carve cause
+chain chalk charm chart cheat check cheek chess chill choir chose civil claim class clear clerk
+click cliff climb close cloth coach coast couch could court cover crack craft crane crash crawl
+crazy crime crisp crown cruel crush curve cycle dealt debut delay depth devil diary doubt dozen
+draft drain drama drank drawn dried drift drill drown eager elbow elder elect elite enter entry
+error essay event exact exist faint faith false fault feast fence fever fiber fifth fifty flash
+fleet flesh flour fluid focus forth forty forum frank fraud frost fully ghost giant given globe
+glory glove grace grade grain grand grant grape graph grasp grass grave greet grief grill grind
+gross grown harsh hence honor humor ideal imply index inner input irony issue ivory jelly jewel
+joint judge knock known label labor laser lease least legal lemon linen liver logic loose lover
+lower loyal maker march match mayor meant media melon mercy merge merit meter might minor minus
+mixed moral motor mount naive nasty naval nerve never newly noble novel occur opera orbit organ
+ought outer owner panic pasta patch pause pearl phase photo piece plaza polar pound prime print
+prior prize proof prove pulse punch pupil query quest quite radar rally ranch rapid ratio react
+realm rebel refer relax reply rider ridge rifle rigid rival roast robot rocky route rural sadly
+saint scale scare scope shall sheep shock shown silly since sixth sixty slice slope spare spell
+spice spine spoke spray squad stack staff stake stare steep steer stiff still stood stove strap
+straw strip stuck style suite sunny swamp swear sweat swift tenth theft theme thief third threw
+thumb tiger tight timer topic tough towel toxic trace trait trash trend tribe tried troop truly
+twist unity upset urban usage valid virus vital vivid vocal weary weave weigh weird whale whose
+width worse worst wound wrist yield
+`);
+
+export const HARD_WORDS: string[] = split(`
+abyss affix askew avian awoke axiom azure bayou blitz bluff bogus bough bulge cacao cairn caulk
+chaos chord cloak cobra comet cramp crepe crypt cumin cynic dandy decoy dingo dizzy dowel dwarf
+elude ember epoch equip ethic expel exult fable feign ferry fjord flair flask fluff foggy foyer
+frail fugue gaudy gauge gecko ghoul gizmo gnome gourd gruel guava haste haunt havoc hazel hoist
+husky hydra icing idiom igloo imbue inept inlet jaunt jazzy jerky jiffy joust kayak kebab khaki
+kiosk knack knelt larva lathe lemur lilac llama lofty lousy lucid lunar macho mango maple mirth
+mocha mogul moist mulch myrrh nadir nanny nexus nymph oasis ocher onset ounce outdo ovary oxide
+ozone paddy pagan pasty pesto phlox piety pique pivot pixel plaid plumb plume poise polka porch
+posse pouch prank prawn privy prowl pudgy quail qualm quark quart quasi quirk quota rabid radii
+rajah rebus recur rhyme rivet rogue rouge rugby rummy sauna savvy scalp scone scowl scrub sedan
+shrug sieve siren skimp skulk slump smirk sneak snout sonic spasm spurn squid stoic stump suave
+swarm swath sweep swirl synod tabby taboo tacit talon tango tapir tepid thorn thyme tipsy trove
+truce tulip tunic twang tweak udder ulcer umbra unfit unify unzip usurp utter vague valor vault
+vaunt venom verve vigor vinyl viola vixen vodka vomit vouch vying wacky waltz whelk whiff whisk
+widow wield wince wispy witty wrath wring wrung yacht yearn yodel zesty zippy zonal
 `);
 
 export const VALID_WORDS: Set<string> = new Set(

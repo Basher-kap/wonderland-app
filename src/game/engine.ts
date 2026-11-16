@@ -18,10 +18,11 @@ export const MAX_PLAYERS = 8;
 // multiplier (5) as a sanity limit, so change them in both places.
 export const WIN_POINTS = 10;
 export const LOSS_POINTS = 5;
-// Some games give the round's winner extra points on top (Wordle: by attempts used). The bonus is
-// NOT multiplied by the difficulty. MAX_BONUS is the biggest one allowed; backend/firestore.rules
-// repeats it (a won round can be worth at most 10 x 5 + 10 = 60 points).
-export const MAX_BONUS = 10;
+// Some games give EVERY player extra points on top of the win/loss points, for what they did in
+// the game (Wordle: 5 / 10 / 20 for each word guessed). Extras are NOT multiplied by the difficulty
+// and are earned win, lose or draw. MAX_EXTRA is the most one player can get from one game;
+// backend/firestore.rules repeats it (a round can be worth at most 10 x 5 + 35 = 85 points).
+export const MAX_EXTRA = 35;
 
 export type DomainCount = Record<Domain, number>;
 export const zeroCounts = (): DomainCount => ({ logic: 0, experience: 0, chance: 0 });
@@ -164,10 +165,16 @@ export type RoundOutcome = {
 // draw: nobody loses a life. Everyone's round tally goes up. When someone
 // reaches 0 lives the match ends; the winner is the player with the most lives
 // left (ties: whoever joined first).
-export function applyRoundResult(state: MatchState, winnerId: string | null, bonus: number = 0): RoundOutcome {
+export function applyRoundResult(
+  state: MatchState,
+  winnerId: string | null,
+  extras: Record<string, number> = {}
+): RoundOutcome {
   if (state.status !== 'playing') throw new RuleError('The lobby is not in play.');
-  if (!Number.isInteger(bonus) || bonus < 0 || bonus > MAX_BONUS) throw new RuleError('That bonus is not allowed.');
-  if (winnerId === null && bonus !== 0) throw new RuleError('A draw has no bonus.');
+  for (const [id, extra] of Object.entries(extras)) {
+    if (!state.players[id]) throw new RuleError('That player is not in this lobby.');
+    if (!Number.isInteger(extra) || extra < 0 || extra > MAX_EXTRA) throw new RuleError('That bonus is not allowed.');
+  }
   if (!state.currentRound || state.currentRound.status !== 'active') {
     throw new RuleError('There is no active round.');
   }
@@ -194,7 +201,8 @@ export function applyRoundResult(state: MatchState, winnerId: string | null, bon
         ...p.pts,
         [domain]:
           (p.pts?.[domain] ?? 0) +
-          (id === winnerId ? WIN_POINTS * multiplier + bonus : loses ? -LOSS_POINTS * multiplier : 0),
+          (id === winnerId ? WIN_POINTS * multiplier : loses ? -LOSS_POINTS * multiplier : 0) +
+          (extras[id] ?? 0),
       },
     };
   }

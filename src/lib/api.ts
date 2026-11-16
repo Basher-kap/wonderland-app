@@ -44,7 +44,9 @@ import {
 //   usernames/{lower} { uid }   keeps usernames unique
 //   lobbies/{CODE}    match state, hostId, playerIds[], matchId (per-player tallies live in players{})
 //   lobbies/{CODE}/results/{uid}  each player's own result for the current round (the host reads them all)
-//   lobbies/{CODE}/ready/{uid}    "I finished reading this round's intro" (the host starts the boards when all are in)
+//   lobbies/{CODE}/ready/{uid}    "I finished reading this round's intro" (the host starts the boards when all are in);
+//                                 for games with several levels also "I am ready for level N"
+//   lobbies/{CODE}/stages/{uid_N} what a player did in level N of a multi-level game (Wordle)
 //   lobbies/{CODE}/quits/{uid}    "I forfeit the whole match" (the host's phone ends the match)
 // ---------------------------------------------------------------------------
 
@@ -266,22 +268,30 @@ export const nextRound = (code: string) => hostAction(code, (lobby) => matchFiel
 
 // Losers lose 1 life, a null winner is a draw. Games that are built decide the winner from
 // the players' results; games that are not built yet use the temporary host buttons.
-// `bonus` = extra points for the winner (some games give them, e.g. Wordle by attempts used).
-export const resolveRound = (code: string, winnerId: string | null, bonus: number = 0) =>
-  hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId, bonus).state));
+// `extras` = extra points per player (uid -> points) that some games give for what each player did
+// (Wordle: for every word guessed), on top of the normal win/loss points.
+export const resolveRound = (code: string, winnerId: string | null, extras: Record<string, number> = {}) =>
+  hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId, extras).state));
 
 // ------------------------------------------------------------ round start ----
 // Fair start: every player says "ready" once they have read the intro. When all are ready the
 // host's phone sets currentRound.go = true and every phone starts its 3-2-1 countdown.
-export type ReadyMark = { uid: string; matchId: string; roundNo: number };
+export type ReadyMark = { uid: string; matchId: string; roundNo: number; level?: number };
 
-export async function markReady(rawCode: string, round: { matchId: string; roundNo: number }): Promise<void> {
+// level = 1 (or left out): ready to START the round. level = N > 1: ready for level N of a game
+// with several levels (it is rewritten with a bigger level each time).
+export async function markReady(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  level?: number
+): Promise<void> {
   const code = normalizeCode(rawCode);
   const uid = myUid();
   await setDoc(doc(database(), 'lobbies', code, 'ready', uid), {
     uid,
     matchId: round.matchId,
     roundNo: round.roundNo,
+    ...(level !== undefined ? { level } : {}),
   });
 }
 
@@ -341,6 +351,42 @@ export function subscribeQuits(
   );
 }
 
+// ------------------------------------------------------------ level results ----
+// Games with several levels (Wordle) report every level as soon as the player finishes it, so
+// all phones can show the answer when EVERYBODY is done with the level.
+export type StageDoc = { uid: string; matchId: string; roundNo: number; stage: number; solved: boolean; ms: number };
+
+export async function submitStage(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  stage: number,
+  result: { solved: boolean; ms: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  await setDoc(doc(database(), 'lobbies', code, 'stages', `${uid}_${stage}`), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    stage,
+    solved: result.solved,
+    ms: Math.max(0, Math.round(result.ms)),
+  });
+}
+
+export function subscribeStages(
+  rawCode: string,
+  onData: (stages: StageDoc[]) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'stages'),
+    (snap) => onData(snap.docs.map((d) => d.data() as StageDoc)),
+    onError
+  );
+}
+
 // ---------------------------------------------------------- round results ----
 // Every player saves THEIR OWN result for the round that is being played; the host's phone
 // reads all of them, asks the game who won (games/registry.ts) and calls resolveRound.
@@ -351,13 +397,13 @@ export type RoundResult = {
   finished: boolean;
   totalMs: number;
   forfeited?: boolean; // the player gave up this game: it counts as a loss
-  attempts?: number; // games with tries (Wordle): how many attempts were used
+  score?: number; // games that give points for what you did (Wordle): the points earned
 };
 
 export async function submitResult(
   rawCode: string,
   round: { matchId: string; roundNo: number },
-  result: { finished: boolean; totalMs: number; attempts?: number }
+  result: { finished: boolean; totalMs: number; score?: number }
 ): Promise<void> {
   const code = normalizeCode(rawCode);
   const uid = myUid();
@@ -367,7 +413,7 @@ export async function submitResult(
     roundNo: round.roundNo,
     finished: result.finished,
     totalMs: Math.max(0, Math.round(result.totalMs)),
-    ...(result.attempts !== undefined ? { attempts: result.attempts } : {}),
+    ...(result.score !== undefined ? { score: Math.round(result.score) } : {}),
   });
 }
 

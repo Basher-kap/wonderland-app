@@ -1,18 +1,37 @@
 // Wordle ("Waadoru"): pure rules, no React, no Firebase.
 // Test with test/wordle.test.cjs (same tsc + node flow as the other tests).
+//
+// The game has 3 levels: an easy word, a moderate word and a hard word. Every player has 5 attempts
+// per word. A level ends when ALL players are done with it (guessed, or used 5 attempts); then the
+// answer is shown to everybody, and the next level starts when all players are ready.
+// Points: every correct word earns points by LEVEL (attempts do not matter).
 
-import { ANSWERS, VALID_WORDS } from '../data/wordleWords';
+import { EASY_WORDS, HARD_WORDS, MODERATE_WORDS, VALID_WORDS } from '../data/wordleWords';
 import { makeRng } from './schulte';
 
 export const WORD_LENGTH = 5;
 export const MAX_ATTEMPTS = 5;
+export const LEVEL_COUNT = 3;
 
 export type LetterState = 'green' | 'yellow' | 'gray';
 
-// The hidden word. Same seed (matchId + round number) = same word on every phone.
-export function pickAnswer(seed: string): string {
-  const rnd = makeRng(`${seed}:wordle`);
-  return ANSWERS[Math.floor(rnd() * ANSWERS.length)];
+const LEVEL_WORDS = [EASY_WORDS, MODERATE_WORDS, HARD_WORDS];
+export const LEVEL_NAMES = ['Easy', 'Moderate', 'Hard'];
+
+// Points for guessing the word of a level: easy +5, moderate +10, hard +20. Flat: NOT multiplied
+// by the game's difficulty. They are NOT shown on the game screen or in the rules window.
+// The most a player can earn in one game is MAX_EXTRA (= the sum); src/game/engine.ts and
+// backend/firestore.rules repeat that number, so change them together.
+export const LEVEL_POINTS = [5, 10, 20];
+export const MAX_EXTRA = 35;
+
+// The hidden word of a level (1, 2 or 3). Same seed (matchId + round number) and level = same
+// word on every phone. The three lists share no word, so a game never repeats a word.
+export function pickAnswer(seed: string, level: number): string {
+  const words = LEVEL_WORDS[level - 1];
+  if (!words) throw new Error(`Unknown Wordle level ${level}`);
+  const rnd = makeRng(`${seed}:wordle:L${level}`);
+  return words[Math.floor(rnd() * words.length)];
 }
 
 // A guess must be 5 letters from the word list. Anything else is not allowed (the Prohibition).
@@ -54,29 +73,57 @@ export function keyStates(guesses: string[], answer: string): Record<string, Let
   return out;
 }
 
-// Extra points for the winner, by the number of attempts used. NOT shown on the game screen.
-// Not multiplied by the difficulty (a flat bonus on top of the normal win points).
-const BONUS_BY_ATTEMPT = [10, 8, 5, 2, 0];
-export const MAX_BONUS = 10; // repeated in engine.ts and in backend/firestore.rules
-export const bonusFor = (attempts: number): number =>
-  Number.isInteger(attempts) && attempts >= 1 && attempts <= MAX_ATTEMPTS ? BONUS_BY_ATTEMPT[attempts - 1] : 0;
+// What a player did in each finished level (index 0 = level 1).
+export type Outcome = { solved: boolean; ms: number };
 
-// The game ends as soon as the first player guesses the word, so the winner is the earliest
-// solver (shortest time on their own clock; the 3-2-1 start is shared). Nobody solved = draw.
-export type Result = { uid: string; finished: boolean; totalMs: number; attempts?: number; forfeited?: boolean };
-
-export function pickWinner(results: Result[]): string | null {
-  const solved = results
-    .filter((r) => r.finished && !r.forfeited)
-    .sort((a, b) => a.totalMs - b.totalMs || (a.attempts ?? MAX_ATTEMPTS) - (b.attempts ?? MAX_ATTEMPTS));
-  if (solved.length === 0) return null;
-  if (solved.length > 1) {
-    const [x, y] = solved;
-    if (x.totalMs === y.totalMs && (x.attempts ?? MAX_ATTEMPTS) === (y.attempts ?? MAX_ATTEMPTS)) return null;
-  }
-  return solved[0].uid;
+// The player's final numbers for the game: points, and the total time of the words they guessed
+// (used only to break a tie between players with the same points).
+export function tally(outcomes: Outcome[]): { score: number; totalMs: number } {
+  let score = 0;
+  let totalMs = 0;
+  outcomes.forEach((o, i) => {
+    if (o && o.solved) {
+      score += LEVEL_POINTS[i] ?? 0;
+      totalMs += Math.max(0, Math.round(o.ms));
+    }
+  });
+  return { score, totalMs };
 }
 
-// The round is over as soon as somebody solved it, or when everybody is done.
-export const roundIsOver = (results: Result[], playerCount: number): boolean =>
-  results.some((r) => r.finished && !r.forfeited) || results.length >= playerCount;
+// How many words a score stands for. Every combination of 5 / 10 / 20 adds up to a different
+// number, so the score tells which levels were guessed (for the round summary).
+export function solvedCount(score: number): number {
+  let n = 0;
+  for (let mask = 0; mask < 1 << LEVEL_POINTS.length; mask++) {
+    let sum = 0;
+    let bits = 0;
+    LEVEL_POINTS.forEach((p, i) => {
+      if (mask & (1 << i)) {
+        sum += p;
+        bits++;
+      }
+    });
+    if (sum === score) n = bits;
+  }
+  return n;
+}
+
+// The winner has the most points. Same points: the shorter total time wins. Nobody scored,
+// or still tied: nobody wins (a draw). A player who forfeited the game never wins.
+export type Result = { uid: string; finished: boolean; totalMs: number; score?: number; forfeited?: boolean };
+
+export function pickWinner(results: Result[]): string | null {
+  const ranked = results
+    .filter((r) => !r.forfeited)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.totalMs - b.totalMs);
+  if (ranked.length === 0 || (ranked[0].score ?? 0) <= 0) return null;
+  if (ranked.length > 1) {
+    const [x, y] = ranked;
+    if ((x.score ?? 0) === (y.score ?? 0) && x.totalMs === y.totalMs) return null;
+  }
+  return ranked[0].uid;
+}
+
+// Points a player earns from this game, whether or not they win it (0 if they forfeited).
+export const extraPoints = (r: Result): number =>
+  r.forfeited ? 0 : Math.min(MAX_EXTRA, Math.max(0, Math.round(r.score ?? 0)));
