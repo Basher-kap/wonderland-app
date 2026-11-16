@@ -1,5 +1,5 @@
 // What every mini-game screen receives and reports.
-export type GameResult = { finished: boolean; totalMs: number };
+export type GameResult = { finished: boolean; totalMs: number; attempts?: number };
 
 export type GameProps = {
   // Same for every player in the round (matchId + round number), so all players get the same

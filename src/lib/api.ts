@@ -266,8 +266,9 @@ export const nextRound = (code: string) => hostAction(code, (lobby) => matchFiel
 
 // Losers lose 1 life, a null winner is a draw. Games that are built decide the winner from
 // the players' results; games that are not built yet use the temporary host buttons.
-export const resolveRound = (code: string, winnerId: string | null) =>
-  hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId).state));
+// `bonus` = extra points for the winner (some games give them, e.g. Wordle by attempts used).
+export const resolveRound = (code: string, winnerId: string | null, bonus: number = 0) =>
+  hostAction(code, (lobby) => matchFields(applyRoundResult(lobby, winnerId, bonus).state));
 
 // ------------------------------------------------------------ round start ----
 // Fair start: every player says "ready" once they have read the intro. When all are ready the
@@ -350,12 +351,13 @@ export type RoundResult = {
   finished: boolean;
   totalMs: number;
   forfeited?: boolean; // the player gave up this game: it counts as a loss
+  attempts?: number; // games with tries (Wordle): how many attempts were used
 };
 
 export async function submitResult(
   rawCode: string,
   round: { matchId: string; roundNo: number },
-  result: { finished: boolean; totalMs: number }
+  result: { finished: boolean; totalMs: number; attempts?: number }
 ): Promise<void> {
   const code = normalizeCode(rawCode);
   const uid = myUid();
@@ -365,6 +367,7 @@ export async function submitResult(
     roundNo: round.roundNo,
     finished: result.finished,
     totalMs: Math.max(0, Math.round(result.totalMs)),
+    ...(result.attempts !== undefined ? { attempts: result.attempts } : {}),
   });
 }
 

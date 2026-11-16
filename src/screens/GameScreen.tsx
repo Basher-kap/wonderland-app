@@ -117,6 +117,10 @@ export function GameScreen() {
   const myResult = roundResults.find((r) => r.uid === uid);
   const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
   const mine = local?.key === roundKey ? local : null;
+  // The round is over when the game says so: by default when everybody has a result; for Wordle
+  // as soon as the first player solved it.
+  const over =
+    !!lobby && !!gameModule && (gameModule.roundOver ? gameModule.roundOver(roundResults, lobby.playerIds.length) : everyoneIn);
 
   // 1. I finished reading the intro: tell the lobby.
   useEffect(() => {
@@ -167,16 +171,19 @@ export function GameScreen() {
     return () => timers.forEach(clearTimeout);
   }, [needsStart, introDone, go, startedKey, roundKey]);
 
-  // HOST: as soon as everybody has handed in a result, the game decides the winner.
+  // HOST: as soon as the round is over, the game decides the winner (and the winner's bonus, if any).
   useEffect(() => {
-    if (!isHost || !roundActive || !gameModule || !code || !everyoneIn) return;
+    if (!isHost || !roundActive || !gameModule || !code || !over) return;
     if (resolving.current === roundKey) return;
     resolving.current = roundKey;
-    api.resolveRound(code, gameModule.pickWinner(roundResults)).catch((e) => {
+    const winnerId = gameModule.pickWinner(roundResults);
+    const winnerRow = roundResults.find((r) => r.uid === winnerId);
+    const bonus = winnerId && winnerRow && gameModule.bonusFor ? gameModule.bonusFor(winnerRow) : 0;
+    api.resolveRound(code, winnerId, bonus).catch((e) => {
       resolving.current = null; // allow another try (the other phone may also have raced us)
       console.warn('resolve failed', e);
     });
-  }, [isHost, roundActive, gameModule, code, everyoneIn, roundKey, roundResults]);
+  }, [isHost, roundActive, gameModule, code, over, roundKey, roundResults]);
 
   // What this finished match did to MY ranking points (saved to my profile automatically).
   const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
@@ -253,7 +260,7 @@ export function GameScreen() {
   const forfeitActions = useRef({ game: confirmForfeitGame, match: confirmForfeitMatch });
   forfeitActions.current = { game: confirmForfeitGame, match: confirmForfeitMatch };
   const showForfeitMatch = !!lobby && roundActive && !quitSent;
-  const showForfeitGame = showForfeitMatch && !!gameModule && !mine && !myResult;
+  const showForfeitGame = showForfeitMatch && !!gameModule && !mine && !myResult && !over;
   useEffect(() => {
     navigation.setOptions({
       headerRight: showForfeitMatch
@@ -300,7 +307,8 @@ export function GameScreen() {
   }
 
   const waitingToStart = !!lobby && !!gameModule && roundActive && !started && !mine;
-  const playing = inRound && !!gameModule && !mine && started;
+  // The board closes for everybody who is still playing once the round is over (Wordle: first solver).
+  const playing = inRound && !!gameModule && !mine && started && !over;
   const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');
   const forfeiters = roundResults.filter((r) => r.forfeited);
 
@@ -338,6 +346,21 @@ export function GameScreen() {
                 )}
               </>
             )}
+          </View>
+        )}
+
+        {/* The round ended while this player was still playing (Wordle: somebody solved it first) */}
+        {lobby && roundActive && !!gameModule && over && !mine && started && (
+          <View style={styles.box}>
+            <Text style={styles.boxTitle}>Round over</Text>
+            <Text style={styles.boxText}>
+              {roundResults.some((r) => r.finished && !r.forfeited)
+                ? `${
+                    lobby.players[roundResults.filter((r) => r.finished && !r.forfeited).sort((a, b) => a.totalMs - b.totalMs)[0].uid]
+                      ?.username ?? 'A player'
+                  } finished first. Ending the round…`
+                : 'Ending the round…'}
+            </Text>
           </View>
         )}
 
@@ -442,6 +465,9 @@ export function GameScreen() {
                   ? `${roundWinnerName ?? 'A player'} won the round. Everyone else lost a life.`
                   : 'Draw: nobody loses a life.'}
               </Text>
+            )}
+            {(roundDone || finished) && !round?.quitBy && gameModule?.summary && (
+              <Text style={[styles.boxText, { color: colors.text }]}>{gameModule.summary(roundKey)}</Text>
             )}
             {(roundDone || finished) &&
               forfeiters.map((r) => (

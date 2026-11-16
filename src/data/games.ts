@@ -28,7 +28,28 @@ export const difficultyOf = (game: Game): Difficulty => game.difficulty ?? DEFAU
 // The game engine (src/game/engine.ts) draws games from this list by id.
 // Rules per game are filled in one by one; a game without them shows "To be announced.".
 export const GAMES: Game[] = [
-  { id: 'wordle', name: 'Wordle', domain: 'logic', description: 'Guess a 5-letter word within 5 tries.' },
+  {
+    id: 'wordle',
+    name: 'Wordle',
+    domain: 'logic',
+    description: 'Guess a 5-letter word within 5 tries.',
+    japaneseName: 'Waadoru',
+    difficulty: 'normal',
+    rules: [
+      'Each player must guess the same hidden 5-letter word.',
+      'After each guess, the letters are color-coded:',
+      '🟩 Green: the letter is correct and in the correct position.',
+      '🟨 Yellow: the letter is in the hidden word but in the wrong position.',
+      '⬜ Gray: the letter is not in the hidden word.',
+    ],
+    // The attempts bonus (1st try +10, 2nd +8, 3rd +5, 4th +2, 5th +0) is applied by the game
+    // (game/wordle.ts) but is NOT listed here on purpose: it is not shown to the players.
+    clearConditions: [
+      'Each player has only 5 attempts to guess the hidden word.',
+      'The game ends as soon as the first player correctly guesses the word.',
+    ],
+    prohibitions: ['Players are not allowed to guess an invalid or unrecognized word.'],
+  },
   { id: 'human-calculator', name: 'Human Calculator', domain: 'logic', description: 'Calculate the numbers shown on screen as fast as possible.' },
   { id: 'magical-banana', name: 'Magical Banana', domain: 'logic', description: 'Rhythm word game: connect the previous word to a new related concept on the beat.' },
   { id: 'fortune', name: 'Fortune', domain: 'logic', description: 'Draw a random fortune-telling paper with a logical question on it.' },
