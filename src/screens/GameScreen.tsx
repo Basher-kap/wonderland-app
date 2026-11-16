@@ -364,6 +364,14 @@ export function GameScreen() {
           </View>
         )}
 
+        {/* The game is over (first solver, or everybody used their attempts): show the answer to EVERYONE */}
+        {lobby && !!gameModule?.summary && (over || roundDone || finished) && !round?.quitBy && (
+          <View style={[styles.box, styles.reveal]}>
+            <Text style={styles.revealTitle}>Game over</Text>
+            <Text style={styles.revealText}>{gameModule.summary(roundKey)}</Text>
+          </View>
+        )}
+
         {/* 3. The game board */}
         {playing && gameModule && (
           <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} />
@@ -466,9 +474,6 @@ export function GameScreen() {
                   : 'Draw: nobody loses a life.'}
               </Text>
             )}
-            {(roundDone || finished) && !round?.quitBy && gameModule?.summary && (
-              <Text style={[styles.boxText, { color: colors.text }]}>{gameModule.summary(roundKey)}</Text>
-            )}
             {(roundDone || finished) &&
               forfeiters.map((r) => (
                 <Text key={r.uid} style={[styles.boxText, { color: colors.accent }]}>
@@ -529,6 +534,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: colors.muted },
+  reveal: { borderColor: colors.accent, borderWidth: 2, alignItems: 'center', paddingVertical: 18 },
+  revealTitle: { color: colors.muted, fontSize: 14, fontWeight: '600' },
+  revealText: { color: colors.accent, fontSize: 24, fontWeight: '800', textAlign: 'center' },
   headerButtons: { flexDirection: 'row', gap: 8 },
   headerButton: {
     borderWidth: 1,
