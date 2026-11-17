@@ -75,7 +75,26 @@ export const GAMES: Game[] = [
   { id: 'magical-banana', name: 'Magical Banana', domain: 'logic', description: 'Rhythm word game: connect the previous word to a new related concept on the beat.' },
   { id: 'fortune', name: 'Fortune', domain: 'logic', description: 'Draw a random fortune-telling paper with a logical question on it.' },
 
-  { id: 'hangman', name: 'Hangman', domain: 'experience', description: 'Guess a proper noun such as a brand, team or celebrity name.' },
+  {
+    id: 'hangman',
+    name: 'Hangman',
+    domain: 'experience',
+    description: 'Guess a proper noun such as a brand, team or celebrity name.',
+    difficulty: 'normal',
+    rules: [
+      'A hidden word or name will be displayed as a series of blank spaces, with each blank representing one letter.',
+      'Players must guess the hidden word by selecting one letter at a time.',
+      'Correctly guessed letters will be revealed in their corresponding positions.',
+      'Incorrect guesses will add a part to the Hangman drawing.',
+    ],
+    // The kinds of words (brands, NBA teams, celebrities, events, proper nouns) are a hidden
+    // note (data/hangmanWords.ts): NOT listed here on purpose.
+    clearConditions: [
+      'Players must correctly guess the hidden word before the Hangman drawing is completed.',
+      'Players who successfully reveal the entire word win the round.',
+      'Players who fail to guess the word before running out of attempts lose the round.',
+    ],
+  },
   {
     id: 'schulte-table',
     name: 'Schulte Table',

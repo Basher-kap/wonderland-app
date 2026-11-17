@@ -9,6 +9,8 @@ import {
   solvedCount,
 } from '../game/wordle';
 import { describeScore as describeCalcScore, pickWinner as pickLastStanding } from '../game/humanCalculator';
+import { pickEntry as pickHangmanEntry, pickWinner as pickFastestSolver } from '../game/hangman';
+import { HangmanGame } from './HangmanGame';
 import { HumanCalculatorGame } from './HumanCalculatorGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
@@ -64,5 +66,11 @@ export const GAME_MODULES: Record<string, GameModule> = {
     pickWinner: pickLastStanding,
     describe: (r) => (r.finished ? describeCalcScore(r.score ?? 0) : 'did not finish'),
     multiStage: true,
+  },
+  hangman: {
+    Component: HangmanGame,
+    pickWinner: pickFastestSolver,
+    describe: (r) => (r.finished ? `revealed the word in ${formatSeconds(r.totalMs)}` : 'was hanged'),
+    summary: (seed) => `The word was: ${pickHangmanEntry(seed).text.toUpperCase()}`,
   },
 };
