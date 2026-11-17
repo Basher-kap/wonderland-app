@@ -347,7 +347,7 @@ export function GameScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
-        {!playing && <Text style={styles.desc}>{game.description}</Text>}
+        {!playing && !lobby && <Text style={styles.desc}>{game.description}</Text>}
 
         {/* 2. Waiting until everybody has read the intro, then the countdown */}
         {waitingToStart && (
@@ -378,7 +378,7 @@ export function GameScreen() {
         {lobby && !!gameModule?.summary && (over || roundDone || finished) && !round?.quitBy && (
           <View style={[styles.box, styles.reveal]}>
             <Text style={styles.revealTitle}>Game over</Text>
-            <Text style={styles.revealText}>{gameModule.summary(roundKey)}</Text>
+            <Text style={styles.revealText}>{gameModule.summary(roundKey, { iWon: !!(myResult?.finished || mine?.result.finished) && !myResult?.forfeited })}</Text>
           </View>
         )}
 

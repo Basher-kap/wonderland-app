@@ -40,7 +40,9 @@ export type GameModule = {
   extraPoints?: (result: ResultRow) => number;
   // A line shown to EVERYONE once the round is over (Wordle: the hidden words).
   // `seed` is the same seed the game was given.
-  summary?: (seed: string) => string | null;
+  // `iWon` = I finished the game successfully (Hangman: I revealed the word), so the text can
+  // speak to me directly.
+  summary?: (seed: string, me: { iWon: boolean }) => string | null;
   // The game wants `room` (the lobby: other players, shared docs) even though it is a single
   // board. Hangman uses it to share clues.
   needsRoom?: boolean;
@@ -79,6 +81,9 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: (r) => (r.finished ? `revealed the word in ${formatSeconds(r.totalMs)}` : 'was hanged'),
     needsRoom: true,
     endsOnFirstFinish: true,
-    summary: (seed) => `The word was: ${pickHangmanEntry(seed).text.toUpperCase()}`,
+    summary: (seed, me) => {
+      const word = pickHangmanEntry(seed).text.toUpperCase();
+      return me.iWon ? `YOU GOT THE WORD: ${word}` : `The word was: ${word}`;
+    },
   },
 };
