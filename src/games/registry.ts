@@ -41,6 +41,12 @@ export type GameModule = {
   // A line shown to EVERYONE once the round is over (Wordle: the hidden words).
   // `seed` is the same seed the game was given.
   summary?: (seed: string) => string | null;
+  // The game wants `room` (the lobby: other players, shared docs) even though it is a single
+  // board. Hangman uses it to share clues.
+  needsRoom?: boolean;
+  // The round ends for EVERYBODY as soon as one player finishes successfully (Hangman: the
+  // first to reveal the word). The host then picks the winner from the results that are in.
+  endsOnFirstFinish?: boolean;
 };
 
 export const formatSeconds = (ms: number) => `${(ms / 1000).toFixed(2)}s`;
@@ -71,6 +77,8 @@ export const GAME_MODULES: Record<string, GameModule> = {
     Component: HangmanGame,
     pickWinner: pickFastestSolver,
     describe: (r) => (r.finished ? `revealed the word in ${formatSeconds(r.totalMs)}` : 'was hanged'),
+    needsRoom: true,
+    endsOnFirstFinish: true,
     summary: (seed) => `The word was: ${pickHangmanEntry(seed).text.toUpperCase()}`,
   },
 };

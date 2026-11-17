@@ -9,14 +9,49 @@ t('same seed gives the same word, different seeds vary', () => {
   const seen = new Set(Array.from({ length: 60 }, (_, i) => h.pickEntry('s' + i).text));
   assert.ok(seen.size > 15);
 });
-t('word list: letters and spaces only, no duplicates, has every category', () => {
-  const seen = new Set();
-  for (const w of words) {
-    assert.ok(/^[A-Za-z]+( [A-Za-z]+)*$/.test(w.text), w.text);
-    assert.ok(!seen.has(w.text.toUpperCase()), 'duplicate ' + w.text);
-    seen.add(w.text.toUpperCase());
+t('word list: only letters, digits, apostrophes and spaces, at least one letter, has every category', () => {
+  for (const w of words) assert.ok(/^[A-Za-z0-9' ]+$/.test(w.text) && /[A-Za-z]/.test(w.text), w.text);
+  assert.ok(new Set(words.map((w) => w.category)).size >= 14);
+});
+t('pool has no duplicate words, and every pick comes from it', () => {
+  const keys = h.WORD_POOL.map((w) => w.text.toUpperCase());
+  assert.strictEqual(new Set(keys).size, keys.length);
+  assert.ok(h.WORD_POOL.length > 400);
+  for (let i = 0; i < 200; i++) assert.ok(h.WORD_POOL.includes(h.pickEntry('p' + i)));
+});
+t('digits and apostrophes are shown for free and are never needed as a guess', () => {
+  let s = h.newState("Grey's K2");
+  assert.deepStrictEqual(h.display(s).filter((c) => c !== null && c !== ' ').join(''), "'2");
+  s = play("Grey's K2", 'GREYSK');
+  assert.ok(h.isSolved(s));
+});
+t('clues: letter is in the word, hidden for the asker, deterministic', () => {
+  const s = h.newState('Los Angeles Lakers');
+  for (let n = 0; n < 20; n++) {
+    const l = h.pickClueLetter(s, 'seed' + n, n);
+    assert.ok(l && s.word.includes(l));
+    assert.strictEqual(l, h.pickClueLetter(s, 'seed' + n, n));
   }
-  assert.strictEqual(new Set(words.map((w) => w.category)).size, 5);
+  const p = play('Los Angeles Lakers', 'LOSANG');
+  const l = h.pickClueLetter(p, 'x', 0);
+  assert.ok(!p.guessed.includes(l));
+});
+t('a clue is refused when it would solve the word for the asker', () => {
+  assert.strictEqual(h.pickClueLetter(h.newState('K2'), 's', 0), null); // 1 letter
+  assert.ok(h.pickClueLetter(play('Nike', 'NI'), 's', 0)); // K and E hidden: allowed
+  assert.strictEqual(h.pickClueLetter(play('Nike', 'NIK'), 's', 0), null); // only E hidden
+});
+t('clue limits: half of the different letters, 2 per player', () => {
+  assert.strictEqual(h.maxCluesTotal('Nike'), 2);
+  assert.strictEqual(h.maxCluesTotal('K2'), 0);
+  assert.strictEqual(h.MAX_CLUES_PER_PLAYER, 2);
+});
+t('clue letters count as revealed and never as wrong', () => {
+  const s = h.withClues(play('Nike', 'Z'), ['N', 'K']);
+  assert.strictEqual(h.wrongCount(s), 1);
+  assert.deepStrictEqual(h.display(s), ['N', null, 'K', null]);
+  assert.ok(h.isSolved(h.withClues(s, ['I', 'E'])));
+  assert.strictEqual(h.withClues(s, ['N']), s);
 });
 t('correct letters are revealed in every position, spaces are free', () => {
   const s = play('Toyota Auto', 'TO');

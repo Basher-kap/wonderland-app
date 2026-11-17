@@ -1,20 +1,29 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   display,
   guess,
   isHanged,
+  isLetter,
   isSolved,
+  LETTERS,
+  MAX_CLUES_PER_PLAYER,
   MAX_WRONG,
+  maxCluesTotal,
   newState,
+  pickClueLetter,
   pickEntry,
+  withClues,
   wrongCount,
 } from '../game/hangman';
 import { colors, radius } from '../theme';
 import type { GameProps } from './types';
 
 // Hangman: guess the hidden proper noun one letter at a time. Everybody gets the same word
-// (from `seed`) and plays on their own; the fastest player to reveal it wins. All the rules live
+// (from `seed`) and plays on their own; the first player to reveal it wins and the round ends for
+// everybody (GameScreen, registry: endsOnFirstFinish). A clue button reveals a letter to ALL
+// players: it is saved in the lobby as a `stages` doc (stage = the asker's clue number, ms = when,
+// answer = index of the letter in A-Z), and every phone shows a pop-up and the letter. All the rules live
 // in src/game/hangman.ts; this file is only the screen. The back/forfeit buttons are provided by
 // GameScreen. The answer is NOT shown to a hanged player (others may still be playing); it is
 // shown to everyone in the round summary once the round is over.
@@ -50,16 +59,33 @@ function Drawing({ parts }: { parts: number }) {
   );
 }
 
-export function HangmanGame({ seed, onFinish }: GameProps) {
+type Clue = { key: string; uid: string; letter: string; at: number };
+
+export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
   const entry = useMemo(() => pickEntry(seed), [seed]);
   const [state, setState] = useState(() => newState(entry.text));
+  const [localClues, setLocalClues] = useState<Clue[]>([]); // practice run (no lobby)
+  const [popups, setPopups] = useState<Clue[]>([]); // clue messages waiting to be shown
   const [elapsed, setElapsed] = useState(0);
+  const [asking, setAsking] = useState(false);
   const startedAt = useRef(Date.now());
   const done = useRef(false);
+  const seen = useRef<Set<string> | null>(null);
 
-  const solved = isSolved(state);
-  const hanged = isHanged(state);
-  const wrong = wrongCount(state);
+  // Every clue given in this round, oldest first. In a lobby they come from the shared docs.
+  const clues: Clue[] = useMemo(() => {
+    if (!room) return localClues;
+    return room.stages
+      .filter((s) => !s.solved && typeof s.answer === 'number' && s.answer >= 0 && s.answer < 26)
+      .map((s) => ({ key: `${s.uid}_${s.stage}`, uid: s.uid, letter: LETTERS[s.answer as number], at: s.ms }))
+      .sort((a, b) => a.at - b.at || (a.key < b.key ? -1 : 1));
+  }, [room, localClues]);
+
+  // What I see: my own picks plus every clue letter.
+  const view = useMemo(() => withClues(state, clues.map((c) => c.letter)), [state, clues]);
+  const solved = isSolved(view);
+  const hanged = isHanged(view);
+  const wrong = wrongCount(view);
 
   useEffect(() => {
     startedAt.current = Date.now();
@@ -69,20 +95,73 @@ export function HangmanGame({ seed, onFinish }: GameProps) {
     return () => clearInterval(id);
   }, []);
 
-  const onPick = (letter: string) => {
+  const finish = (won: boolean) => {
     if (done.current) return;
-    const next = guess(state, letter);
-    if (next === state) return;
-    setState(next);
-    if (isSolved(next) || isHanged(next)) {
-      done.current = true;
-      const total = Date.now() - startedAt.current;
-      setElapsed(total);
-      onFinish({ finished: isSolved(next), totalMs: total });
+    done.current = true;
+    const total = Date.now() - startedAt.current;
+    setElapsed(total);
+    onFinish({ finished: won, totalMs: total });
+  };
+
+  // A clue can also be the last letter I needed.
+  useEffect(() => {
+    if (solved) finish(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solved]);
+
+  // Pop-up for every NEW clue (the first look at the list only records what is already there).
+  useEffect(() => {
+    if (seen.current === null) {
+      seen.current = new Set(clues.map((c) => c.key));
+      return;
+    }
+    const fresh = clues.filter((c) => !seen.current!.has(c.key));
+    if (fresh.length === 0) return;
+    fresh.forEach((c) => seen.current!.add(c.key));
+    setPopups((p) => [...p, ...fresh]);
+  }, [clues]);
+
+  const popup = popups[0];
+  useEffect(() => {
+    if (!popup) return;
+    const id = setTimeout(() => setPopups((p) => p.slice(1)), 2600);
+    return () => clearTimeout(id);
+  }, [popup]);
+
+  const nameOf = (id: string) => (id === uid ? 'You' : room?.usernames[id] ?? 'A player');
+
+  const myClues = clues.filter((c) => c.uid === uid).length;
+  const leftForMe = Math.min(MAX_CLUES_PER_PLAYER - myClues, maxCluesTotal(entry.text) - clues.length);
+  const canClue = !done.current && !solved && !hanged && !asking && leftForMe > 0 && pickClueLetter(view, seed, clues.length) !== null;
+
+  const onClue = async () => {
+    if (!canClue) return;
+    const letter = pickClueLetter(view, seed, clues.length);
+    if (!letter) return;
+    setAsking(true);
+    try {
+      if (room) {
+        await room.reportStage(myClues + 1, { solved: false, ms: Date.now(), answer: LETTERS.indexOf(letter) });
+      } else {
+        setLocalClues((c) => [...c, { key: `${uid}_${c.length + 1}`, uid, letter, at: Date.now() }]);
+      }
+    } catch (e) {
+      console.warn('clue failed', e);
+    } finally {
+      setAsking(false);
     }
   };
 
-  const shown = display(state);
+  const onPick = (letter: string) => {
+    if (done.current) return;
+    const next = guess(view, letter);
+    if (next === view) return;
+    setState(next);
+    if (isSolved(next)) finish(true);
+    else if (isHanged(next)) finish(false);
+  };
+
+  const shown = display(view);
   // Break the word into words so long names wrap between words, never in the middle of one.
   const words: (string | null)[][] = [[]];
   shown.forEach((ch) => (ch === ' ' ? words.push([]) : words[words.length - 1].push(ch)));
@@ -92,9 +171,15 @@ export function HangmanGame({ seed, onFinish }: GameProps) {
       <View style={styles.header}>
         <Text style={styles.headerText}>{entry.category}</Text>
         <Text style={[styles.headerText, styles.clock]}>{clock(elapsed)}</Text>
-        <Text style={styles.headerText}>
-          Wrong {wrong}/{MAX_WRONG}
-        </Text>
+        <Pressable
+          onPress={onClue}
+          disabled={!canClue}
+          accessibilityRole="button"
+          accessibilityLabel="Ask for a clue"
+          style={[styles.clueButton, !canClue && { opacity: 0.4 }]}
+        >
+          <Text style={styles.clueButtonText}>Clue ({Math.max(0, leftForMe)})</Text>
+        </Pressable>
       </View>
 
       <Drawing parts={wrong} />
@@ -102,16 +187,23 @@ export function HangmanGame({ seed, onFinish }: GameProps) {
       <View style={styles.wordArea}>
         {words.map((w, wi) => (
           <View key={wi} style={styles.wordRow}>
-            {w.map((ch, i) => (
-              <View key={i} style={styles.slot}>
-                <Text style={styles.slotLetter}>{ch ?? ' '}</Text>
-              </View>
-            ))}
+            {w.map((ch, i) =>
+              // Digits and punctuation (K2, Grey's Anatomy) are shown for free, with no blank.
+              ch !== null && !isLetter(ch) ? (
+                <View key={i} style={styles.symbol}>
+                  <Text style={styles.slotLetter}>{ch}</Text>
+                </View>
+              ) : (
+                <View key={i} style={styles.slot}>
+                  <Text style={styles.slotLetter}>{ch ?? ' '}</Text>
+                </View>
+              )
+            )}
           </View>
         ))}
       </View>
 
-      {solved && <Text style={[styles.banner, { color: colors.experience }]}>Solved in {clock(elapsed)}!</Text>}
+      {solved && <Text style={[styles.banner, { color: colors.experience }]}>You revealed the word!</Text>}
       {hanged && <Text style={[styles.banner, { color: colors.danger }]}>You were hanged!</Text>}
 
       {!solved && !hanged && (
@@ -119,8 +211,8 @@ export function HangmanGame({ seed, onFinish }: GameProps) {
           {ROWS.map((row) => (
             <View key={row} style={styles.keyRow}>
               {row.split('').map((l) => {
-                const used = state.guessed.includes(l);
-                const bad = used && !state.word.includes(l);
+                const used = view.guessed.includes(l);
+                const bad = used && !view.word.includes(l);
                 return (
                   <Pressable
                     key={l}
@@ -143,6 +235,19 @@ export function HangmanGame({ seed, onFinish }: GameProps) {
           ))}
         </View>
       )}
+
+      {/* Someone asked for a clue: everybody sees who, and the letter. */}
+      <Modal visible={!!popup} transparent animationType="fade" onRequestClose={() => setPopups((p) => p.slice(1))}>
+        <View style={styles.popupBackdrop}>
+          {popup && (
+            <View style={styles.popupBox}>
+              <Text style={styles.popupTitle}>{nameOf(popup.uid)} asked for a clue</Text>
+              <Text style={styles.popupLetter}>{popup.letter}</Text>
+              <Text style={styles.popupText}>This letter is in the word.</Text>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -159,6 +264,29 @@ const styles = StyleSheet.create({
   wordArea: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 18, rowGap: 10 },
   wordRow: { flexDirection: 'row', gap: 4 },
   slot: { width: 22, height: 34, borderBottomWidth: 3, borderBottomColor: colors.experience, alignItems: 'center', justifyContent: 'flex-end' },
+  symbol: { width: 14, height: 34, alignItems: 'center', justifyContent: 'flex-end' },
+  clueButton: {
+    borderWidth: 1,
+    borderColor: colors.experience,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  clueButtonText: { color: colors.experience, fontSize: 15, fontWeight: '700' },
+  popupBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  popupBox: {
+    backgroundColor: colors.card,
+    borderWidth: 2,
+    borderColor: colors.experience,
+    borderRadius: radius.md,
+    paddingVertical: 22,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    gap: 8,
+  },
+  popupTitle: { color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  popupLetter: { color: colors.experience, fontSize: 64, fontWeight: '800' },
+  popupText: { color: colors.muted, fontSize: 15 },
   slotLetter: { color: colors.text, fontSize: 22, fontWeight: '800' },
   banner: { textAlign: 'center', fontSize: 24, fontWeight: '800', paddingVertical: 8 },
   keyboard: { gap: 8, marginTop: 4 },

@@ -6,7 +6,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge, DomainStat } from '../components/ui';
 import { RoundIntro } from '../components/RoundIntro';
 import { useAuth } from '../context/AuthContext';
-import { DIFFICULTY_MULTIPLIER, difficultyOf, getGame } from '../data/games';
+import { difficultyOf, getGame } from '../data/games';
 import { DomainCount, settlementFor } from '../game/engine';
 import { GAME_MODULES } from '../games/registry';
 import type { ResultRow } from '../games/registry';
@@ -91,7 +91,6 @@ export function GameScreen() {
   // (everyone gets the same first board). A practice run has its own random seed.
   const roundKey = lobby && round ? `${lobby.matchId}:${round.no}` : `practice:${practiceSeed}`;
   const difficulty = round?.difficulty ?? (game ? difficultyOf(game) : 'normal');
-  const multiplier = DIFFICULTY_MULTIPLIER[difficulty];
   const introDone = introDoneFor === roundKey;
 
   // No way out while a round is being played: no Back button, no swipe, no Android back.
@@ -126,7 +125,10 @@ export function GameScreen() {
   const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
   const mine = local?.key === roundKey ? local : null;
   // The round is over when every player has handed in a result (finished, or forfeited the game).
-  const over = !!lobby && !!gameModule && everyoneIn;
+  // Some games (Hangman) also end for everybody as soon as one player finishes successfully.
+  const someoneWon =
+    !!gameModule?.endsOnFirstFinish && roundResults.some((r) => r.finished && !r.forfeited);
+  const over = !!lobby && !!gameModule && (everyoneIn || someoneWon);
   // A player who finished a one-board game, or forfeited any game, no longer sees the board.
   // In a game with levels (Wordle) the board stays after finishing, to show the other players' progress.
   const mineOut = !!mine && (!gameModule?.multiStage || !mine.result.finished);
@@ -323,7 +325,7 @@ export function GameScreen() {
 
   // For a game with levels: what the other players did, so the game can wait for them between levels.
   const room: GameRoom | undefined =
-    lobby && round && code && gameModule?.multiStage
+    lobby && round && code && (gameModule?.multiStage || gameModule?.needsRoom)
       ? {
           playerIds: lobby.playerIds,
           usernames: Object.fromEntries(Object.entries(lobby.players).map(([id, p]) => [id, p.username])),
@@ -346,11 +348,6 @@ export function GameScreen() {
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
         {!playing && <Text style={styles.desc}>{game.description}</Text>}
-        {inRound && (
-          <Text style={styles.desc}>
-            Difficulty: {difficulty[0].toUpperCase() + difficulty.slice(1)} · points x{multiplier}
-          </Text>
-        )}
 
         {/* 2. Waiting until everybody has read the intro, then the countdown */}
         {waitingToStart && (
