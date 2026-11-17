@@ -113,7 +113,23 @@ export const GAMES: Game[] = [
       'The player who completes all 5 levels in the shortest time wins.',
     ],
   },
-  { id: 'inversion', name: 'Inversion', domain: 'experience', description: 'Tap the text button that is NOT correct.' },
+  {
+    id: 'inversion',
+    name: 'Inversion',
+    domain: 'experience',
+    description: 'Follow the instruction about the arrows, but do the opposite when INVERSED blinks.',
+    difficulty: 'normal',
+    rules: [
+      'Follow the instructions given unless there’s an INVERSION sign.',
+      'Make sure to click a correct button.',
+    ],
+    // How the screen looks and how the instructions get trickier is a hidden note
+    // (game/inversion.ts): NOT listed here on purpose.
+    clearConditions: [
+      'Survive all the tasks given until you remain the last player.',
+      'You have 3 chances to make a mistake.',
+    ],
+  },
   { id: 'janken-negotiation', name: 'Janken Negotiation', domain: 'experience', description: 'Rock-paper-scissors, with negotiating what to pick.' },
 
   { id: 'battleships', name: 'Battleships', domain: 'chance', description: 'Hit hidden ships on the grid with limited bullets. Do not hit your own ship.' },

@@ -128,7 +128,10 @@ export function GameScreen() {
   // Some games (Hangman) also end for everybody as soon as one player finishes successfully.
   const someoneWon =
     !!gameModule?.endsOnFirstFinish && roundResults.some((r) => r.finished && !r.forfeited);
-  const over = !!lobby && !!gameModule && (everyoneIn || someoneWon);
+  // Or when only one player is still playing (everybody else is out): that player wins.
+  const oneLeft =
+    !!gameModule?.endsWhenOneLeft && !!lobby && lobby.playerIds.length > 1 && roundResults.length >= lobby.playerIds.length - 1;
+  const over = !!lobby && !!gameModule && (everyoneIn || someoneWon || oneLeft);
   // A player who finished a one-board game, or forfeited any game, no longer sees the board.
   // In a game with levels (Wordle) the board stays after finishing, to show the other players' progress.
   const mineOut = !!mine && (!gameModule?.multiStage || !mine.result.finished);
@@ -187,7 +190,7 @@ export function GameScreen() {
     if (!isHost || !roundActive || !gameModule || !code || !over) return;
     if (resolving.current === roundKey) return;
     resolving.current = roundKey;
-    const winnerId = gameModule.pickWinner(roundResults);
+    const winnerId = gameModule.pickWinner(roundResults, lobby?.playerIds);
     const extras: Record<string, number> = {};
     for (const r of roundResults) {
       const extra = gameModule.extraPoints?.(r) ?? 0;

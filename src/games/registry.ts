@@ -10,8 +10,10 @@ import {
 } from '../game/wordle';
 import { describeScore as describeCalcScore, pickWinner as pickLastStanding } from '../game/humanCalculator';
 import { pickEntry as pickHangmanEntry, pickWinner as pickFastestSolver } from '../game/hangman';
+import { describeResult as describeInversion, pickWinner as pickLastOneIn } from '../game/inversion';
 import { HangmanGame } from './HangmanGame';
 import { HumanCalculatorGame } from './HumanCalculatorGame';
+import { InversionGame } from './InversionGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
 import type { GameProps } from './types';
@@ -29,7 +31,8 @@ export type ResultRow = {
 export type GameModule = {
   Component: React.ComponentType<GameProps>;
   // Decide the round winner from everybody's results. null = nobody wins (a draw).
-  pickWinner: (results: ResultRow[]) => string | null;
+  // `playerIds` = everybody in the lobby, so a game can tell who has not handed in a result yet.
+  pickWinner: (results: ResultRow[], playerIds?: string[]) => string | null;
   // How a result is shown in the round summary.
   describe: (result: ResultRow) => string;
   // The game has several levels and stays on screen between them, with the other players'
@@ -49,6 +52,9 @@ export type GameModule = {
   // The round ends for EVERYBODY as soon as one player finishes successfully (Hangman: the
   // first to reveal the word). The host then picks the winner from the results that are in.
   endsOnFirstFinish?: boolean;
+  // The round also ends when all but ONE player have handed in a result without finishing
+  // (eliminated or forfeited): the one left wins (Inversion).
+  endsWhenOneLeft?: boolean;
 };
 
 export const formatSeconds = (ms: number) => `${(ms / 1000).toFixed(2)}s`;
@@ -85,5 +91,12 @@ export const GAME_MODULES: Record<string, GameModule> = {
       const word = pickHangmanEntry(seed).text.toUpperCase();
       return me.iWon ? `YOU GOT THE WORD: ${word}` : `The word was: ${word}`;
     },
+  },
+  inversion: {
+    Component: InversionGame,
+    pickWinner: pickLastOneIn,
+    describe: describeInversion,
+    endsOnFirstFinish: true,
+    endsWhenOneLeft: true,
   },
 };
