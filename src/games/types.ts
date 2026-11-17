@@ -6,7 +6,7 @@ export type GameResult = {
 };
 
 // What one player did in one level of a game with several levels (Wordle).
-export type StageResult = { uid: string; stage: number; solved: boolean; ms: number };
+export type StageResult = { uid: string; stage: number; solved: boolean; ms: number; answer?: number };
 
 // The lobby, as seen by a game with several levels. It is only given in a lobby (not in a solo
 // practice run). It lets the game wait for the other players between levels.
@@ -20,7 +20,7 @@ export type GameRoom = {
   // Players who forfeited this game: nobody waits for them.
   out: string[];
   // Tell the others I finished a level / that I am ready for the next one.
-  reportStage: (stage: number, result: { solved: boolean; ms: number }) => Promise<void>;
+  reportStage: (stage: number, result: { solved: boolean; ms: number; answer?: number }) => Promise<void>;
   readyFor: (stage: number) => Promise<void>;
 };
 

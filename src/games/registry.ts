@@ -8,6 +8,8 @@ import {
   pickWinner as pickMostPoints,
   solvedCount,
 } from '../game/wordle';
+import { describeScore as describeCalcScore, pickWinner as pickLastStanding } from '../game/humanCalculator';
+import { HumanCalculatorGame } from './HumanCalculatorGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
 import type { GameProps } from './types';
@@ -56,5 +58,11 @@ export const GAME_MODULES: Record<string, GameModule> = {
     summary: (seed) =>
       'The words were:\n' +
       Array.from({ length: LEVEL_COUNT }, (_, i) => `${LEVEL_NAMES[i]}: ${pickAnswer(seed, i + 1).toUpperCase()}`).join('\n'),
+  },
+  'human-calculator': {
+    Component: HumanCalculatorGame,
+    pickWinner: pickLastStanding,
+    describe: (r) => (r.finished ? describeCalcScore(r.score ?? 0) : 'did not finish'),
+    multiStage: true,
   },
 };

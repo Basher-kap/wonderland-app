@@ -52,7 +52,26 @@ export const GAMES: Game[] = [
     ],
     prohibitions: ['Players are not allowed to guess an invalid or unrecognized word.'],
   },
-  { id: 'human-calculator', name: 'Human Calculator', domain: 'logic', description: 'Calculate the numbers shown on screen as fast as possible.' },
+  {
+    id: 'human-calculator',
+    name: 'Human Calculator',
+    domain: 'logic',
+    description: 'Calculate the numbers shown on screen, then type the answer in time.',
+    difficulty: 'normal',
+    rules: [
+      'A number with an arithmetic symbol will briefly appear on the screen before disappearing.',
+      'This sequence will continue until the complete mathematical equation has been displayed.',
+      'Calculate from left to right, starting from 0.',
+      'Players must calculate the answer and enter it within the given time limit.',
+      'Players who fail to submit an answer within the time limit receive no points and lose a chance.',
+    ],
+    // The way the questions grow longer and harder is a hidden note (game/humanCalculator.ts):
+    // it is NOT listed here on purpose.
+    clearConditions: [
+      'Each player has only 3 chances to make a mistake.',
+      'The last remaining player wins.',
+    ],
+  },
   { id: 'magical-banana', name: 'Magical Banana', domain: 'logic', description: 'Rhythm word game: connect the previous word to a new related concept on the beat.' },
   { id: 'fortune', name: 'Fortune', domain: 'logic', description: 'Draw a random fortune-telling paper with a logical question on it.' },
 

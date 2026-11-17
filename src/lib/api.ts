@@ -354,13 +354,13 @@ export function subscribeQuits(
 // ------------------------------------------------------------ level results ----
 // Games with several levels (Wordle) report every level as soon as the player finishes it, so
 // all phones can show the answer when EVERYBODY is done with the level.
-export type StageDoc = { uid: string; matchId: string; roundNo: number; stage: number; solved: boolean; ms: number };
+export type StageDoc = { uid: string; matchId: string; roundNo: number; stage: number; solved: boolean; ms: number; answer?: number };
 
 export async function submitStage(
   rawCode: string,
   round: { matchId: string; roundNo: number },
   stage: number,
-  result: { solved: boolean; ms: number }
+  result: { solved: boolean; ms: number; answer?: number }
 ): Promise<void> {
   const code = normalizeCode(rawCode);
   const uid = myUid();
@@ -371,6 +371,8 @@ export async function submitStage(
     stage,
     solved: result.solved,
     ms: Math.max(0, Math.round(result.ms)),
+    // Human Calculator: what the player typed (left out when they ran out of time).
+    ...(typeof result.answer === 'number' ? { answer: Math.round(result.answer) } : {}),
   });
 }
 
