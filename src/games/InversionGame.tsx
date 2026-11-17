@@ -40,19 +40,21 @@ function Arrow({ dir, scale = 1, color }: { dir: Dir; scale?: number; color: str
   );
 }
 
-// The arrows in the middle: either a stream of arrows sliding across the box, or one big arrow
-// that stands still and points.
-function ArrowField({ mode, dir }: { mode: 'moving' | 'pointing'; dir: Dir }) {
+// The arrows in the middle: either a stream of arrows sliding across the box (`moveDir`), or one
+// big arrow that stands still. The arrow shapes point `pointDir`, which in a "pointing" task can
+// differ from the way they slide.
+function ArrowField({ pointDir, moveDir }: { pointDir: Dir; moveDir: Dir | null }) {
   const slide = useRef(new Animated.Value(0)).current;
+  const dir = moveDir ?? pointDir;
   useEffect(() => {
-    if (mode !== 'moving') return;
+    if (!moveDir) return;
     slide.setValue(0);
     const loop = Animated.loop(
       Animated.timing(slide, { toValue: 1, duration: 650, easing: Easing.linear, useNativeDriver: true })
     );
     loop.start();
     return () => loop.stop();
-  }, [mode, dir, slide]);
+  }, [moveDir, slide]);
 
   const horizontal = dir === 'left' || dir === 'right';
   const sign = dir === 'right' || dir === 'down' ? 1 : -1;
@@ -63,8 +65,8 @@ function ArrowField({ mode, dir }: { mode: 'moving' | 'pointing'; dir: Dir }) {
 
   return (
     <View style={styles.field}>
-      {mode === 'pointing' ? (
-        <Arrow dir={dir} scale={2} color={colors.experience} />
+      {!moveDir ? (
+        <Arrow dir={pointDir} scale={2} color={colors.experience} />
       ) : (
         <Animated.View
           style={{
@@ -75,7 +77,7 @@ function ArrowField({ mode, dir }: { mode: 'moving' | 'pointing'; dir: Dir }) {
           }}
         >
           {cells.map((i) => (
-            <Arrow key={i} dir={dir} color={colors.experience} />
+            <Arrow key={i} dir={pointDir} color={colors.experience} />
           ))}
         </Animated.View>
       )}
@@ -193,7 +195,7 @@ export function InversionGame({ seed, onFinish }: GameProps) {
         )}
       </View>
 
-      <ArrowField key={index} mode={task.mode} dir={task.dir} />
+      <ArrowField key={index} pointDir={task.pointDir} moveDir={task.moveDir} />
 
       <Text style={styles.instruction}>{task.text}</Text>
 

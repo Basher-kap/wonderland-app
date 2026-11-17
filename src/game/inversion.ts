@@ -20,7 +20,11 @@ export const opposite = (d: Dir): Dir =>
 export type Task = {
   axis: Axis;
   mode: Mode;
-  dir: Dir; // where the arrows move / point
+  dir: Dir; // the direction the instruction is about: where the arrows move (mode "moving") or point ("pointing")
+  pointDir: Dir; // the way the arrow shapes point
+  // The way the arrows slide across the box, or null if they stand still. In a "pointing" task the
+  // arrows may ALSO move (a distraction: only where they point counts), on the same axis.
+  moveDir: Dir | null;
   button: Dir; // "Press <button> if ..."
   negated: boolean; // "... are NOT moving to the <target>"
   target: Dir; // the direction the instruction talks about
@@ -34,16 +38,19 @@ export type Task = {
 // How the game gets harder (all tuning constants live here).
 const FIRST_PLAIN_TASKS = 3; // the first tasks are plain: direct instruction, no INVERSED sign
 const INVERSED_CHANCE = 0.35;
-const INVERSE_APPROACH_START = 0.1; // chance of an inverse-approach instruction on task 1...
-const INVERSE_APPROACH_END = 0.7; // ...rising to this on the last task
-const TIME_LIMIT_START = 4200; // ms to answer task 1...
-const TIME_LIMIT_END = 2400; // ...shrinking to this on the last task
+const MOVING_WHILE_POINTING_CHANCE = 0.5; // a "pointing" task whose arrows also slide (a distraction)
+const INVERSE_APPROACH_START = 0.03; // very small chance of an inverse-approach instruction early on...
+const INVERSE_APPROACH_END = 0.5; // ...a medium chance on the last task (it grows slowly at first, faster later)
+const TIME_LIMIT_START = 6500; // ms to answer task 1...
+const TIME_LIMIT_END = 4000; // ...shrinking to this on the last task (the minimum)
 
 const progress = (index: number) => Math.min(1, Math.max(0, index / (TASK_COUNT - 1)));
 export const timeLimitFor = (index: number) =>
   Math.round(TIME_LIMIT_START + (TIME_LIMIT_END - TIME_LIMIT_START) * progress(index));
 export const inverseApproachChance = (index: number) =>
-  index < FIRST_PLAIN_TASKS ? 0 : INVERSE_APPROACH_START + (INVERSE_APPROACH_END - INVERSE_APPROACH_START) * progress(index);
+  index < FIRST_PLAIN_TASKS
+    ? 0
+    : INVERSE_APPROACH_START + (INVERSE_APPROACH_END - INVERSE_APPROACH_START) * progress(index) ** 2;
 
 const phrase = (axis: Axis, mode: Mode, target: Dir): string => {
   if (axis === 'horizontal') return `${mode} to the ${target}`;
@@ -67,6 +74,9 @@ export function makeTask(seed: string, index: number): Task {
   const mode: Mode = rnd() < 0.5 ? 'moving' : 'pointing';
   const pair = PAIR[axis];
   const dir = pair[rnd() < 0.5 ? 0 : 1];
+  // Arrows that point may also slide, in either direction of the axis (never in the plain tasks).
+  const slides = mode === 'pointing' && index >= FIRST_PLAIN_TASKS && rnd() < MOVING_WHILE_POINTING_CHANCE;
+  const moveDir: Dir | null = mode === 'moving' ? dir : slides ? pair[rnd() < 0.5 ? 0 : 1] : null;
   const inverseApproach = rnd() < inverseApproachChance(index);
   const inversed = index >= FIRST_PLAIN_TASKS && rnd() < INVERSED_CHANCE;
 
@@ -88,6 +98,8 @@ export function makeTask(seed: string, index: number): Task {
     axis,
     mode,
     dir,
+    pointDir: dir,
+    moveDir,
     button,
     negated,
     target,

@@ -17,6 +17,7 @@ t('the first tasks are plain: direct instruction, no INVERSED', () => {
   for (let s = 0; s < 100; s++) for (const k of tasks('p' + s).slice(0, 3)) {
     assert.ok(!k.inversed && !k.inverseApproach && !k.negated && k.button === k.target);
     assert.strictEqual(k.answer, k.dir); // "Press RIGHT if moving right" with arrows going right
+    if (k.mode === 'pointing') assert.strictEqual(k.moveDir, null); // still arrows in the plain tasks
   }
 });
 t('plain answers for the user\'s examples', () => {
@@ -30,6 +31,26 @@ t('plain answers for the user\'s examples', () => {
   // Press UP if NOT pointing upwards, arrows pointing down -> UP
   assert.strictEqual(v.plainAnswer('down', 'up', true, 'up'), 'up');
   assert.strictEqual(v.plainAnswer('up', 'up', true, 'up'), 'down');
+});
+t('moving tasks: the arrows slide and point the way they move; pointing tasks: arrows may also slide on the same axis', () => {
+  let slidingWhilePointing = 0, stillWhilePointing = 0, opposing = 0;
+  for (let s = 0; s < 200; s++) for (const k of tasks('m' + s)) {
+    assert.strictEqual(k.pointDir, k.dir);
+    if (k.mode === 'moving') assert.strictEqual(k.moveDir, k.dir);
+    else if (k.moveDir) {
+      assert.ok(v.PAIR[k.axis].includes(k.moveDir));
+      slidingWhilePointing++;
+      if (k.moveDir !== k.pointDir) opposing++;
+    } else stillWhilePointing++;
+  }
+  assert.ok(slidingWhilePointing > 500 && stillWhilePointing > 500 && opposing > 200);
+});
+t('the answer depends on where the arrows point, not on how they slide', () => {
+  for (let s = 0; s < 100; s++) for (const k of tasks('d' + s)) {
+    if (k.mode !== 'pointing') continue;
+    const plain = v.plainAnswer(k.pointDir, k.button, k.negated, k.target);
+    assert.strictEqual(k.answer, k.inversed ? v.opposite(plain) : plain);
+  }
 });
 t('INVERSED flips the answer to the other button', () => {
   let flipped = 0;
@@ -53,11 +74,14 @@ t('inverse-approach instructions become more frequent later; every combo shows u
     a.slice(20).forEach((k) => late += k.inverseApproach ? 1 : 0);
     a.filter((k) => k.axis === 'horizontal' && k.inverseApproach).forEach((k) => combos.add(`${k.button}|${k.negated}|${k.target}`));
   }
-  assert.ok(late / 3000 > early / 3000 + 0.2, `${early} ${late}`);
+  assert.ok(early / 3000 < 0.1, `early ${early / 3000}`); // very small at first
+  assert.ok(late / 3000 > 0.3 && late / 3000 < 0.6, `late ${late / 3000}`); // medium later
   assert.strictEqual(combos.size, 6);
 });
 t('time limit shrinks', () => {
-  assert.ok(v.timeLimitFor(0) > v.timeLimitFor(v.TASK_COUNT - 1));
+  assert.strictEqual(v.timeLimitFor(0), 6500);
+  assert.strictEqual(v.timeLimitFor(v.TASK_COUNT - 1), 4000);
+  for (let i = 1; i < v.TASK_COUNT; i++) assert.ok(v.timeLimitFor(i) <= v.timeLimitFor(i - 1) && v.timeLimitFor(i) >= 4000);
   assert.strictEqual(v.makeTask('x', 5).timeLimitMs, v.timeLimitFor(5));
 });
 t('winner: first to complete, fastest if several, exact tie = draw', () => {
