@@ -1,3 +1,8 @@
+import { DAIKICHI } from './daikichi';
+import { CHUUKICHI } from './chuukichi';
+import { SHOKICHI } from './shokichi';
+import { KICHI } from './kichi';
+import { KYOU } from './kyou';
 import { DAIKYOU } from './daikyou';
 import type { FortuneTier, TierBank } from './types';
 
@@ -7,5 +12,10 @@ export type { FortuneQuestion, FortuneTier, TierBank } from './types';
 // as daikyou.ts) and list it below. A tier that is missing is simply left out of the 100 slips
 // (its slips go to the tiers that exist, see buildDeck in game/fortune.ts).
 export const FORTUNE_BANKS: Partial<Record<FortuneTier, TierBank>> = {
+  daikichi: DAIKICHI,
+  chuukichi: CHUUKICHI,
+  shokichi: SHOKICHI,
+  kichi: KICHI,
+  kyou: KYOU,
   daikyou: DAIKYOU,
 };
