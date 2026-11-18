@@ -31,6 +31,7 @@ import {
   startMatch,
   zeroCounts,
 } from '../game/engine';
+import { difficultyOf, getGame } from '../data/games';
 
 // ---------------------------------------------------------------------------
 // There is no server in this version (Firebase free Spark plan). The app talks to
@@ -261,10 +262,50 @@ async function hostAction(rawCode: string, step: (lobby: LobbyDoc) => Record<str
   });
 }
 
-export const startLobby = (code: string) =>
-  hostAction(code, (lobby) => matchFields(startMatch(lobby, randomHex(12))));
+// TESTING ONLY: force the game(s) the host's rounds use instead of a random draw.
+//  - In .env: EXPO_PUBLIC_TEST_GAME=magical-banana (several ids separated by commas play in that
+//    order). Expo reads .env only when it starts: restart with `npx expo start --web -c`.
+//  - On the web, no restart needed: open the app with ?testGame=magical-banana at the end of the
+//    address (it wins over .env). An empty value (?testGame=) turns it off.
+// Leave both empty for the normal random draw. The browser console / Metro log shows what was
+// loaded ("TEST MODE ...") so you can check it.
+const cleanGameId = (raw: string) =>
+  raw
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-');
 
-export const nextRound = (code: string) => hostAction(code, (lobby) => matchFields(drawNextGame(lobby)));
+function readTestGames(): string[] {
+  let raw: string = process.env.EXPO_PUBLIC_TEST_GAME ?? '';
+  const search = (globalThis as { location?: { search?: string } }).location?.search ?? '';
+  const fromUrl = search ? new URLSearchParams(search).get('testGame') : null;
+  if (fromUrl !== null) raw = fromUrl;
+  const ids: string[] = raw
+    .split(',')
+    .map((id: string) => cleanGameId(id))
+    .filter((id: string) => id.length > 0);
+  const known = ids.filter((id: string) => !!getGame(id));
+  const unknown = ids.filter((id: string) => !getGame(id));
+  if (unknown.length > 0) console.warn(`TEST MODE: unknown game id(s) ignored: ${unknown.join(', ')}`);
+  if (known.length > 0) console.warn(`TEST MODE: the host's rounds will use: ${known.join(', ')}`);
+  return known;
+}
+
+const TEST_GAMES = readTestGames();
+
+function withTestGame(state: MatchState): MatchState {
+  if (TEST_GAMES.length === 0 || !state.currentRound) return state;
+  const id = TEST_GAMES[(state.currentRound.no - 1) % TEST_GAMES.length];
+  const game = getGame(id)!;
+  return { ...state, currentRound: { ...state.currentRound, gameId: id, difficulty: difficultyOf(game) } };
+}
+
+export const startLobby = (code: string) =>
+  hostAction(code, (lobby) => matchFields(withTestGame(startMatch(lobby, randomHex(12)))));
+
+export const nextRound = (code: string) =>
+  hostAction(code, (lobby) => matchFields(withTestGame(drawNextGame(lobby))));
 
 // Losers lose 1 life, a null winner is a draw. Games that are built decide the winner from
 // the players' results; games that are not built yet use the temporary host buttons.
