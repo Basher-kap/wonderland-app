@@ -29,6 +29,9 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
     },
     { key: 'name', kind: 'name', lines: [game.japaneseName ?? game.name] },
     { key: 'rule', kind: 'lines', heading: 'Rule', lines: game.rules?.length ? game.rules : ['To be announced.'] },
+    ...(game.additionalRules?.length
+      ? [{ key: 'additional', kind: 'lines' as const, heading: 'Additional Rule', lines: game.additionalRules }]
+      : []),
     {
       key: 'clear',
       kind: 'lines',

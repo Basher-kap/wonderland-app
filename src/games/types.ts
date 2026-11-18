@@ -11,6 +11,11 @@ export type StageResult = { uid: string; stage: number; solved: boolean; ms: num
 // The lobby, as seen by a game with several levels. It is only given in a lobby (not in a solo
 // practice run). It lets the game wait for the other players between levels.
 export type GameRoom = {
+  // For games that talk to the lobby themselves (Magical Banana).
+  code: string;
+  matchId: string;
+  roundNo: number;
+  isHost: boolean;
   playerIds: string[];
   usernames: Record<string, string>;
   // Everybody's finished levels in this round.

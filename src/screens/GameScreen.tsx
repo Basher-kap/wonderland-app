@@ -330,6 +330,10 @@ export function GameScreen() {
   const room: GameRoom | undefined =
     lobby && round && code && (gameModule?.multiStage || gameModule?.needsRoom)
       ? {
+          code,
+          matchId: lobby.matchId,
+          roundNo: round.no,
+          isHost,
           playerIds: lobby.playerIds,
           usernames: Object.fromEntries(Object.entries(lobby.players).map(([id, p]) => [id, p.username])),
           stages: stages.filter(

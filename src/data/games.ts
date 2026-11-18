@@ -17,6 +17,7 @@ export type Game = {
   rules?: string[];
   clearConditions?: string[];
   prohibitions?: string[]; // optional extra rule: "Prohibition: ..."
+  additionalRules?: string[]; // optional "Additional Rule" dialog, shown after the Rule
   // Not decided for most games yet, so they use DEFAULT_DIFFICULTY until you set one here.
   difficulty?: Difficulty;
 };
@@ -72,7 +73,32 @@ export const GAMES: Game[] = [
       'The last remaining player wins.',
     ],
   },
-  { id: 'magical-banana', name: 'Magical Banana', domain: 'logic', description: 'Rhythm word game: connect the previous word to a new related concept on the beat.' },
+  {
+    id: 'magical-banana',
+    name: 'Magical Banana',
+    domain: 'logic',
+    description: 'Rhythm word game: connect the previous word to a new related concept on the beat.',
+    difficulty: 'easy',
+    rules: [
+      'The first player must say a word related to the given starting word.',
+      'The next player must immediately say another word related to the previous player’s answer before the 5-second rhythm/countdown ends.',
+      'The game continues in the same order, with each player providing a related word within the given time limit.',
+      'Example: if the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
+      'If the next player says “Yellow”, the following player may respond with “Sun” or “Gold”.',
+    ],
+    additionalRules: [
+      'There is a JUDGE button to judge if that player’s provided word is invalid or unrelated from the previous word.',
+      'Players have to vote whether it should pass or fail.',
+      'OK results continuation for that next player to provide a word. DRAW results unacceptable word but the player still remains, however if he receives another DRAW he will be disqualified. NO results means that player is disqualified.',
+    ],
+    // The screen layout (players in a circle, the starting box with the JUDGE button in the
+    // center) is a hidden note: NOT listed here on purpose.
+    clearConditions: ['The last remaining player wins the game.'],
+    prohibitions: [
+      'Players who provide invalid or unrelated words are disqualified from the game.',
+      'Players who fail to provide an answer within the 7-second time limit are also disqualified.',
+    ],
+  },
   { id: 'fortune', name: 'Fortune', domain: 'logic', description: 'Draw a random fortune-telling paper with a logical question on it.' },
 
   {

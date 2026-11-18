@@ -595,3 +595,82 @@ export function subscribeChat(onData: (msgs: ChatMessage[]) => void, onError?: (
     onError
   );
 }
+
+// ------------------------------------------------------------ Magical Banana ----
+// A turn-based game needs live shared state. Players write MOVES (a word, a judge request, a
+// vote) as their own documents; the HOST's phone applies them with game/magicalBanana.ts and saves
+// the resulting state as the document "state" (JSON text), which every phone shows.
+export type MagicMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  kind: 'word' | 'judge' | 'vote';
+  word?: string;
+  vote?: 'ok' | 'no';
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type MagicSnapshot = { state: { matchId: string; roundNo: number; v: number; data: string } | null; moves: MagicMove[] };
+
+export async function sendMagicMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; kind: 'word' | 'judge' | 'vote'; word?: string; vote?: 'ok' | 'no' }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'magic', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    ...(move.word !== undefined ? { word: move.word } : {}),
+    ...(move.vote !== undefined ? { vote: move.vote } : {}),
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeMagicState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'magic', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeMagic(
+  rawCode: string,
+  onData: (snap: MagicSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'magic'),
+    (snap) => {
+      let state: MagicSnapshot['state'] = null;
+      const moves: MagicMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as MagicSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as MagicMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}

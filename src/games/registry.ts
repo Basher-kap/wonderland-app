@@ -12,6 +12,7 @@ import { describeScore as describeCalcScore, pickWinner as pickLastStanding } fr
 import { pickEntry as pickHangmanEntry, pickWinner as pickFastestSolver } from '../game/hangman';
 import { describeResult as describeInversion, pickWinner as pickLastOneIn } from '../game/inversion';
 import { HangmanGame } from './HangmanGame';
+import { MagicalBananaGame } from './MagicalBananaGame';
 import { HumanCalculatorGame } from './HumanCalculatorGame';
 import { InversionGame } from './InversionGame';
 import { SchulteGame } from './SchulteGame';
@@ -98,5 +99,15 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: describeInversion,
     endsOnFirstFinish: true,
     endsWhenOneLeft: true,
+  },
+  'magical-banana': {
+    Component: MagicalBananaGame,
+    // Only the last player standing reports finished: true.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'last player standing' : 'out'),
+    // multiStage: the board stays for players who are out, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
   },
 };
