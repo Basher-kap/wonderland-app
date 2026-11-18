@@ -2,7 +2,9 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithCredential,
+  signInWithPopup,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import * as api from '../lib/api';
@@ -16,6 +18,9 @@ type AuthState = {
   tickets: number;
   signInDemo: () => void;
   signInWithGoogleIdToken: (idToken: string) => Promise<void>;
+  // Web only (testing with several browser tabs): Google popup, and a guest account.
+  signInWithGooglePopup: () => Promise<void>;
+  signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
   setUsername: (name: string) => Promise<void>;
 };
@@ -66,6 +71,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogleIdToken: async (idToken) => {
         if (!auth) throw new Error('Firebase is not set up yet.');
         await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      },
+      signInWithGooglePopup: async () => {
+        if (!auth) throw new Error('Firebase is not set up yet.');
+        await signInWithPopup(auth, new GoogleAuthProvider());
+      },
+      signInAsGuest: async () => {
+        if (!auth) throw new Error('Firebase is not set up yet.');
+        await signInAnonymously(auth);
       },
       signOut: async () => {
         setDemoSignedIn(false);

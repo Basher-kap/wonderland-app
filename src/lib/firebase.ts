@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import {
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
+  getAuth,
+  getReactNativePersistence,
+  initializeAuth,
+} from 'firebase/auth';
+import { Platform } from 'react-native';
 import { getFirestore } from 'firebase/firestore';
 
 const config = {
@@ -19,6 +26,14 @@ const app: FirebaseApp | null = isDemoMode ? null : getApps().length ? getApp() 
 
 function makeAuth(a: FirebaseApp) {
   try {
+    // On the web (only used to test with several players on one computer) the sign-in is kept
+    // per browser TAB, so every tab can be a different player. Phones keep it in AsyncStorage.
+    if (Platform.OS === 'web') {
+      return initializeAuth(a, {
+        persistence: browserSessionPersistence,
+        popupRedirectResolver: browserPopupRedirectResolver,
+      });
+    }
     return initializeAuth(a, { persistence: getReactNativePersistence(AsyncStorage) });
   } catch {
     // Already initialized (happens on fast refresh).
