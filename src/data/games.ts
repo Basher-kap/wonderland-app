@@ -99,7 +99,27 @@ export const GAMES: Game[] = [
       'Players who fail to provide an answer within the 7-second time limit are also disqualified.',
     ],
   },
-  { id: 'fortune', name: 'Fortune', domain: 'logic', description: 'Draw a random fortune-telling paper with a logical question on it.' },
+  {
+    id: 'fortune',
+    name: 'Fortune',
+    domain: 'logic',
+    description: 'Draw a random fortune-telling paper with a logical question on it.',
+    difficulty: 'hard',
+    rules: [
+      'Each player starts the game with 100 lives.',
+      'Players must draw a fortune-telling paper out of 100 available slips.',
+      'Each slip contains a question and the player must answer the question drawn.',
+    ],
+    // Your "Hidden Rules" block. Shown as the "Additional Rule" dialog (like Magical Banana); if
+    // they should not be shown at all, delete this list.
+    additionalRules: [
+      'The lives deducted from you and from the other players for an incorrect answer depend on the margin of error and on the luck drawn.',
+      'Answering correctly will recover a bit of lives.',
+    ],
+    // The temple, the luck tiers, the numbers (how much life each tier costs, heals and splashes)
+    // and the slip counts are hidden notes (game/fortune.ts, data/fortune/): NOT listed here on purpose.
+    clearConditions: ['The player must survive at the end of the game.'],
+  },
 
   {
     id: 'hangman',

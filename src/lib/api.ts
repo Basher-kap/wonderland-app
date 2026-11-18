@@ -715,3 +715,85 @@ export function subscribeMagic(
     onError
   );
 }
+
+// ------------------------------------------------------------ Fortune ----
+// Same idea as Magical Banana: players write MOVES (open the temple, pick a slip, answer) as their
+// own documents; the HOST's phone applies them with game/fortune.ts and saves the resulting state
+// as the document "state" (JSON text), which every phone shows.
+export type FortuneMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  kind: 'open' | 'pick' | 'answer';
+  slip?: number;
+  guess?: number;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type FortuneSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: FortuneMove[];
+};
+
+export async function sendFortuneMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; kind: 'open' | 'pick' | 'answer'; slip?: number; guess?: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'fortune', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    ...(move.slip !== undefined ? { slip: move.slip } : {}),
+    ...(move.guess !== undefined ? { guess: move.guess } : {}),
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeFortuneState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'fortune', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeFortune(
+  rawCode: string,
+  onData: (snap: FortuneSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'fortune'),
+    (snap) => {
+      let state: FortuneSnapshot['state'] = null;
+      const moves: FortuneMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as FortuneSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as FortuneMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}

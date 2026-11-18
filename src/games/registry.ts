@@ -11,6 +11,7 @@ import {
 import { describeScore as describeCalcScore, pickWinner as pickLastStanding } from '../game/humanCalculator';
 import { pickEntry as pickHangmanEntry, pickWinner as pickFastestSolver } from '../game/hangman';
 import { describeResult as describeInversion, pickWinner as pickLastOneIn } from '../game/inversion';
+import { FortuneGame } from './FortuneGame';
 import { HangmanGame } from './HangmanGame';
 import { MagicalBananaGame } from './MagicalBananaGame';
 import { HumanCalculatorGame } from './HumanCalculatorGame';
@@ -106,6 +107,16 @@ export const GAME_MODULES: Record<string, GameModule> = {
     pickWinner: pickFastestFinisher,
     describe: (r) => (r.finished ? 'last player standing' : 'out'),
     // multiStage: the board stays for players who are out, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
+  },
+  fortune: {
+    Component: FortuneGame,
+    // Only the last player alive reports finished: true (nobody alive = nobody finished = a draw).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'last player alive' : 'out'),
+    // Like Magical Banana: the board stays for players who are out, so they can watch the game go on.
     multiStage: true,
     needsRoom: true,
     endsOnFirstFinish: true,
