@@ -176,7 +176,7 @@ export const GAMES: Game[] = [
       'You have 3 chances to make a mistake.',
     ],
   },
-  {
+{
     id: 'janken-negotiation',
     name: 'Janken Negotiation',
     domain: 'experience',
@@ -186,14 +186,12 @@ export const GAMES: Game[] = [
     rules: [
       'You play a series of Rock-Paper-Scissors rounds against your opponents.',
       'Before each throw, you commit an initial throw. Everyone can see it, and you may change it during the 30-second negotiation.',
-      'Negotiate with your opponent through promises, persuasion or bluffing. Long-press ROCK, PAPER or SCISSORS to open its negotiation menu: promise to pick it, promise not to pick it, dare your opponent, double or nothing, or sacrifice.',
-      'An offer only counts when your opponent accepts it. An accepted offer is binding; anything only said out loud is not, so you can still betray it.',
+      'Negotiate with your opponent through promises, persuasion or bluffing. Long-press ROCK, PAPER or SCISSORS to promise to pick it or promise NOT to pick it, then choose what happens to you next round if you kept the promise or if you lied.',
+      'A promise is only words: you can still lie. But the game checks your real final throw, and if a consequence you chose applies, the throws you are disabled from are greyed out in your next round.',
       'Negotiations may also include betting on whether to extend or end the match.',
       'In the last 5 seconds, you pick your FINAL throw in private. It can differ from your initial throw, and you may change it until the time is up.',
       'When the time is up, all final throws are revealed at the same time.',
-      'Double or Nothing: if both players agree, the winner gets double points and the loser loses double.',
       'Forced Rotation: you cannot throw the same thing in two rounds in a row.',
-      'Betrayal: promises are not enforced. Only accepted offers (Double or Nothing, ending the match) are binding.',
     ],
     clearConditions: [
       'Win as many rounds as possible before you and your opponent agree to end the match.',

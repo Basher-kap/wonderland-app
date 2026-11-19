@@ -2,46 +2,45 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Button } from '../components/ui';
 import {
-  agreementsOf,
+  allowedFor,
   allowedThrows,
-  constraintsFor,
-  dareText,
+  bannedFor,
   END_CODE,
-  EXTRA_NEG_MS,
+  endStatus,
   FINAL_MS,
-  finalAllowed as finalAllowedOf,
+  followA,
+  followB,
   INITIAL_MS,
-  initialAllowed as initialAllowedOf,
-  KIND_ORDER,
-  kindBlurb,
-  kindTitle,
-  MAX_OFFERS,
   MAX_ROUNDS,
   NEGOTIATION_MS,
-  offerCode,
-  offerText,
-  optionList,
+  othersOf,
+  parsePromise,
+  promiseCode,
+  promiseLines,
+  promiseOf,
+  promiseTitle,
   replay,
   REVEAL_MS,
   SCORE_OFFSET,
-  statusOf,
+  setLabel,
   THROW_ICON,
   THROW_LABEL,
   THROWS,
   WAIT_REVEAL_MS,
 } from '../game/janken';
-import type { JankenDoc, OfferKind, Throw } from '../game/janken';
+import type { JankenDoc, PromiseKind, SetChoice, Throw } from '../game/janken';
 import { colors, radius } from '../theme';
 import type { GameProps } from './types';
 
 // Janken Negotiation. Every round (all rules are in src/game/janken.ts):
 //   1. pick an INITIAL throw (8 s)
-//   2. negotiate (30 s): the INITIAL throw is PUBLIC and can be changed any time. Long-press a throw to open
-//      its negotiation menu (promise, dare, double or nothing, sacrifice). An offer only counts once the
-//      opponent ACCEPTS it; accepted offers are binding, plain words are not.
+//   2. negotiate (30 s): the INITIAL throw is PUBLIC and can be changed any time. Long-press a throw to make a
+//      promise: "I promise to pick ROCK" / "I promise NOT to pick ROCK", with follow-ups that say what happens
+//      to you next round if you kept it or lied. The promise itself is not enforced, but the game checks your
+//      real final throw at the reveal and disables the throws you agreed to lose in the next round.
 //   3. FINAL throw (last 5 s): pick the real FINAL throw in private (others still see your initial throw)
 //   4. everybody's final throw is revealed at once
-// All the notes (own and the opponent's, with Accept / Reject for offers) are in one collapsible panel.
+// All the notes (own and the opponent's) are in one collapsible panel under the phase text.
 
 type Phase = 'pick' | 'negotiate' | 'final' | 'wait' | 'reveal' | 'done';
 const BOT = 'bot';
@@ -51,7 +50,6 @@ const withIt = (list: string[], v: string) => (list.includes(v) ? list : [...lis
 
 type Mine = { initial: '' | Throw; offers: string[]; acc: string[]; rej: string[] };
 const EMPTY: Mine = { initial: '', offers: [], acc: [], rej: [] };
-const STATUS_LABEL = { pending: 'waiting for an answer', agreed: 'AGREED (binding)', rejected: 'rejected' } as const;
 
 export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
@@ -66,9 +64,10 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const [final, setFinal] = useState<Throw | null>(null);
   const [mine, setMine] = useState<Mine>(EMPTY);
   const [menuFor, setMenuFor] = useState<Throw | null>(null);
-  const [view, setView] = useState<OfferKind | null>(null); // which category of the menu is open
-  const [optPick, setOptPick] = useState<string | null>(null);
-  const [dare, setDare] = useState<{ c: 'y' | 'n'; r: boolean; p: boolean }>({ c: 'y', r: true, p: false });
+  const [view, setView] = useState<PromiseKind | null>(null); // which promise is being built
+  const [fa, setFa] = useState(true); // follow-up a chosen
+  const [fb, setFb] = useState(false); // follow-up b chosen
+  const [fset, setFset] = useState<SetChoice | null>(null); // for follow-up b: which throws get disabled
   const [notesOpen, setNotesOpen] = useState(false);
   const [seenNotes, setSeenNotes] = useState('');
   const [left, setLeft] = useState(INITIAL_MS);
@@ -85,7 +84,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const startedAt = useRef(Date.now());
   const reported = useRef(false);
   const lastSent = useRef<JankenDoc | null>(null);
-  const bot = useRef<{ decide: Record<string, boolean> }>({ decide: {} });
+  const bot = useRef<{ endAnswer: boolean | null }>({ endAnswer: null });
 
   // ---- who plays whom this round, and the score so far
   const before = replay(seed, players, out, docs, k - 1);
@@ -99,14 +98,13 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const oppName = opp ? nameOf(opp) : '';
   const myDoc: JankenDoc = { uid, k, initial: mine.initial, offers: mine.offers, acc: mine.acc, rej: mine.rej, throw: '' };
 
-  // Accepted agreements decide what you may throw (forced pick, bans, rotation exemption).
-  const ags = opp ? agreementsOf(myDoc, oppDoc) : [];
-  const cons = constraintsFor(uid, ags, before.carry, k);
-  const initAllowed = initialAllowedOf(prevThrow, cons);
-  const finAllowed = finalAllowedOf(prevThrow, cons);
-  const extraNow = !!(before.carry.extra[uid]?.includes(k) || (opp && before.carry.extra[opp]?.includes(k)));
+  // Throws disabled for you this round: Forced Rotation + what your earlier promises cost you.
+  const banned = bannedFor(before.carry, uid, k);
+  const allowed = allowedFor(prevThrow, banned);
+  const myPromise = promiseOf(myDoc);
+  const oppPromise = promiseOf(oppDoc);
 
-  // ---- publish my initial throw / offers / answers (the FINAL throw stays hidden until the reveal)
+  // ---- publish my initial throw / promise / answers (the FINAL throw stays hidden until the reveal)
   const save = (doc: JankenDoc) => {
     lastSent.current = doc;
     if (room?.janken) {
@@ -126,24 +124,18 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   };
 
   const choose = (t: Throw) => {
-    if (!opp) return;
-    if ((phase === 'pick' || phase === 'negotiate') && initAllowed.includes(t)) {
+    if (!opp || !allowed.includes(t)) return;
+    if (phase === 'pick' || phase === 'negotiate') {
       publish({ initial: t }); // the INITIAL throw: public, can change until the final phase
-    } else if (phase === 'final' && finAllowed.includes(t)) {
+    } else if (phase === 'final') {
       finalRef.current = t; // the latest valid selection before the time is up is the FINAL throw
       setFinal(t);
     }
   };
 
-  // The newest state, for timers that fire later (agreements can arrive until the last moment).
-  const fresh = () => {
-    const d = docsRef.current;
-    const b = replay(seed, players, out, d, k - 1);
-    const od = opp ? d.find((x) => x.uid === opp && x.k === k) : undefined;
-    const md: JankenDoc = { uid, k, ...mineRef.current, throw: '' };
-    const c = constraintsFor(uid, opp ? agreementsOf(md, od) : [], b.carry, k);
-    const p = b.prev[uid] ?? null;
-    return { fin: finalAllowedOf(p, c), init: initialAllowedOf(p, c), extra: !!(b.carry.extra[uid]?.includes(k) || (opp && b.carry.extra[opp]?.includes(k))) };
+  const allowedFresh = () => {
+    const b = replay(seed, players, out, docsRef.current, k - 1);
+    return allowedFor(b.prev[uid] ?? null, bannedFor(b.carry, uid, k));
   };
 
   // ---- phase timers
@@ -156,7 +148,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     if (phase === 'pick') {
       const tick = countdown(INITIAL_MS);
       const stop = setTimeout(() => {
-        if (opp && !mineRef.current.initial) publish({ initial: pickOne(fresh().init) }); // never committed: random
+        if (opp && !mineRef.current.initial) publish({ initial: pickOne(allowedFresh()) }); // never committed: random
         setPhase('negotiate');
       }, INITIAL_MS);
       return () => {
@@ -165,19 +157,16 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       };
     }
     if (phase === 'negotiate') {
-      const ms = NEGOTIATION_MS + (fresh().extra ? EXTRA_NEG_MS : 0); // a SACRIFICE can buy extra time
-      const tick = countdown(ms);
+      const tick = countdown(NEGOTIATION_MS);
       const stop = setTimeout(() => {
-        setMenuFor(null);
-        setView(null);
+        closeMenu();
         // Final-throw phase starts with the initial throw selected (if allowed); change it if you want.
-        const f = fresh().fin;
         const init = mineRef.current.initial;
-        const start = init && f.includes(init) ? init : f.length === 1 ? f[0] : null;
+        const start = init && allowedFresh().includes(init) ? init : null;
         finalRef.current = start;
         setFinal(start);
         setPhase('final');
-      }, ms);
+      }, NEGOTIATION_MS);
       return () => {
         clearInterval(tick);
         clearTimeout(stop);
@@ -187,8 +176,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       const tick = countdown(FINAL_MS);
       const stop = setTimeout(() => {
         if (opp) {
-          const f = fresh().fin;
-          const t = finalRef.current && f.includes(finalRef.current) ? finalRef.current : pickOne(f);
+          const ok = allowedFresh();
+          const t = finalRef.current && ok.includes(finalRef.current) ? finalRef.current : pickOne(ok);
           finalRef.current = t;
           setFinal(t);
           save({ uid, k, ...mineRef.current, throw: t }); // the reveal
@@ -205,7 +194,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       const check = setInterval(() => {
         const r = replay(seed, players, out, docsRef.current, k).rounds[k - 1];
         const missing = r.pairs.flat().filter((p) => !docsRef.current.some((d) => d.uid === p && d.k === k && d.throw));
-        if (missing.length === 0 || Date.now() - phaseStart.current > WAIT_REVEAL_MS + EXTRA_NEG_MS + 4000) setPhase('reveal');
+        if (missing.length === 0 || Date.now() - phaseStart.current > WAIT_REVEAL_MS) setPhase('reveal');
       }, 300);
       return () => clearInterval(check);
     }
@@ -222,9 +211,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
         setFinal(null);
         mineRef.current = EMPTY;
         setMine(EMPTY);
-        setMenuFor(null);
-        setView(null);
-        bot.current = { decide: {} };
+        closeMenu();
+        bot.current = { endAnswer: null };
         setK(k + 1);
         setPhase('pick');
       }, REVEAL_MS);
@@ -239,29 +227,30 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     onFinish({ finished: true, totalMs: Date.now() - startedAt.current, score: Math.max(0, Math.min(1000, SCORE_OFFSET + net)) });
   };
 
-  // ---- practice run: a simple bot opponent that sometimes makes an offer and answers yours
+  // ---- practice run: a simple bot opponent that sometimes makes a promise and answers an END offer
   useEffect(() => {
     if (!practice || !opp || (phase !== 'negotiate' && phase !== 'pick')) return;
     const cur = local.find((d) => d.uid === BOT && d.k === k);
     const botPrev = before.prev[BOT] ?? null;
     let base = cur;
     if (!base) {
-      const initial = pickOne(allowedThrows(botPrev));
-      const offers = Math.random() < 0.6
-        ? [pickOne([offerCode('dbl', initial, '0'), offerCode('avoid', initial, '2'), offerCode('dare', pickOne(THROWS), 'yr')])]
+      const initial = pickOne(allowedFor(botPrev, bannedFor(before.carry, BOT, k)));
+      const t = pickOne(THROWS);
+      const offers = Math.random() < 0.7
+        ? [promiseCode(pickOne<PromiseKind>(['pick', 'avoid']), t, Math.random() < 0.6, Math.random() < 0.6 ? pickOne<SetChoice>([...othersOf(t), 'both']) : null)]
         : [];
       base = { uid: BOT, k, initial, offers, acc: [], rej: [], throw: '' };
     }
-    let acc = base.acc.filter((c) => mine.offers.includes(c));
-    let rej = base.rej.filter((c) => mine.offers.includes(c));
-    for (const c of mine.offers) {
-      if (acc.includes(c) || rej.includes(c)) continue;
-      bot.current.decide[c] ??= Math.random() < 0.6;
-      if (bot.current.decide[c]) acc = [...acc, c];
-      else rej = [...rej, c];
+    let acc = base.acc;
+    let rej = base.rej;
+    if (mine.offers.includes(END_CODE) && !acc.includes(END_CODE) && !rej.includes(END_CODE)) {
+      bot.current.endAnswer ??= Math.random() < 0.6;
+      if (bot.current.endAnswer) acc = [END_CODE];
+      else rej = [END_CODE];
     }
-    const changed = !cur || acc.join() !== cur.acc.join() || rej.join() !== cur.rej.join();
-    if (changed) setLocal((d) => [...d.filter((x) => !(x.uid === BOT && x.k === k)), { ...base!, acc, rej }]);
+    if (!cur || acc.join() !== cur.acc.join() || rej.join() !== cur.rej.join()) {
+      setLocal((d) => [...d.filter((x) => !(x.uid === BOT && x.k === k)), { ...base!, acc, rej }]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [practice, phase, k, mine.offers.join()]);
 
@@ -269,30 +258,27 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     if (!practice || phase !== 'wait') return;
     setLocal((d) => {
       const cur = d.find((x) => x.uid === BOT && x.k === k);
-      const me = d.find((x) => x.uid === uid && x.k === k);
       if (!cur || cur.throw) return d;
       const b = replay(seed, players, out, d, k - 1);
-      const c = constraintsFor(BOT, agreementsOf(cur, me), b.carry, k);
-      const ok = finalAllowedOf(b.prev[BOT] ?? null, c);
-      // The bot usually keeps its initial throw, but sometimes switches (it can bluff too).
+      const ok = allowedFor(b.prev[BOT] ?? null, bannedFor(b.carry, BOT, k));
+      // The bot usually keeps its initial throw, but sometimes switches (it can bluff and lie too).
       const t = cur.initial && ok.includes(cur.initial) && Math.random() < 0.7 ? cur.initial : pickOne(ok);
       return d.map((x) => (x === cur ? { ...cur, throw: t } : x));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [practice, phase, k]);
 
-  // ------------------------------------------------------------------ offers
+  // ------------------------------------------------------------------ promise + end-match actions
   const negotiating = phase === 'negotiate' && !!opp;
-  const respond = (code: string, yes: boolean) =>
-    publish({ acc: yes ? withIt(mine.acc, code) : without(mine.acc, code), rej: yes ? without(mine.rej, code) : withIt(mine.rej, code) });
-  const propose = (code: string) => {
-    if (mine.offers.includes(code) || mine.offers.length >= MAX_OFFERS) return;
-    publish({ offers: [...mine.offers, code] });
-  };
-  const withdraw = (code: string) => {
-    if (statusOf(code, myDoc, oppDoc) === 'agreed') return; // an agreement is binding
-    publish({ offers: without(mine.offers, code) });
-  };
+  const myEnd = endStatus(myDoc, oppDoc);
+  const theirEnd = oppDoc?.offers.includes(END_CODE) ?? false;
+  const theirEndStatus = endStatus(oppDoc, myDoc);
+  const makePromise = (code: string) => publish({ offers: [code, ...mine.offers.filter((c) => !parsePromise(c))] });
+  const withdrawPromise = () => publish({ offers: mine.offers.filter((c) => !parsePromise(c)) });
+  const offerEnd = () => publish({ offers: withIt(mine.offers, END_CODE) });
+  const withdrawEnd = () => publish({ offers: without(mine.offers, END_CODE) });
+  const answerEnd = (yes: boolean) =>
+    publish({ acc: yes ? withIt(mine.acc, END_CODE) : without(mine.acc, END_CODE), rej: yes ? without(mine.rej, END_CODE) : withIt(mine.rej, END_CODE) });
 
   // ------------------------------------------------------------------ notes (one panel)
   const rulesNotes = (): string[] => {
@@ -300,25 +286,23 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     if (!opp && phase !== 'done') n.push('Bye this round: nobody to play.');
     if (prevThrow) {
       n.push(`Previous Throw: ${THROW_LABEL[prevThrow]}.`);
-      if (!cons.noRotation) n.push(`Forced Rotation: ${allowedThrows(prevThrow).map((t) => THROW_LABEL[t]).join(' / ')} only.`);
+      n.push(`Forced Rotation: ${allowedThrows(prevThrow).map((t) => THROW_LABEL[t]).join(' / ')} only.`);
     }
-    if (cons.noRotation) n.push('Forced Rotation removed (sacrifice agreed).');
-    if (cons.forced) n.push(`Agreement: your final throw must be ${THROW_LABEL[cons.forced]}.`);
-    if (cons.banned.length > 0) n.push(`Agreement: you cannot throw ${[...new Set(cons.banned)].map((t) => THROW_LABEL[t]).join(' / ')} this round.`);
-    if (cons.noDouble) n.push('You surrendered Double or Nothing this round.');
-    if (extraNow) n.push('Additional negotiation period this round (+10 s).');
+    if (banned.length > 0) n.push(`Promise consequence: you cannot pick ${banned.map((t) => THROW_LABEL[t]).join(' / ')} this round.`);
     if (phase === 'final') n.push('Initial Throw locked. Pick your Final Throw.');
     if (phase === 'wait' || phase === 'reveal') n.push('Current Status: Final Throw Locked.');
     return n;
   };
   const mineNotes = phase === 'done' ? [] : rulesNotes();
-  const myOffers = phase === 'done' || !opp ? [] : mine.offers;
-  const theirOffers = phase === 'done' || !opp ? [] : oppDoc?.offers ?? [];
-  const noteCount = mineNotes.length + myOffers.length + theirOffers.length;
+  const showOpp = phase !== 'done' && !!opp;
+  const myPromiseLines = showOpp && myPromise ? promiseLines(myPromise.code) : [];
+  const theirPromiseLines = showOpp && oppPromise ? promiseLines(oppPromise.code) : [];
+  const noteCount =
+    mineNotes.length + (myPromiseLines.length > 0 ? 1 : 0) + (theirPromiseLines.length > 0 ? 1 : 0) + (showOpp && (mine.offers.includes(END_CODE) || theirEnd) ? 1 : 0);
 
-  // The opponent's offers light the pill up until you open the panel.
-  const theirSig = theirOffers.map((c) => `${c}:${statusOf(c, oppDoc, myDoc)}`).join('|');
-  const hasNew = theirOffers.length > 0 && theirSig !== seenNotes;
+  // The opponent's promise / end offer light the pill up until you open the panel.
+  const theirSig = `${oppPromise?.code ?? ''}|${theirEnd ? theirEndStatus : ''}`;
+  const hasNew = theirSig !== '|' && theirSig !== seenNotes;
   useEffect(() => {
     if (notesOpen) setSeenNotes(theirSig);
   }, [notesOpen, theirSig]);
@@ -379,43 +363,20 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   };
 
   // ------------------------------------------------------------------ the negotiation dialog
-  const closeMenu = () => {
+  function closeMenu() {
     setMenuFor(null);
     setView(null);
-    setOptPick(null);
-  };
-  const openKind = (kind: OfferKind) => {
+  }
+  const openPromise = (kind: PromiseKind) => {
     setView(kind);
-    setOptPick(null);
-    setDare({ c: 'y', r: true, p: false });
+    setFa(true);
+    setFb(false);
+    setFset(null);
   };
 
-  const OfferLine = ({ code, mineOffer }: { code: string; mineOffer: boolean }) => {
-    const st = mineOffer ? statusOf(code, myDoc, oppDoc) : statusOf(code, oppDoc, myDoc);
-    const answered = mineOffer ? st !== 'pending' : mine.acc.includes(code) || mine.rej.includes(code) || st === 'agreed';
-    return (
-      <View style={styles.offerRow}>
-        <Text style={styles.notesLine}>
-          • {mineOffer ? 'You offered' : `${oppName} offers`} {offerText(code)}{' '}
-          <Text style={{ color: st === 'agreed' ? colors.accent : colors.muted, fontWeight: '700' }}>[{STATUS_LABEL[st]}]</Text>
-        </Text>
-        {negotiating && mineOffer && st !== 'agreed' && <Button label="Withdraw" variant="secondary" onPress={() => withdraw(code)} />}
-        {negotiating && !mineOffer && !answered && (
-          <View style={styles.rowBtns}>
-            <Button label="Accept" onPress={() => respond(code, true)} style={styles.flex} />
-            <Button label="Reject" variant="secondary" onPress={() => respond(code, false)} style={styles.flex} />
-          </View>
-        )}
-        {negotiating && !mineOffer && answered && st !== 'agreed' && mine.rej.includes(code) && (
-          <Button label="Accept after all" variant="secondary" onPress={() => respond(code, true)} />
-        )}
-      </View>
-    );
-  };
-
-  const Radio = ({ on, text, onPress }: { on: boolean; text: string; onPress: () => void }) => (
+  const Radio = ({ on, mark, text, onPress }: { on: boolean; mark: [string, string]; text: string; onPress: () => void }) => (
     <Pressable onPress={onPress} style={[styles.radio, on && styles.radioOn]}>
-      <Text style={styles.radioMark}>{on ? '◉' : '○'}</Text>
+      <Text style={styles.radioMark}>{on ? mark[0] : mark[1]}</Text>
       <Text style={styles.radioText}>{text}</Text>
     </Pressable>
   );
@@ -423,86 +384,101 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const renderMenu = () => {
     if (!menuFor) return null;
     const T = THROW_LABEL[menuFor];
-    const proposeNow = (code: string) => {
-      propose(code);
-      setView(null);
-      setOptPick(null);
-    };
     if (!view) {
       return (
         <>
           <Text style={styles.menuTitle}>
             {THROW_ICON[menuFor]} {T} · negotiation
           </Text>
-          <Text style={styles.small}>{seconds}s left · an offer only counts once your opponent accepts it</Text>
-          {theirOffers.length > 0 && (
+          <Text style={styles.small}>{seconds}s left · the game checks your real throw at the reveal</Text>
+          {oppPromise && (
             <View style={styles.sect}>
-              <Text style={styles.notesWho}>Offers from {oppName}</Text>
-              {theirOffers.map((c) => (
-                <OfferLine key={c} code={c} mineOffer={false} />
+              <Text style={styles.notesWho}>{oppName} promised</Text>
+              {promiseLines(oppPromise.code).map((t, j) => (
+                <Text key={j} style={styles.notesLine}>
+                  {j === 0 ? '' : '• '}
+                  {t}
+                </Text>
               ))}
             </View>
           )}
-          {KIND_ORDER.map((kind, i) => {
-            const blocked = kind === 'dbl' && cons.noDouble;
-            return (
-              <Pressable key={kind} disabled={blocked} onPress={() => openKind(kind)} style={[styles.kindBtn, blocked && { opacity: 0.35 }]}>
-                <Text style={styles.kindTitle}>
-                  {i + 1}. {kindTitle(kind, menuFor)}
-                </Text>
-                <Text style={styles.kindBlurb}>{blocked ? 'You surrendered Double or Nothing this round.' : kindBlurb(kind, menuFor)}</Text>
-              </Pressable>
-            );
-          })}
-          <Pressable
-            onPress={() => propose(END_CODE)}
-            disabled={mine.offers.includes(END_CODE)}
-            style={[styles.kindBtn, mine.offers.includes(END_CODE) && { opacity: 0.35 }]}
-          >
-            <Text style={styles.kindTitle}>{kindTitle('end', null)}</Text>
-            <Text style={styles.kindBlurb}>{mine.offers.includes(END_CODE) ? 'Offered: waiting for an answer.' : kindBlurb('end', null)}</Text>
-          </Pressable>
-          {myOffers.length > 0 && (
+          {(['pick', 'avoid'] as PromiseKind[]).map((kind) => (
+            <Pressable key={kind} onPress={() => openPromise(kind)} style={styles.kindBtn}>
+              <Text style={styles.kindTitle}>{promiseTitle(kind, menuFor)}</Text>
+            </Pressable>
+          ))}
+          {myPromise && (
             <View style={styles.sect}>
-              <Text style={styles.notesWho}>Your offers</Text>
-              {myOffers.map((c) => (
-                <OfferLine key={c} code={c} mineOffer />
+              <Text style={styles.notesWho}>Your promise</Text>
+              {promiseLines(myPromise.code).map((t, j) => (
+                <Text key={j} style={styles.notesLine}>
+                  {j === 0 ? '' : '• '}
+                  {t}
+                </Text>
               ))}
+              <Button label="Take back my promise" variant="secondary" onPress={withdrawPromise} />
             </View>
+          )}
+          {theirEnd && theirEndStatus !== 'agreed' && !mine.acc.includes(END_CODE) && (
+            <View style={styles.sect}>
+              <Text style={styles.notesLine}>{oppName} wants to end the match after this round.</Text>
+              <View style={styles.rowBtns}>
+                <Button label="Accept" onPress={() => answerEnd(true)} style={styles.flex} />
+                <Button label="Reject" variant="secondary" onPress={() => answerEnd(false)} style={styles.flex} />
+              </View>
+            </View>
+          )}
+          {!theirEnd && (
+            <Pressable
+              onPress={() => (mine.offers.includes(END_CODE) ? withdrawEnd() : offerEnd())}
+              style={styles.kindBtn}
+            >
+              <Text style={styles.kindTitle}>{mine.offers.includes(END_CODE) ? 'Take back: end the match' : 'END THE MATCH after this round'}</Text>
+              <Text style={styles.kindBlurb}>
+                {mine.offers.includes(END_CODE)
+                  ? myEnd === 'rejected'
+                    ? `${oppName} rejected.`
+                    : 'Offered: both players must agree.'
+                  : 'Both players must agree to stop.'}
+              </Text>
+            </Pressable>
           )}
           <Button label="Close" onPress={closeMenu} />
         </>
       );
     }
-    // follow-up choices of one category
-    const opts = optionList(view, menuFor);
+    // follow-up choices of one promise
+    const others = othersOf(menuFor);
     return (
       <>
-        <Text style={styles.menuTitle}>{kindTitle(view, menuFor)}</Text>
-        <Text style={styles.small}>{kindBlurb(view, menuFor)}</Text>
-        {view === 'dare' ? (
-          <>
-            <Radio on={dare.c === 'y'} text={`I dare my opponent to pick ${T}.`} onPress={() => setDare({ ...dare, c: 'y' })} />
-            <Radio on={dare.c === 'n'} text={`I dare my opponent NOT to pick ${T}.`} onPress={() => setDare({ ...dare, c: 'n' })} />
-            <Pressable onPress={() => setDare({ ...dare, r: !dare.r })} style={[styles.radio, dare.r && styles.radioOn]}>
-              <Text style={styles.radioMark}>{dare.r ? '☑' : '☐'}</Text>
-              <Text style={styles.radioText}>If my opponent accepts and fulfills the dare, they receive a bonus point.</Text>
-            </Pressable>
-            <Pressable onPress={() => setDare({ ...dare, p: !dare.p })} style={[styles.radio, dare.p && styles.radioOn]}>
-              <Text style={styles.radioMark}>{dare.p ? '☑' : '☐'}</Text>
-              <Text style={styles.radioText}>If my opponent accepts but breaks the dare, they lose a point.</Text>
-            </Pressable>
-            <Text style={styles.small}>{dareText(menuFor, `${dare.c}${dare.r ? 'r' : ''}${dare.p ? 'p' : ''}`)}</Text>
-            <Button label="Send dare" onPress={() => proposeNow(offerCode('dare', menuFor, `${dare.c}${dare.r ? 'r' : ''}${dare.p ? 'p' : ''}`))} />
-          </>
-        ) : (
-          <>
-            {opts.map((o) => (
-              <Radio key={o.id} on={optPick === o.id} text={o.text} onPress={() => setOptPick(o.id)} />
+        <Text style={styles.menuTitle}>{promiseTitle(view, menuFor)}</Text>
+        <Text style={styles.small}>Choose what happens to you next round (you can pick one or both).</Text>
+        <Radio on={fa} mark={['☑', '☐']} text={followA(view, menuFor)} onPress={() => setFa(!fa)} />
+        <Radio
+          on={fb}
+          mark={['☑', '☐']}
+          text={followB(view, menuFor, fb ? fset : null)}
+          onPress={() => {
+            setFb(!fb);
+            setFset(null);
+          }}
+        />
+        {fb && (
+          <View style={styles.sect}>
+            <Text style={styles.notesWho}>If I lied, I am disabled to pick:</Text>
+            {([...others, 'both'] as SetChoice[]).map((c) => (
+              <Radio key={c} on={fset === c} mark={['◉', '○']} text={c === 'both' ? `BOTH (${setLabel(menuFor, 'both')})` : THROW_LABEL[c as Throw]} onPress={() => setFset(c)} />
             ))}
-            <Button label="Send offer" disabled={optPick === null} onPress={() => optPick !== null && proposeNow(offerCode(view, menuFor, optPick))} />
-          </>
+          </View>
         )}
+        <Button
+          label="Make my promise"
+          disabled={fb && !fset}
+          onPress={() => {
+            makePromise(promiseCode(view, menuFor, fa, fb ? fset : null));
+            setView(null);
+          }}
+        />
         <Button label="Back" variant="secondary" onPress={() => setView(null)} />
       </>
     );
@@ -510,7 +486,6 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
 
   const seconds = Math.ceil(left / 1000);
   const choosing = (phase === 'pick' || phase === 'negotiate' || phase === 'final') && !!opp;
-  const allowedNow = phase === 'final' ? finAllowed : initAllowed;
 
   return (
     <View style={styles.wrap}>
@@ -534,8 +509,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
         </Text>
       </View>
 
-      {/* Notes: upper right, just under the phase text. Tap to open or close. Everything said by each
-          player is combined here, with Accept / Reject for the opponent's offers. */}
+      {/* Notes: upper right, just under the phase text. Tap to open or close. */}
       {noteCount > 0 && (
         <View style={styles.notesAnchor} pointerEvents="box-none">
           <Pressable
@@ -544,7 +518,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
             accessibilityRole="button"
           >
             <Text style={[styles.notesPillText, hasNew && { color: colors.bg }]}>
-              {hasNew ? `● ${oppName} has an offer · ` : ''}Notes ({noteCount}) {notesOpen ? '▴' : '▾'}
+              {hasNew ? `● ${oppName} says something · ` : ''}Notes ({noteCount}) {notesOpen ? '▴' : '▾'}
             </Text>
           </Pressable>
           {notesOpen && (
@@ -559,21 +533,38 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
                   ))}
                 </>
               )}
-              {myOffers.length > 0 && (
+              {myPromiseLines.length > 0 && (
                 <>
-                  <Text style={[styles.notesWho, { marginTop: 8 }]}>You</Text>
-                  {myOffers.map((c) => (
-                    <OfferLine key={c} code={c} mineOffer />
+                  <Text style={[styles.notesWho, { marginTop: 8 }]}>You promised</Text>
+                  {myPromiseLines.map((t, j) => (
+                    <Text key={`p${j}`} style={styles.notesLine}>
+                      {j === 0 ? '' : '• '}
+                      {t}
+                    </Text>
                   ))}
                 </>
               )}
-              {theirOffers.length > 0 && (
+              {(theirPromiseLines.length > 0 || theirEnd) && (
                 <>
                   <Text style={[styles.notesWho, { marginTop: 8 }]}>{oppName}</Text>
-                  {theirOffers.map((c) => (
-                    <OfferLine key={c} code={c} mineOffer={false} />
+                  {theirPromiseLines.map((t, j) => (
+                    <Text key={`o${j}`} style={styles.notesLine}>
+                      {j === 0 ? '' : '• '}
+                      {t}
+                    </Text>
                   ))}
+                  {theirEnd && (
+                    <Text style={styles.notesLine}>
+                      • Wants to end the match after this round
+                      {theirEndStatus === 'agreed' ? ' [AGREED]' : mine.rej.includes(END_CODE) ? ' [you rejected]' : ''}.
+                    </Text>
+                  )}
                 </>
+              )}
+              {showOpp && mine.offers.includes(END_CODE) && (
+                <Text style={[styles.notesLine, { marginTop: 8 }]}>
+                  • You offered to end the match after this round [{myEnd === 'agreed' ? 'AGREED' : myEnd === 'rejected' ? 'rejected' : 'waiting for an answer'}].
+                </Text>
               )}
             </ScrollView>
           )}
@@ -604,14 +595,13 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
           ? `${oppName} did not reveal a throw. No points this round.`
           : l.winner === null
             ? `Draw: ${THROW_LABEL[l.a === uid ? l.ta : l.tb]} vs ${THROW_LABEL[l.a === uid ? l.tb : l.ta]}.`
-            : `${l.winner === uid ? 'You win' : 'You lose'} ${l.stake} point${l.stake > 1 ? 's' : ''}: ${THROW_LABEL[l.a === uid ? l.ta : l.tb]} vs ${THROW_LABEL[l.a === uid ? l.tb : l.ta]}.`;
+            : `${l.winner === uid ? 'You win' : 'You lose'} 1 point: ${THROW_LABEL[l.a === uid ? l.ta : l.tb]} vs ${THROW_LABEL[l.a === uid ? l.tb : l.ta]}.`;
         return (
           <>
             <Text style={styles.result}>{text}</Text>
-            {l?.bonus.map((b, j) => (
+            {l?.effects.map((e, j) => (
               <Text key={j} style={styles.small}>
-                {nameOf(b.uid)} {b.delta > 0 ? '+' : ''}
-                {b.delta} point ({b.why})
+                {nameOf(e.uid)} {e.text}.
               </Text>
             ))}
           </>
@@ -624,19 +614,17 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
             {phase === 'pick'
               ? 'Commit your INITIAL throw. Everyone can see it, and you can change it during the negotiation.'
               : phase === 'negotiate'
-                ? 'Tap to change your public INITIAL throw. Long-press a throw to negotiate.'
-                : cons.forced
-                  ? `You agreed to pick ${THROW_LABEL[cons.forced]}.`
-                  : 'Pick your real FINAL throw now. Others still see your initial throw until the reveal.'}
+                ? 'Tap to change your public INITIAL throw. Long-press a throw to make a promise.'
+                : 'Pick your real FINAL throw now. Others still see your initial throw until the reveal.'}
           </Text>
           <View style={styles.rowBtns}>
             {THROWS.map((t) => {
-              const ok = allowedNow.includes(t);
+              const ok = allowed.includes(t);
               const picked = phase === 'final' ? final === t : mine.initial === t;
               return (
                 <Pressable
                   key={t}
-                  disabled={!ok}
+                  disabled={!ok && phase !== 'negotiate'}
                   onPress={() => choose(t)}
                   onLongPress={() => {
                     if (negotiating) {
@@ -675,13 +663,13 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
           <Text style={styles.errorTitle}>Sharing is switched off in this build.</Text>
           <Text style={styles.errorText}>
             GameScreen.tsx and types.ts are not the updated versions (no room.janken), so nobody sees anybody else's
-            throw or offers. Replace them, then restart the app.
+            throw or promise. Replace them, then restart the app.
           </Text>
         </View>
       )}
       {sendError && (
         <View style={styles.errorBox}>
-          <Text style={styles.errorTitle}>The other players are NOT receiving your throw and offers.</Text>
+          <Text style={styles.errorTitle}>The other players are NOT receiving your throw and promise.</Text>
           <Text style={styles.errorText}>
             Error: {sendError}.{' '}
             {sendError === 'permission-denied'
@@ -730,7 +718,6 @@ const styles = StyleSheet.create({
   },
   notesWho: { color: colors.text, fontSize: 12, fontWeight: '800' },
   notesLine: { color: colors.muted, fontSize: 12 },
-  offerRow: { gap: 4, marginTop: 4 },
   sect: { gap: 4, backgroundColor: colors.card, borderRadius: radius.md, padding: 8 },
   hub: { position: 'absolute', width: 110, height: 90, alignItems: 'center', justifyContent: 'center' },
   timer: { color: colors.text, fontSize: 48, fontWeight: '800' },
@@ -755,8 +742,8 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   dialog: { width: '100%', maxWidth: 400, maxHeight: '88%', backgroundColor: colors.cardAlt, borderColor: colors.accent, borderWidth: 1, borderRadius: radius.lg, padding: 14 },
   menuTitle: { color: colors.accent, fontSize: 15, fontWeight: '800', textAlign: 'center' },
-  kindBtn: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 10, gap: 2 },
-  kindTitle: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  kindBtn: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 12, gap: 2 },
+  kindTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
   kindBlurb: { color: colors.muted, fontSize: 12 },
   radio: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 10 },
   radioOn: { borderColor: colors.accent },
