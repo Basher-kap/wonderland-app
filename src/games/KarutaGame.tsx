@@ -253,8 +253,9 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
   const others = st.order.filter((id) => id !== uid);
   const sending = st.phase === 'giving' && st.giver === uid && inGame;
   const myGrabUsed = st.tried.includes(uid) || st.advanced.includes(uid);
-  const canGrab = inGame && (st.phase === 'waiting' || st.phase === 'live') && !myGrabUsed && !pick;
+  // My grab for THIS target only: `pick` keeps the last one, so it must be compared with the target number.
   const myPick = pick && pick.no === st.targetNo ? pick : null;
+  const canGrab = inGame && (st.phase === 'waiting' || st.phase === 'live') && !myGrabUsed && !myPick;
 
   const grab = (owner: string, card: string) => {
     if (!canGrab) return;
