@@ -839,3 +839,83 @@ export function subscribeFortune(
     onError
   );
 }
+
+
+// ------------------------------------------------------ Traps of Xibalba ----
+// Same idea as Fortune: players write MOVES (the tile they picked) as their own documents in
+// lobbies/{CODE}/xibalba; the HOST's phone applies them with game/xibalba.ts and saves the
+// resulting state (without anybody's pick) as the document "state" (JSON text), which every phone
+// shows. firestore.rules needs a `xibalba` block next to the `fortune` one.
+export type XibalbaMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  col: number;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type XibalbaSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: XibalbaMove[];
+};
+
+export async function sendXibalbaMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; col: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'xibalba', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    col: move.col,
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeXibalbaState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'xibalba', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeXibalba(
+  rawCode: string,
+  onData: (snap: XibalbaSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'xibalba'),
+    (snap) => {
+      let state: XibalbaSnapshot['state'] = null;
+      const moves: XibalbaMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as XibalbaSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as XibalbaMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
