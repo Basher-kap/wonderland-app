@@ -20,6 +20,7 @@ import { InversionGame } from './InversionGame';
 import { JankenNegotiationGame } from './JankenNegotiationGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
+import { XibalbaGame } from './XibalbaGame';
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -133,5 +134,15 @@ export const GAME_MODULES: Record<string, GameModule> = {
     // multiStage: gives the game the lobby (`room`) for the shared negotiation notes, and keeps the
     // board on screen after a player's last round so they can watch the others finish.
     multiStage: true,
+  },
+  'traps-of-xibalba': {
+    Component: XibalbaGame,
+    // Only the last player left reports finished: true (nobody left = nobody finished = a draw).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'last player standing' : 'fell'),
+    // Like Fortune: the board stays for players who have fallen, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
   },
 };
