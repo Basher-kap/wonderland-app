@@ -200,7 +200,26 @@ export const GAMES: Game[] = [
   },
 
   { id: 'battleships', name: 'Battleships', domain: 'chance', description: 'Hit hidden ships on the grid with limited bullets. Do not hit your own ship.' },
-  { id: 'maze-hopscotch', name: 'Maze Hopscotch', domain: 'chance', description: 'Step on the correct tile.' },
+  {
+    id: 'traps-of-xibalba', // was 'maze-hopscotch'
+    name: 'Traps of Xibalba',
+    domain: 'chance',
+    description: 'Cross the trapped floor one line at a time. One wrong tile and you fall.',
+    difficulty: 'normal',
+    rules: [
+      'All players must cross to the end of the side.',
+      'Everybody steps one line at a time, simultaneously. You cannot skip two or more lines ahead, but you can pick any tile on the next line.',
+      'Be careful not to step on the wrong tile. The further you go, the higher the chance you will fall.',
+      'Players can step on the same tile.',
+    ],
+    additionalRules: [
+      'If two or more players reach the end, they have to go back once more, until only one player is left.',
+    ],
+    // The 6 x 6 floor, the 10-second picks, how many tiles are false on each line, the picks being
+    // secret until the time is up, and the way back being over the same tiles (with a new floor once
+    // everybody is back) are hidden notes (game/xibalba.ts): NOT listed here on purpose.
+    clearConditions: ['Only the last player to survive clears the game.'],
+  },
   { id: 'karuta', name: 'Karuta', domain: 'chance', description: 'Bingo-style card game: whoever recites more from their picked card wins.' },
 ];
 
