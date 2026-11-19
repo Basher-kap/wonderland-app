@@ -39,6 +39,10 @@ import type { GameProps } from './types';
 // "the game starts with the empty 5x5 table grid"). true = your own ships are drawn faintly.
 const SHOW_OWN_SHIPS = false;
 
+// The icon left on a shot cell. skull = you sank your own battleship; mushroom = you sacrificed your
+// battleship to sink an enemy's (the nearest emoji to a mushroom-cloud explosion).
+const MARKS: Record<string, string> = { miss: '•', hit: '💥', own: '💀', neutral: '🍄', timeout: '' };
+
 const PLAYER_COLORS = ['#EF9F27', '#5DCAA5', '#AFA9EC', '#F09595', '#7DB8F0', '#E8D44D', '#C792EA', '#8BD17C'];
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
@@ -230,26 +234,31 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
     send('place', { cells: sel });
   };
 
+  // "Ken’s" / "your" (when I am the one who was hit).
+  const poss = (id: string) => (id === uid ? 'your' : `${name(id)}’s`);
+  const list = (items: string[]) =>
+    items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
   const shotLine = (s: Shot): string => {
     const w = who(s.by);
-    const at = s.cell === null ? '' : cellName(s.cell);
-    const victims = s.victims.map(who).join(' and ');
+    const byMe = s.by === uid;
+    const victims = `${list(s.victims.map(poss))} ${s.victims.length === 1 ? 'battleship' : 'battleships'}`;
     const lines: string[] = [];
     switch (s.outcome) {
       case 'miss':
-        lines.push(`${w} shot ${at}: a miss. -1 bullet.`);
+        lines.push(`${w} missed`);
         break;
       case 'hit':
-        lines.push(`${w} shot ${at} and sank ${s.victims.length === 1 ? `${victims}’s` : `${victims}’s`} battleship! No bullet lost.`);
-        break;
-      case 'neutral':
-        lines.push(`${w} shot ${at}: ${victims}’s battleship and ${w === 'You' ? 'your' : 'their'} own were both there. Both sunk, no bullet lost.`);
+        lines.push(`${w} hit ${victims}`);
         break;
       case 'own':
-        lines.push(`${w} shot ${at} and hit ${w === 'You' ? 'your' : 'their'} own battleship! -1 bullet.`);
+        lines.push(`${w} sank ${byMe ? 'your' : 'his'} own battleship`);
+        break;
+      case 'neutral':
+        lines.push(`${w} sacrificed ${byMe ? 'your' : 'his'} battleship to sink ${victims}`);
         break;
       case 'timeout':
-        lines.push(`${w} ran out of time. -1 bullet.`);
+        lines.push(`${w} ran out of time`);
         break;
     }
     for (const id of s.out) lines.push(`${who(id)} ${id === uid ? 'have' : 'has'} no battleships left and ${id === uid ? 'are' : 'is'} out!`);
@@ -258,8 +267,7 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
 
   const markOf = (cell: number) => {
     const s = shotAt.get(cell);
-    if (!s) return null;
-    return s.outcome === 'miss' ? '•' : s.outcome === 'own' ? '⚠️' : '💥';
+    return s ? MARKS[s.outcome] : null;
   };
 
   const title =
