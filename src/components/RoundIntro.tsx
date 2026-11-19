@@ -9,8 +9,9 @@ import { colors, domainInfo, radius } from '../theme';
 //   1. "Game of <Domain>" + "Difficulty: <level>"
 //   2. the game's name in Japanese
 //   3. "Rule: ..."
-//   4. "Clear Condition: ..."
-//   5. (only if the game has one) "Prohibition: ..."
+//   4. (only if the game has one) "Prohibition: ..."
+//   5. (only if the game has one) "Additional Rule: ..." (or the game's own heading, e.g. "Extended Rule")
+//   6. "Clear Condition: ..."
 // Steps 1 and 2 move on by themselves (tap to skip); the rule dialogs wait for a tap so
 // everybody can read them. After the last one, onDone() starts the game.
 
@@ -21,7 +22,7 @@ const AUTO_MS = 2200;
 const LABEL: Record<Difficulty, string> = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 
 export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
-  const steps: Step[] = [
+  return [
     {
       key: 'title',
       kind: 'title',
@@ -29,8 +30,18 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
     },
     { key: 'name', kind: 'name', lines: [game.japaneseName ?? game.name] },
     { key: 'rule', kind: 'lines', heading: 'Rule', lines: game.rules?.length ? game.rules : ['To be announced.'] },
+    ...(game.prohibitions?.length
+      ? [{ key: 'prohibition', kind: 'lines' as const, heading: 'Prohibition', lines: game.prohibitions }]
+      : []),
     ...(game.additionalRules?.length
-      ? [{ key: 'additional', kind: 'lines' as const, heading: 'Additional Rule', lines: game.additionalRules }]
+      ? [
+          {
+            key: 'additional',
+            kind: 'lines' as const,
+            heading: game.additionalRulesHeading ?? 'Additional Rule',
+            lines: game.additionalRules,
+          },
+        ]
       : []),
     {
       key: 'clear',
@@ -39,10 +50,6 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
       lines: game.clearConditions?.length ? game.clearConditions : ['To be announced.'],
     },
   ];
-  if (game.prohibitions?.length) {
-    steps.push({ key: 'prohibition', kind: 'lines', heading: 'Prohibition', lines: game.prohibitions });
-  }
-  return steps;
 }
 
 export function RoundIntro({

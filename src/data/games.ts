@@ -17,7 +17,8 @@ export type Game = {
   rules?: string[];
   clearConditions?: string[];
   prohibitions?: string[]; // optional extra rule: "Prohibition: ..."
-  additionalRules?: string[]; // optional "Additional Rule" dialog, shown after the Rule
+  additionalRules?: string[]; // optional extra dialog, shown after the Rule (and the Prohibition)
+  additionalRulesHeading?: string; // heading of that dialog; defaults to "Additional Rule"
   // Not decided for most games yet, so they use DEFAULT_DIFFICULTY until you set one here.
   difficulty?: Difficulty;
 };
@@ -37,32 +38,27 @@ export const GAMES: Game[] = [
     japaneseName: 'Waadoru',
     difficulty: 'normal',
     rules: [
-      'There are 3 levels: an easy word, a moderate word and a hard word.',
-      'Each player must guess the same hidden 5-letter word.',
-      'After each guess, the letters are color-coded:',
+      'Each player must guess the same hidden word displayed on the screen.',
+      'After each guess attempt, the letters will be color-coded:',
       '🟩 Green: the letter is correct and in the correct position.',
-      '🟨 Yellow: the letter is in the hidden word but in the wrong position.',
-      '⬜ Gray: the letter is not in the hidden word.',
+      '🟨 Yellow: the letter is included in the hidden word but is in the wrong position.',
+      '⬜ Gray: the letter is not included in the hidden word.',
     ],
-    // The points per word (easy +5, moderate +10, hard +20) are applied by the game
-    // (game/wordle.ts) but are NOT listed here on purpose: they are not shown to the players.
+    // The points (game/wordle.ts) are NOT listed here on purpose: they are not shown to the players.
     clearConditions: [
-      'Each player has only 5 attempts for each word.',
-      'A level ends when every player has guessed the word or used all 5 attempts. Then the answer is shown and the next level starts once everybody is ready.',
-      'The player with the most points after the 3 levels wins.',
+      'Each player has only 5 attempts to guess the hidden word.',
+      'The game ends as soon as the first player correctly guesses the word.',
     ],
-    prohibitions: ['Players are not allowed to guess an invalid or unrecognized word.'],
   },
   {
     id: 'human-calculator',
     name: 'Human Calculator',
     domain: 'logic',
     description: 'Calculate the numbers shown on screen, then type the answer in time.',
-    difficulty: 'normal',
+    difficulty: 'easy',
     rules: [
       'A number with an arithmetic symbol will briefly appear on the screen before disappearing.',
       'This sequence will continue until the complete mathematical equation has been displayed.',
-      'Calculate from left to right, starting from 0.',
       'Players must calculate the answer and enter it within the given time limit.',
       'Players who fail to submit an answer within the time limit receive no points and lose a chance.',
     ],
@@ -70,7 +66,7 @@ export const GAMES: Game[] = [
     // it is NOT listed here on purpose.
     clearConditions: [
       'Each player has only 3 chances to make a mistake.',
-      'The last remaining player wins.',
+      'The last remaining player wins the game.',
     ],
   },
   {
@@ -78,26 +74,29 @@ export const GAMES: Game[] = [
     name: 'Magical Banana',
     domain: 'logic',
     description: 'Rhythm word game: connect the previous word to a new related concept on the beat.',
-    difficulty: 'easy',
+    difficulty: 'normal',
     rules: [
       'The first player must say a word related to the given starting word.',
-      'The next player must immediately say another word related to the previous player’s answer before the 5-second rhythm/countdown ends.',
-      'The game continues in the same order, with each player providing a related word within the given time limit.',
+      'The next player must immediately say another word related to the previous player’s answer before the rhythm ends.',
+      'The game continues in the same order, with each player providing a related word.',
       'Example: if the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
       'If the next player says “Yellow”, the following player may respond with “Sun” or “Gold”.',
     ],
+    prohibitions: [
+      'Players who provide invalid or unrelated words are disqualified from the game.',
+      'Players who fail to provide an answer within the rhythm are automatically disqualified.',
+    ],
     additionalRules: [
-      'There is a JUDGE button to judge if that player’s provided word is invalid or unrelated from the previous word.',
+      'There is a JUDGE button to judge if that player’s provided word is invalid or unrelated to the previous word.',
       'Players have to vote whether it should pass or fail.',
-      'OK results continuation for that next player to provide a word. DRAW results unacceptable word but the player still remains, however if he receives another DRAW he will be disqualified. NO results means that player is disqualified.',
+      'OK results: continuation for the next player to provide a word.',
+      'DRAW results: the player remains; however, receiving another DRAW is automatically disqualifying.',
+      'NO results mean that the player is disqualified.',
+      'Disqualified players can still also partake in voting.',
     ],
     // The screen layout (players in a circle, the starting box with the JUDGE button in the
     // center) is a hidden note: NOT listed here on purpose.
     clearConditions: ['The last remaining player wins the game.'],
-    prohibitions: [
-      'Players who provide invalid or unrelated words are disqualified from the game.',
-      'Players who fail to provide an answer within the 7-second time limit are also disqualified.',
-    ],
   },
   {
     id: 'fortune',
@@ -106,7 +105,7 @@ export const GAMES: Game[] = [
     description: 'Draw a random fortune-telling paper with a logical question on it.',
     difficulty: 'hard',
     rules: [
-      'Each player starts the game with 100 lives.',
+      'Each player starts the game with 250 lives.',
       'Players must draw a fortune-telling paper out of 100 available slips.',
       'Each slip contains a question and the player must answer the question drawn.',
     ],
@@ -132,13 +131,13 @@ export const GAMES: Game[] = [
       'Players must guess the hidden word by selecting one letter at a time.',
       'Correctly guessed letters will be revealed in their corresponding positions.',
       'Incorrect guesses will add a part to the Hangman drawing.',
+      'A player can get a clue; however, all other players will also receive it.',
     ],
     // The kinds of words (brands, NBA teams, celebrities, events, proper nouns) are a hidden
     // note (data/hangmanWords.ts): NOT listed here on purpose.
     clearConditions: [
       'Players must correctly guess the hidden word before the Hangman drawing is completed.',
-      'Players who successfully reveal the entire word win the round.',
-      'Players who fail to guess the word before running out of attempts lose the round.',
+      'The first player to correctly guess the hidden word clears the game.',
     ],
   },
   {
@@ -150,14 +149,9 @@ export const GAMES: Game[] = [
     difficulty: 'easy',
     rules: [
       'Each player gets the same randomly arranged numbered grid for each level.',
-      'Tap the numbered cells in the correct ascending order.',
-      'Tapping a wrong number does not change the grid: the cell you tapped blinks red as a warning.',
-      'The clock keeps running, so every mistake costs you time.',
+      'Tap the correct following numbers; make sure to read the instructions in case.',
     ],
-    clearConditions: [
-      'Complete all 5 levels.',
-      'The player who completes all 5 levels in the shortest time wins.',
-    ],
+    clearConditions: ['The fastest player who completes all levels clears the game.'],
   },
   {
     id: 'inversion',
@@ -167,13 +161,13 @@ export const GAMES: Game[] = [
     difficulty: 'normal',
     rules: [
       'Follow the instructions given unless there’s an INVERSION sign.',
-      'Make sure to click a correct button.',
+      'Make sure to click the correct button.',
     ],
     // How the screen looks and how the instructions get trickier is a hidden note
     // (game/inversion.ts): NOT listed here on purpose.
     clearConditions: [
       'Survive all the tasks given until you remain the last player.',
-      'You have 3 chances to make a mistake.',
+      'You have 5 chances to make a mistake.',
     ],
   },
   {
@@ -184,19 +178,17 @@ export const GAMES: Game[] = [
     japaneseName: 'Janken Kōshō',
     difficulty: 'hard',
     rules: [
-      'You play a series of Rock-Paper-Scissors rounds against your opponents.',
-      'Each round starts with a 3-2-1 countdown, followed by a 1-minute negotiation.',
-      'During the negotiation you choose an initial throw. Everyone can see it, and you may change it as often as you like.',
-      'Negotiate with your opponent through promises, persuasion or bluffing. Long-press ROCK, PAPER or SCISSORS to promise to pick it or promise NOT to pick it, then choose what happens to you next round if you kept the promise or if you lied.',
-      'A promise is only words: you can still lie. But the game checks your real final throw, and if a consequence you chose applies, the throws you are disabled from are greyed out in your next round.',
-      'In the last 5 seconds, you pick your FINAL throw in private. It can differ from your initial throw, and you may change it until the time is up.',
-      'When the time is up, all final throws are revealed at the same time.',
-      'Forced Rotation: you cannot throw the same thing in two rounds in a row.',
+      'All players must compete against their opponents in a series of Rock-Paper-Scissors rounds.',
+      'Before each throw, players are given time to negotiate with their opponents through persuasion, consequences, or bluffs.',
+      'Once the negotiation period ends, both players will have their final selection to reveal their chosen throws.',
     ],
-    clearConditions: [
-      'The match lasts 10 rounds, and round 10 is the last.',
-      'Win as many rounds as possible: the player with the most points after round 10 wins.',
+    additionalRulesHeading: 'Negotiation Choices',
+    additionalRules: [
+      'LONG PRESS the ROCK, PAPER or SCISSORS to show the simple pre-negotiation choices.',
+      'Choices include:',
+      'I WILL PICK ROCK, so IF I DID PICK IT, I am DISABLED FROM PICKING ROCK in the next round.',
     ],
+    clearConditions: ['Players must win as many rounds as possible in a limited number of rounds.'],
   },
 
   {
@@ -223,13 +215,13 @@ export const GAMES: Game[] = [
     description: 'Cross the trapped floor one line at a time. One wrong tile and you fall.',
     difficulty: 'normal',
     rules: [
-      'All players must cross to the end of the side.',
-      'Everybody steps one line at a time, simultaneously. You cannot skip two or more lines ahead, but you can pick any tile on the next line.',
+      'Each player will have to step one line at a time, simultaneously. You are not allowed to skip two or more lines ahead, but you can pick any tile on the next line.',
       'Be careful not to step on the wrong tile. The further you go, the higher the chance you will fall.',
       'Players can step on the same tile.',
     ],
+    additionalRulesHeading: 'Extended Rule',
     additionalRules: [
-      'If two or more players reach the end, they have to go back once more, until only one player is left.',
+      'If two or more players were able to reach the end, they will have to go back once more until there is only one player left.',
     ],
     // The 6 x 6 floor, the 10-second picks, how many tiles are false on each line, the picks being
     // secret until the time is up, and the way back being over the same tiles (with a new floor once
