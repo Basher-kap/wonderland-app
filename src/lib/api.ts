@@ -842,10 +842,6 @@ export function subscribeFortune(
 
 
 // ------------------------------------------------------ Traps of Xibalba ----
-// Same idea as Fortune: players write MOVES (the tile they picked) as their own documents in
-// lobbies/{CODE}/xibalba; the HOST's phone applies them with game/xibalba.ts and saves the
-// resulting state (without anybody's pick) as the document "state" (JSON text), which every phone
-// shows. firestore.rules needs a `xibalba` block next to the `fortune` one.
 export type XibalbaMove = {
   uid: string;
   matchId: string;
@@ -912,6 +908,84 @@ export function subscribeXibalba(
         } else {
           const at = v.at as { toMillis?: () => number } | undefined;
           moves.push({ ...(v as unknown as XibalbaMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
+// -------------------------------------------------------- Battleships ----
+export type BattleshipsMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  kind: 'place' | 'shoot';
+  cells?: number[];
+  cell?: number;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type BattleshipsSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: BattleshipsMove[];
+};
+
+export async function sendBattleshipsMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; kind: 'place' | 'shoot'; cells?: number[]; cell?: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'battleships', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    ...(move.cells !== undefined ? { cells: move.cells } : {}),
+    ...(move.cell !== undefined ? { cell: move.cell } : {}),
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeBattleshipsState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'battleships', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeBattleships(
+  rawCode: string,
+  onData: (snap: BattleshipsSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'battleships'),
+    (snap) => {
+      let state: BattleshipsSnapshot['state'] = null;
+      const moves: BattleshipsMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as BattleshipsSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as BattleshipsMove), at: at?.toMillis ? at.toMillis() : Date.now() });
         }
       }
       onData({ state, moves });
