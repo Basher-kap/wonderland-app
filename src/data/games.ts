@@ -199,8 +199,24 @@ export const GAMES: Game[] = [
     ],
   },
 
-  { id: 'battleships', name: 'Battleships', domain: 'chance', description: 'Hit hidden ships on the grid with limited bullets. Do not hit your own ship.' },
   {
+      id: 'battleships',
+      name: 'Battleships',
+      domain: 'chance',
+      description: 'Hit hidden ships on the grid with limited bullets. Do not hit your own ship.',
+      difficulty: 'easy',
+      rules: [
+        'At the start of the game, each player has to place 7 battleships on a field.',
+        'Each player has 5 bullets to shoot the enemy’s battleships.',
+        'Missing a target loses a bullet.',
+        'Be careful not to hit your own battleship.',
+      ],
+      // The screen layout (5x5 grid, 15 seconds to place, the empty grid, random turn order, marks seen
+      // by everybody) and the own-ship exception (an enemy ship on the same cell cancels the loss) are
+      // hidden notes (game/battleships.ts): NOT listed here on purpose.
+      clearConditions: ['Players remaining with their battleship clear the game.'],
+    },
+    {
     id: 'traps-of-xibalba', // was 'maze-hopscotch'
     name: 'Traps of Xibalba',
     domain: 'chance',

@@ -21,6 +21,7 @@ import { JankenNegotiationGame } from './JankenNegotiationGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
 import { XibalbaGame } from './XibalbaGame';
+import { BattleshipsGame } from './BattleshipsGame';
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -134,6 +135,17 @@ export const GAME_MODULES: Record<string, GameModule> = {
     // multiStage: gives the game the lobby (`room`) for the shared negotiation notes, and keeps the
     // board on screen after a player's last round so they can watch the others finish.
     multiStage: true,
+  },
+    battleships: {
+    Component: BattleshipsGame,
+    // Only the winner (the last player with a battleship, or the best when the bullets run out)
+    // reports finished: true; a draw = nobody finished.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'last battleships standing' : 'did not win'),
+    // Like Fortune: the board stays for players who are out, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
   },
   'traps-of-xibalba': {
     Component: XibalbaGame,
