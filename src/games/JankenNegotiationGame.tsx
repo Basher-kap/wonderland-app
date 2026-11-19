@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Button } from '../components/ui';
 import {
   allowedThrows,
@@ -25,7 +25,9 @@ import type { GameProps } from './types';
 //   2. negotiate (30 s): the INITIAL throw is PUBLIC (everybody sees it) and can be changed any time
 //   3. FINAL throw (last 5 s): pick the FINAL throw in private; it can differ from the initial one
 //   4. everybody's final throw is revealed at once
-// Long-press ROCK / PAPER / SCISSORS during the negotiation to open the negotiation actions.
+// Each player's box shows only the name and a throw. In the last 5 s the label changes to FINAL THROW
+// (others still see the initial throw there: the real choice stays private until the reveal).
+// Long-press ROCK / PAPER / SCISSORS during the negotiation to open the negotiation dialog.
 // All the notes (own and the opponent's) are in one collapsible panel under the phase text.
 
 type Phase = 'pick' | 'negotiate' | 'final' | 'wait' | 'reveal' | 'done';
@@ -316,35 +318,36 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     const gone = before.left.includes(p);
     // The INITIAL throw is public: everybody sees it. The FINAL throw is only yours until the reveal.
     const initialOf: '' | Throw = isMe ? mine.initial : docOf(p)?.initial ?? '';
+    const inFinal = phase === 'final' || phase === 'wait';
     const border = p === opp ? styles.boxOpp : isMe ? styles.boxMe : null;
     return (
       <View style={[styles.box, { left: x, top: y, width: boxW }, border, gone && { opacity: 0.45 }]}>
         <Text style={styles.boxName} numberOfLines={1}>
           {nameOf(p)}
         </Text>
-        <Text style={styles.boxScore}>
-          {(now.score[p] ?? 0) > 0 ? '+' : ''}
-          {now.score[p] ?? 0} pts{partner ? ` · vs ${nameOf(partner)}` : gone ? ' · left' : ' · bye'}
-        </Text>
-        {!gone && partner && (
+        {!gone && partner ? (
           <>
-            <Text style={styles.tag}>INITIAL THROW</Text>
-            <Text style={styles.throwText}>
-              {initialOf ? `${THROW_ICON[initialOf]} ${THROW_LABEL[initialOf]}` : isMe ? '—' : 'waiting…'}
-            </Text>
-            <Text style={styles.tag}>FINAL THROW</Text>
+            <Text style={styles.tag}>{inFinal || reveal ? 'FINAL THROW' : 'INITIAL THROW'}</Text>
             {reveal && shownFinal ? (
               <Text style={styles.revealed}>
                 {THROW_ICON[shownFinal]} {THROW_LABEL[shownFinal]}
               </Text>
-            ) : isMe ? (
-              <Text style={styles.throwText}>
-                {phase === 'final' && final ? `${THROW_ICON[final]} ${THROW_LABEL[final]}` : phase === 'wait' && final ? '🔒 locked' : '—'}
-              </Text>
             ) : (
-              <Text style={styles.hidden}>hidden</Text>
+              <Text style={styles.throwText}>
+                {isMe && inFinal && final
+                  ? `${THROW_ICON[final]} ${THROW_LABEL[final]}`
+                  : isMe && phase === 'wait' && final
+                    ? `${THROW_ICON[final]} ${THROW_LABEL[final]}`
+                    : initialOf
+                      ? `${THROW_ICON[initialOf]} ${THROW_LABEL[initialOf]}`
+                      : isMe
+                        ? '—'
+                        : 'waiting…'}
+              </Text>
             )}
           </>
+        ) : (
+          <Text style={styles.hidden}>{gone ? 'left the match' : 'bye'}</Text>
         )}
       </View>
     );
@@ -373,7 +376,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     <View style={styles.wrap}>
       <View style={styles.top}>
         <Text style={styles.small}>
-          Round {k}/{MAX_ROUNDS}
+          Round {k}/{MAX_ROUNDS} · You {(now.score[uid] ?? 0) > 0 ? '+' : ''}
+          {now.score[uid] ?? 0} pts
         </Text>
         <Text style={styles.phase}>
           {phase === 'pick'
@@ -464,8 +468,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
             {phase === 'pick'
               ? 'Commit your INITIAL throw. Everyone can see it, and you can change it during the negotiation.'
               : phase === 'negotiate'
-                ? 'Tap to change your public INITIAL throw. Long-press a throw for negotiation actions.'
-                : 'Pick your FINAL throw now. Only you can see it until the reveal.'}
+                ? 'Tap to change your public INITIAL throw. Long-press a throw to negotiate.'
+                : 'Pick your real FINAL throw now. Others still see your initial throw until the reveal.'}
           </Text>
           <View style={styles.rowBtns}>
             {THROWS.map((t) => {
@@ -485,21 +489,40 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
               );
             })}
           </View>
-          {menuFor && canNegotiate && (
-            <View style={styles.menu}>
-              <Text style={styles.menuTitle}>{THROW_LABEL[menuFor]} · negotiation actions</Text>
-              <Button
-                label={mine.promise === menuFor ? `Take back promise` : `Promise ${THROW_LABEL[menuFor]} (not binding)`}
-                variant="secondary"
-                onPress={() => publish({ promise: mine.promise === menuFor ? '' : menuFor })}
-              />
-              <OfferRow what="Double or Nothing" deal={dblDeal} field="dbl" />
-              <OfferRow what="ending the match" deal={termDeal} field="term" />
-              <Text style={styles.small}>Promises are only notes: you can still betray them. Offers need both players to agree.</Text>
-            </View>
-          )}
         </>
       )}
+
+      {/* Negotiation dialog: opens in the middle of the screen on a long-press */}
+      <Modal
+        visible={!!menuFor && canNegotiate}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuFor(null)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setMenuFor(null)}>
+          <Pressable style={styles.dialog} onPress={() => {}}>
+            {menuFor && (
+              <>
+                <Text style={styles.menuTitle}>
+                  {THROW_ICON[menuFor]} {THROW_LABEL[menuFor]} · negotiate
+                </Text>
+                <Text style={styles.small}>{seconds}s left to negotiate</Text>
+                <Button
+                  label={mine.promise === menuFor ? 'Take back promise' : `Promise ${THROW_LABEL[menuFor]} (not binding)`}
+                  variant="secondary"
+                  onPress={() => publish({ promise: mine.promise === menuFor ? '' : menuFor })}
+                />
+                <OfferRow what="Double or Nothing" deal={dblDeal} field="dbl" />
+                <OfferRow what="ending the match" deal={termDeal} field="term" />
+                <Text style={styles.small}>
+                  Promises are only notes: you can still betray them. Offers need both players to agree.
+                </Text>
+                <Button label="Close" onPress={() => setMenuFor(null)} />
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {phase === 'done' && (
         <Text style={styles.result}>
@@ -590,5 +613,7 @@ const styles = StyleSheet.create({
   errorBox: { backgroundColor: colors.cardAlt, borderColor: colors.danger, borderWidth: 2, borderRadius: radius.md, padding: 10, gap: 6 },
   errorTitle: { color: colors.danger, fontSize: 13, fontWeight: '800' },
   errorText: { color: colors.text, fontSize: 12 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  dialog: { width: '100%', maxWidth: 380, backgroundColor: colors.cardAlt, borderColor: colors.accent, borderWidth: 1, borderRadius: radius.lg, padding: 16, gap: 10 },
   menuTitle: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });
