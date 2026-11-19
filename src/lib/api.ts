@@ -454,6 +454,7 @@ export async function saveJanken(
     dbl: data.dbl,
     term: data.term,
     promise: data.promise,
+    initial: data.initial,
     throw: data.throw,
   });
 }

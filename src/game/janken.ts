@@ -17,18 +17,22 @@ export const THROW_ICON: Record<Throw, string> = { rock: '✊', paper: '✋', sc
 // '' = nothing said, 'yes' = proposed / accepted, 'no' = rejected.
 export type Offer = '' | 'yes' | 'no';
 
-// What a player publishes about one round. `throw` stays '' (hidden) until the reveal.
+// What a player publishes about one round.
+//  - `initial` is PUBLIC: everybody sees it, and it can be changed until the final-throw phase.
+//  - `throw` is the FINAL throw: '' (hidden) until the reveal, when everyone's is shown at once.
 export type JankenDoc = {
   uid: string;
   k: number; // round number inside the game, 1-based
   dbl: Offer; // Double or Nothing
   term: Offer; // end the match after this round
   promise: '' | Throw; // a non-binding note for the opponent
-  throw: '' | Throw;
+  initial: '' | Throw; // public INITIAL throw (a bluff or a promise kept: your choice)
+  throw: '' | Throw; // FINAL throw, hidden until the reveal
 };
 
-export const NEGOTIATION_MS = 30000;
+export const NEGOTIATION_MS = 30000; // initial throw and offers can change
 export const INITIAL_MS = 8000; // time to commit the initial throw before negotiation
+export const FINAL_MS = 5000; // last seconds: pick the private FINAL throw (initial throw is locked)
 export const REVEAL_MS = 4000; // reveal stays on screen this long
 export const WAIT_REVEAL_MS = 6000; // how long to wait for a missing reveal before calling it a no-show
 export const MAX_ROUNDS = 10; // safety cap so a table that never agrees cannot play forever
