@@ -840,6 +840,87 @@ export function subscribeFortune(
   );
 }
 
+// ------------------------------------------------------------ Karuta ----
+// Same idea as Battleships: players write MOVES (grab a card, give a card) as their own documents;
+// the HOST's phone applies them with game/karuta.ts and saves the resulting state (without the
+// secret advance grabs) as the document "state" (JSON text), which every phone shows.
+export type KarutaMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number; // the number of the target the move was made for
+  kind: 'grab' | 'give';
+  owner?: string;
+  card?: string;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type KarutaSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: KarutaMove[];
+};
+
+export async function sendKarutaMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; kind: 'grab' | 'give'; owner?: string; card?: string }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'karuta', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    ...(move.owner !== undefined ? { owner: move.owner } : {}),
+    ...(move.card !== undefined ? { card: move.card } : {}),
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeKarutaState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'karuta', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeKaruta(
+  rawCode: string,
+  onData: (snap: KarutaSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'karuta'),
+    (snap) => {
+      let state: KarutaSnapshot['state'] = null;
+      const moves: KarutaMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as KarutaSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as KarutaMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 
 // ------------------------------------------------------ Traps of Xibalba ----
 export type XibalbaMove = {

@@ -365,6 +365,16 @@ export function GameScreen() {
   const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');
   const forfeiters = roundResults.filter((r) => r.forfeited);
 
+  // A full-screen game (Karuta) takes the whole screen while it is played: no title, no round box.
+  // The forfeit buttons stay in the header.
+  if (playing && gameModule?.fullScreen) {
+    return (
+      <SafeAreaView style={styles.root} edges={['bottom']}>
+        <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
+      </SafeAreaView>
+    );
+  }
+  
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.body}>

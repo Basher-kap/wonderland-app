@@ -232,7 +232,27 @@ export const GAMES: Game[] = [
     // everybody is back) are hidden notes (game/xibalba.ts): NOT listed here on purpose.
     clearConditions: ['Only the last player to survive clears the game.'],
   },
-  { id: 'karuta', name: 'Karuta', domain: 'chance', description: 'Bingo-style card game: whoever recites more from their picked card wins.' },
+    {
+    id: 'karuta',
+    name: 'Karuta',
+    domain: 'chance',
+    description: 'Grab the called card from any rack before your opponents do. Empty your rack to win.',
+    difficulty: 'hard',
+    rules: [
+      'Each player receives an equal number of cards, placed on their own card rack. All players’ cards remain visible to everyone.',
+      'A floating target card appears on the screen. Players must quickly identify and get that card from any rack before their opponents do.',
+      'Once a card on your rack is taken away, the player who took it sends one of their own cards to your rack as a penalty to you.',
+      'However, if you take the wrong card, you are penalized by receiving that card.',
+      'Players may take a card in advance, before the floating target card appears.',
+      'Everyone is given 45 seconds to memorize the cards on the other players’ racks.',
+    ],
+    // The 26 letter cards, the void cards (the remainder of the deal), the collapsible side racks, your
+    // own rack pinned at the bottom, the random 3-15 s before the target appears (time stops while a
+    // card is being sent), advance picks being judged only when the target appears, racks collapsing
+    // at every new target and the target never floating over your own rack are hidden notes
+    // (game/karuta.ts, games/KarutaGame.tsx): NOT listed here on purpose.
+    clearConditions: ['Players who have emptied their cards clear the game.'],
+  },
 ];
 
 export const getGame = (id: string) => GAMES.find((g) => g.id === id);

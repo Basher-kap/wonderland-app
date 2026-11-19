@@ -22,6 +22,7 @@ import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
 import { XibalbaGame } from './XibalbaGame';
 import { BattleshipsGame } from './BattleshipsGame';
+import { KarutaGame } from './KarutaGame';
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -58,6 +59,9 @@ export type GameModule = {
   // The round ends for EVERYBODY as soon as one player finishes successfully (Hangman: the
   // first to reveal the word). The host then picks the winner from the results that are in.
   endsOnFirstFinish?: boolean;
+  // The game takes the whole screen (no title, no round box around it): Karuta pins the player's own
+  // rack to the bottom of the screen. GameScreen then renders it outside the ScrollView.
+  fullScreen?: boolean;
   // The round also ends when all but ONE player have handed in a result without finishing
   // (eliminated or forfeited): the one left wins (Inversion).
   endsWhenOneLeft?: boolean;
@@ -156,5 +160,16 @@ export const GAME_MODULES: Record<string, GameModule> = {
     multiStage: true,
     needsRoom: true,
     endsOnFirstFinish: true,
+  },
+  karuta: {
+    Component: KarutaGame,
+    // Only the first player to empty their rack reports finished: true (a draw at the safety cap = nobody).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'emptied their rack first' : 'did not clear'),
+    // Like Battleships: the board stays for players who are out, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
+    fullScreen: true,
   },
 };
