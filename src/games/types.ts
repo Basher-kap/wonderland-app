@@ -1,3 +1,5 @@
+import type { JankenDoc } from '../game/janken';
+
 // What every mini-game screen receives and reports.
 export type GameResult = {
   finished: boolean;
@@ -27,6 +29,12 @@ export type GameRoom = {
   // Tell the others I finished a level / that I am ready for the next one.
   reportStage: (stage: number, result: { solved: boolean; ms: number; answer?: number }) => Promise<void>;
   readyFor: (stage: number) => Promise<void>;
+  // Only for Janken Negotiation: each player's notes/offers/throw per round, live. `save` writes MY
+  // own document for round k (the throw is '' until the reveal).
+  janken?: {
+    docs: JankenDoc[];
+    save: (k: number, data: Omit<JankenDoc, 'uid' | 'k'>) => Promise<void>;
+  };
 };
 
 export type GameProps = {

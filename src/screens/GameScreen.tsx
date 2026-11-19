@@ -35,6 +35,7 @@ export function GameScreen() {
   const [results, setResults] = useState<api.RoundResult[]>([]);
   const [ready, setReady] = useState<api.ReadyMark[]>([]);
   const [stages, setStages] = useState<api.StageDoc[]>([]);
+  const [jankenDocs, setJankenDocs] = useState<api.JankenSaved[]>([]);
   const [quits, setQuits] = useState<api.QuitMark[]>([]);
   const [quitSent, setQuitSent] = useState(false); // I forfeited the match, waiting for the host's phone
   const [startedKey, setStartedKey] = useState<string | null>(null); // round whose countdown has ended
@@ -79,6 +80,12 @@ export function GameScreen() {
   const round = lobby?.currentRound ?? null;
   const game = getGame(round?.gameId ?? params.gameId);
   const gameModule = game ? GAME_MODULES[game.id] : undefined;
+
+  // Janken Negotiation: everybody's notes, offers and revealed throws.
+  useEffect(() => {
+    if (isDemoMode || !code || game?.id !== 'janken-negotiation') return;
+    return api.subscribeJanken(code, setJankenDocs, (e) => console.warn('janken listener failed', e));
+  }, [code, game?.id]);
   const isHost = !!lobby && lobby.hostId === uid;
   const finished = lobby?.status === 'finished';
   const roundActive = !finished && round?.status === 'active';
@@ -344,6 +351,15 @@ export function GameScreen() {
           reportStage: (stage, result) =>
             api.submitStage(code, { matchId: lobby.matchId, roundNo: round.no }, stage, result),
           readyFor: (stage) => api.markReady(code, { matchId: lobby.matchId, roundNo: round.no }, stage),
+          janken:
+            game?.id === 'janken-negotiation'
+              ? {
+                  docs: jankenDocs.filter(
+                    (d) => d.matchId === lobby.matchId && d.roundNo === round.no && !!lobby.players[d.uid]
+                  ),
+                  save: (k, data) => api.saveJanken(code, { matchId: lobby.matchId, roundNo: round.no }, k, data),
+                }
+              : undefined,
         }
       : undefined;
   const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');

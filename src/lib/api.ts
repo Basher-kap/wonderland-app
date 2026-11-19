@@ -15,6 +15,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import type { JankenDoc } from '../game/janken';
 import {
   DomainCount,
   MAX_PLAYERS,
@@ -48,6 +49,7 @@ import { difficultyOf, getGame } from '../data/games';
 //   lobbies/{CODE}/ready/{uid}    "I finished reading this round's intro" (the host starts the boards when all are in);
 //                                 for games with several levels also "I am ready for level N"
 //   lobbies/{CODE}/stages/{uid_N} what a player did in level N of a multi-level game (Wordle)
+//   lobbies/{CODE}/janken/{uid_K} Janken Negotiation: a player's notes, offers and (after the reveal) throw in round K
 //   lobbies/{CODE}/quits/{uid}    "I forfeit the whole match" (the host's phone ends the match)
 // ---------------------------------------------------------------------------
 
@@ -426,6 +428,45 @@ export function subscribeStages(
   return onSnapshot(
     collection(db, 'lobbies', rawCode, 'stages'),
     (snap) => onData(snap.docs.map((d) => d.data() as StageDoc)),
+    onError
+  );
+}
+
+// ------------------------------------------------------- Janken Negotiation ----
+// One document per player per round (id "<uid>_<k>"). It is rewritten while players negotiate
+// (promise, Double or Nothing, end-match offers). `throw` is '' until the reveal and cannot change
+// after it, so nobody can read a final throw before its owner publishes it at the end of the timer.
+export type JankenSaved = JankenDoc & { matchId: string; roundNo: number };
+
+export async function saveJanken(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  k: number,
+  data: Omit<JankenDoc, 'uid' | 'k'>
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  await setDoc(doc(database(), 'lobbies', code, 'janken', `${uid}_${k}`), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    k,
+    dbl: data.dbl,
+    term: data.term,
+    promise: data.promise,
+    throw: data.throw,
+  });
+}
+
+export function subscribeJanken(
+  rawCode: string,
+  onData: (docs: JankenSaved[]) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'janken'),
+    (snap) => onData(snap.docs.map((d) => d.data() as JankenSaved)),
     onError
   );
 }

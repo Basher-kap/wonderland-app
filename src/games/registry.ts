@@ -11,11 +11,13 @@ import {
 import { describeScore as describeCalcScore, pickWinner as pickLastStanding } from '../game/humanCalculator';
 import { pickEntry as pickHangmanEntry, pickWinner as pickFastestSolver } from '../game/hangman';
 import { describeResult as describeInversion, pickWinner as pickLastOneIn } from '../game/inversion';
+import { describeScore as describeJankenScore, pickWinner as pickMostJankenPoints } from '../game/janken';
 import { FortuneGame } from './FortuneGame';
 import { HangmanGame } from './HangmanGame';
 import { MagicalBananaGame } from './MagicalBananaGame';
 import { HumanCalculatorGame } from './HumanCalculatorGame';
 import { InversionGame } from './InversionGame';
+import { JankenNegotiationGame } from './JankenNegotiationGame';
 import { SchulteGame } from './SchulteGame';
 import { WordleGame } from './WordleGame';
 import type { GameProps } from './types';
@@ -120,5 +122,16 @@ export const GAME_MODULES: Record<string, GameModule> = {
     multiStage: true,
     needsRoom: true,
     endsOnFirstFinish: true,
+  },
+  'janken-negotiation': {
+    Component: JankenNegotiationGame,
+    // Everybody plays until their pair agrees to end the match (or the 10-round cap), so there is
+    // no early end. Every player reports finished: true with a score of 500 + net points; the most
+    // points wins and a tie for the top is a draw.
+    pickWinner: pickMostJankenPoints,
+    describe: (r) => (r.finished ? describeJankenScore(r.score ?? 0) : 'did not finish'),
+    // multiStage: gives the game the lobby (`room`) for the shared negotiation notes, and keeps the
+    // board on screen after a player's last round so they can watch the others finish.
+    multiStage: true,
   },
 };
