@@ -5,12 +5,10 @@ import {
   allowedFor,
   allowedThrows,
   bannedFor,
-  END_CODE,
-  endStatus,
+  COUNTDOWN_MS,
   FINAL_MS,
   followA,
   followB,
-  INITIAL_MS,
   MAX_ROUNDS,
   NEGOTIATION_MS,
   othersOf,
@@ -33,16 +31,17 @@ import { colors, radius } from '../theme';
 import type { GameProps } from './types';
 
 // Janken Negotiation. Every round (all rules are in src/game/janken.ts):
-//   1. pick an INITIAL throw (8 s)
-//   2. negotiate (30 s): the INITIAL throw is PUBLIC and can be changed any time. Long-press a throw to make a
+//   1. 3-2-1 countdown
+//   2. negotiate (1 minute): pick your INITIAL throw: it is PUBLIC and can be changed any time. Long-press a throw to make a
 //      promise: "I promise to pick ROCK" / "I promise NOT to pick ROCK", with follow-ups that say what happens
 //      to you next round if you kept it or lied. The promise itself is not enforced, but the game checks your
 //      real final throw at the reveal and disables the throws you agreed to lose in the next round.
 //   3. FINAL throw (last 5 s): pick the real FINAL throw in private (others still see your initial throw)
 //   4. everybody's final throw is revealed at once
 // All the notes (own and the opponent's) are in one collapsible panel under the phase text.
+// The match always ends after round 10 (MAX_ROUNDS).
 
-type Phase = 'pick' | 'negotiate' | 'final' | 'wait' | 'reveal' | 'done';
+type Phase = 'count' | 'negotiate' | 'final' | 'wait' | 'reveal' | 'done';
 const BOT = 'bot';
 const pickOne = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 const without = (list: string[], v: string) => list.filter((x) => x !== v);
@@ -60,7 +59,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const nameOf = (p: string) => (p === uid ? 'You' : names[p] ?? 'Player');
 
   const [k, setK] = useState(1);
-  const [phase, setPhase] = useState<Phase>('pick');
+  const [phase, setPhase] = useState<Phase>('count');
   const [final, setFinal] = useState<Throw | null>(null);
   const [mine, setMine] = useState<Mine>(EMPTY);
   const [menuFor, setMenuFor] = useState<Throw | null>(null);
@@ -70,7 +69,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const [fset, setFset] = useState<SetChoice | null>(null); // for follow-up b: which throws get disabled
   const [notesOpen, setNotesOpen] = useState(false);
   const [seenNotes, setSeenNotes] = useState('');
-  const [left, setLeft] = useState(INITIAL_MS);
+  const [left, setLeft] = useState(COUNTDOWN_MS);
   const [sendError, setSendError] = useState<string | null>(null);
   const [local, setLocal] = useState<JankenDoc[]>([]); // practice run: my docs and the bot's
 
@@ -84,7 +83,6 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const startedAt = useRef(Date.now());
   const reported = useRef(false);
   const lastSent = useRef<JankenDoc | null>(null);
-  const bot = useRef<{ endAnswer: boolean | null }>({ endAnswer: null });
 
   // ---- who plays whom this round, and the score so far
   const before = replay(seed, players, out, docs, k - 1);
@@ -125,7 +123,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
 
   const choose = (t: Throw) => {
     if (!opp || !allowed.includes(t)) return;
-    if (phase === 'pick' || phase === 'negotiate') {
+    if (phase === 'negotiate') {
       publish({ initial: t }); // the INITIAL throw: public, can change until the final phase
     } else if (phase === 'final') {
       finalRef.current = t; // the latest valid selection before the time is up is the FINAL throw
@@ -145,12 +143,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       setLeft(ms);
       return setInterval(() => setLeft(Math.max(0, phaseStart.current + ms - Date.now())), 200);
     };
-    if (phase === 'pick') {
-      const tick = countdown(INITIAL_MS);
-      const stop = setTimeout(() => {
-        if (opp && !mineRef.current.initial) publish({ initial: pickOne(allowedFresh()) }); // never committed: random
-        setPhase('negotiate');
-      }, INITIAL_MS);
+    if (phase === 'count') {
+      const tick = countdown(COUNTDOWN_MS);
+      const stop = setTimeout(() => setPhase('negotiate'), COUNTDOWN_MS);
       return () => {
         clearInterval(tick);
         clearTimeout(stop);
@@ -160,6 +155,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       const tick = countdown(NEGOTIATION_MS);
       const stop = setTimeout(() => {
         closeMenu();
+        // Never chose an initial throw: a random allowed one is chosen (and shown to everybody) for you.
+        if (opp && !mineRef.current.initial) publish({ initial: pickOne(allowedFresh()) });
         // Final-throw phase starts with the initial throw selected (if allowed); change it if you want.
         const init = mineRef.current.initial;
         const start = init && allowedFresh().includes(init) ? init : null;
@@ -201,8 +198,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     if (phase === 'reveal') {
       const stop = setTimeout(() => {
         const after = replay(seed, players, out, docsRef.current, k);
-        const active = players.filter((p) => !out.includes(p) && !after.left.includes(p));
-        if (after.left.includes(uid) || k >= MAX_ROUNDS || active.length < 2) {
+        const active = players.filter((p) => !out.includes(p));
+        if (k >= MAX_ROUNDS || active.length < 2) {
           finish(after.score[uid] ?? 0);
           setPhase('done');
           return;
@@ -212,9 +209,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
         mineRef.current = EMPTY;
         setMine(EMPTY);
         closeMenu();
-        bot.current = { endAnswer: null };
         setK(k + 1);
-        setPhase('pick');
+        setPhase('count');
       }, REVEAL_MS);
       return () => clearTimeout(stop);
     }
@@ -227,9 +223,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     onFinish({ finished: true, totalMs: Date.now() - startedAt.current, score: Math.max(0, Math.min(1000, SCORE_OFFSET + net)) });
   };
 
-  // ---- practice run: a simple bot opponent that sometimes makes a promise and answers an END offer
+  // ---- practice run: a simple bot opponent that sometimes makes a promise
   useEffect(() => {
-    if (!practice || !opp || (phase !== 'negotiate' && phase !== 'pick')) return;
+    if (!practice || !opp || (phase !== 'negotiate' && phase !== 'count')) return;
     const cur = local.find((d) => d.uid === BOT && d.k === k);
     const botPrev = before.prev[BOT] ?? null;
     let base = cur;
@@ -241,18 +237,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
         : [];
       base = { uid: BOT, k, initial, offers, acc: [], rej: [], throw: '' };
     }
-    let acc = base.acc;
-    let rej = base.rej;
-    if (mine.offers.includes(END_CODE) && !acc.includes(END_CODE) && !rej.includes(END_CODE)) {
-      bot.current.endAnswer ??= Math.random() < 0.6;
-      if (bot.current.endAnswer) acc = [END_CODE];
-      else rej = [END_CODE];
-    }
-    if (!cur || acc.join() !== cur.acc.join() || rej.join() !== cur.rej.join()) {
-      setLocal((d) => [...d.filter((x) => !(x.uid === BOT && x.k === k)), { ...base!, acc, rej }]);
-    }
+    if (!cur) setLocal((d) => [...d.filter((x) => !(x.uid === BOT && x.k === k)), base!]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [practice, phase, k, mine.offers.join()]);
+  }, [practice, phase, k]);
 
   useEffect(() => {
     if (!practice || phase !== 'wait') return;
@@ -270,15 +257,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
 
   // ------------------------------------------------------------------ promise + end-match actions
   const negotiating = phase === 'negotiate' && !!opp;
-  const myEnd = endStatus(myDoc, oppDoc);
-  const theirEnd = oppDoc?.offers.includes(END_CODE) ?? false;
-  const theirEndStatus = endStatus(oppDoc, myDoc);
-  const makePromise = (code: string) => publish({ offers: [code, ...mine.offers.filter((c) => !parsePromise(c))] });
-  const withdrawPromise = () => publish({ offers: mine.offers.filter((c) => !parsePromise(c)) });
-  const offerEnd = () => publish({ offers: withIt(mine.offers, END_CODE) });
-  const withdrawEnd = () => publish({ offers: without(mine.offers, END_CODE) });
-  const answerEnd = (yes: boolean) =>
-    publish({ acc: yes ? withIt(mine.acc, END_CODE) : without(mine.acc, END_CODE), rej: yes ? without(mine.rej, END_CODE) : withIt(mine.rej, END_CODE) });
+  const makePromise = (code: string) => publish({ offers: [code] });
+  const withdrawPromise = () => publish({ offers: [] });
 
   // ------------------------------------------------------------------ notes (one panel)
   const rulesNotes = (): string[] => {
@@ -297,12 +277,11 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const showOpp = phase !== 'done' && !!opp;
   const myPromiseLines = showOpp && myPromise ? promiseLines(myPromise.code) : [];
   const theirPromiseLines = showOpp && oppPromise ? promiseLines(oppPromise.code) : [];
-  const noteCount =
-    mineNotes.length + (myPromiseLines.length > 0 ? 1 : 0) + (theirPromiseLines.length > 0 ? 1 : 0) + (showOpp && (mine.offers.includes(END_CODE) || theirEnd) ? 1 : 0);
+  const noteCount = mineNotes.length + (myPromiseLines.length > 0 ? 1 : 0) + (theirPromiseLines.length > 0 ? 1 : 0);
 
-  // The opponent's promise / end offer light the pill up until you open the panel.
-  const theirSig = `${oppPromise?.code ?? ''}|${theirEnd ? theirEndStatus : ''}`;
-  const hasNew = theirSig !== '|' && theirSig !== seenNotes;
+  // The opponent's promise lights the pill up until you open the panel.
+  const theirSig = oppPromise?.code ?? '';
+  const hasNew = theirSig !== '' && theirSig !== seenNotes;
   useEffect(() => {
     if (notesOpen) setSeenNotes(theirSig);
   }, [notesOpen, theirSig]);
@@ -327,16 +306,15 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     const partner = pair ? (pair[0] === p ? pair[1] : pair[0]) : null;
     const line = lineOf(p);
     const shownFinal = line ? (line.a === p ? line.ta : line.tb) : null;
-    const gone = before.left.includes(p);
     const initialOf: '' | Throw = isMe ? mine.initial : docOf(p)?.initial ?? '';
     const inFinal = phase === 'final' || phase === 'wait';
     const border = p === opp ? styles.boxOpp : isMe ? styles.boxMe : null;
     return (
-      <View style={[styles.box, { left: x, top: y, width: boxW }, border, gone && { opacity: 0.45 }]}>
+      <View style={[styles.box, { left: x, top: y, width: boxW }, border]}>
         <Text style={styles.boxName} numberOfLines={1}>
           {nameOf(p)}
         </Text>
-        {!gone && partner ? (
+        {partner ? (
           <>
             <Text style={styles.tag}>{inFinal || reveal ? 'FINAL THROW' : 'INITIAL THROW'}</Text>
             {reveal && shownFinal ? (
@@ -356,7 +334,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
             )}
           </>
         ) : (
-          <Text style={styles.hidden}>{gone ? 'left the match' : 'bye'}</Text>
+          <Text style={styles.hidden}>bye</Text>
         )}
       </View>
     );
@@ -419,30 +397,6 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
               <Button label="Take back my promise" variant="secondary" onPress={withdrawPromise} />
             </View>
           )}
-          {theirEnd && theirEndStatus !== 'agreed' && !mine.acc.includes(END_CODE) && (
-            <View style={styles.sect}>
-              <Text style={styles.notesLine}>{oppName} wants to end the match after this round.</Text>
-              <View style={styles.rowBtns}>
-                <Button label="Accept" onPress={() => answerEnd(true)} style={styles.flex} />
-                <Button label="Reject" variant="secondary" onPress={() => answerEnd(false)} style={styles.flex} />
-              </View>
-            </View>
-          )}
-          {!theirEnd && (
-            <Pressable
-              onPress={() => (mine.offers.includes(END_CODE) ? withdrawEnd() : offerEnd())}
-              style={styles.kindBtn}
-            >
-              <Text style={styles.kindTitle}>{mine.offers.includes(END_CODE) ? 'Take back: end the match' : 'END THE MATCH after this round'}</Text>
-              <Text style={styles.kindBlurb}>
-                {mine.offers.includes(END_CODE)
-                  ? myEnd === 'rejected'
-                    ? `${oppName} rejected.`
-                    : 'Offered: both players must agree.'
-                  : 'Both players must agree to stop.'}
-              </Text>
-            </Pressable>
-          )}
           <Button label="Close" onPress={closeMenu} />
         </>
       );
@@ -485,7 +439,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   };
 
   const seconds = Math.ceil(left / 1000);
-  const choosing = (phase === 'pick' || phase === 'negotiate' || phase === 'final') && !!opp;
+  const choosing = (phase === 'negotiate' || phase === 'final') && !!opp;
 
   return (
     <View style={styles.wrap}>
@@ -495,8 +449,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
           {now.score[uid] ?? 0} pts
         </Text>
         <Text style={styles.phase}>
-          {phase === 'pick'
-            ? 'Pick your INITIAL throw'
+          {phase === 'count'
+            ? 'Get ready'
             : phase === 'negotiate'
               ? 'Negotiation'
               : phase === 'final'
@@ -544,7 +498,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
                   ))}
                 </>
               )}
-              {(theirPromiseLines.length > 0 || theirEnd) && (
+              {theirPromiseLines.length > 0 && (
                 <>
                   <Text style={[styles.notesWho, { marginTop: 8 }]}>{oppName}</Text>
                   {theirPromiseLines.map((t, j) => (
@@ -553,18 +507,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
                       {t}
                     </Text>
                   ))}
-                  {theirEnd && (
-                    <Text style={styles.notesLine}>
-                      • Wants to end the match after this round
-                      {theirEndStatus === 'agreed' ? ' [AGREED]' : mine.rej.includes(END_CODE) ? ' [you rejected]' : ''}.
-                    </Text>
-                  )}
                 </>
-              )}
-              {showOpp && mine.offers.includes(END_CODE) && (
-                <Text style={[styles.notesLine, { marginTop: 8 }]}>
-                  • You offered to end the match after this round [{myEnd === 'agreed' ? 'AGREED' : myEnd === 'rejected' ? 'rejected' : 'waiting for an answer'}].
-                </Text>
               )}
             </ScrollView>
           )}
@@ -573,10 +516,10 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
 
       <View style={{ width: size, height: size + 10, alignSelf: 'center' }}>
         <View style={[styles.hub, { left: center - 55, top: center - 45 }]}>
-          {phase === 'pick' || phase === 'negotiate' || phase === 'final' ? (
+          {phase === 'count' || phase === 'negotiate' || phase === 'final' ? (
             <>
               <Text style={styles.timer}>{seconds}</Text>
-              <Text style={styles.small}>{phase === 'pick' ? 'to commit' : phase === 'final' ? 'to lock final' : 'seconds left'}</Text>
+              <Text style={styles.small}>{phase === 'count' ? 'starting…' : phase === 'final' ? 'to lock final' : 'seconds left'}</Text>
             </>
           ) : phase === 'done' ? (
             <Text style={styles.small}>Waiting for the other players…</Text>
@@ -611,11 +554,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       {choosing && (
         <>
           <Text style={styles.small}>
-            {phase === 'pick'
-              ? 'Commit your INITIAL throw. Everyone can see it, and you can change it during the negotiation.'
-              : phase === 'negotiate'
-                ? 'Tap to change your public INITIAL throw. Long-press a throw to make a promise.'
-                : 'Pick your real FINAL throw now. Others still see your initial throw until the reveal.'}
+            {phase === 'negotiate'
+              ? 'Tap a throw to set your INITIAL throw: everyone can see it and you can change it. Long-press a throw to make a promise.'
+              : 'Pick your real FINAL throw now. Others still see your initial throw until the reveal.'}
           </Text>
           <View style={styles.rowBtns}>
             {THROWS.map((t) => {

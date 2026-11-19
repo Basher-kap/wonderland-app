@@ -1,8 +1,9 @@
 // Janken Negotiation rules, with no screen code so they can be tested without a phone.
 //
-// Every round: pick an INITIAL throw (public) -> 30 s of negotiation -> the last 5 s pick the private
-// FINAL throw -> everybody's final throw is revealed at once. Players are paired up each round (an odd
-// one out gets a bye). Win = +1, loss = -1, draw = 0.
+// Every round: a 3-2-1 countdown -> 60 s of negotiation (the public INITIAL throw is chosen and can change
+// during it) -> the last 5 s pick the private FINAL throw -> everybody's final throw is revealed at once.
+// Players are paired up each round (an odd one out gets a bye). Win = +1, loss = -1, draw = 0.
+// The match always lasts MAX_ROUNDS (10) rounds: round 10 is the last, and the most points wins.
 //
 // NEGOTIATION (long-press a throw, for example ROCK):
 //   "I PROMISE TO PICK ROCK"      follow-ups (any of them):
@@ -25,7 +26,8 @@ export const THROW_ICON: Record<Throw, string> = { rock: '✊', paper: '✋', sc
 // What a player publishes about one round.
 //  - `initial` is PUBLIC and can be changed until the final-throw phase.
 //  - `throw` is the FINAL throw: '' (hidden) until the reveal, when everyone's is shown at once.
-//  - `offers`: my promise (at most one) and/or END_CODE. `acc` / `rej`: my answer to my opponent's END_CODE.
+//  - `offers`: my promise (at most one). (`acc` / `rej` are not used any more: they stay in the document so
+//    the Firestore rules do not have to change.)
 export type JankenDoc = {
   uid: string;
   k: number; // round number inside the game, 1-based
@@ -36,12 +38,12 @@ export type JankenDoc = {
   throw: '' | Throw;
 };
 
-export const NEGOTIATION_MS = 30000; // initial throw and promises can change
-export const INITIAL_MS = 8000; // time to commit the initial throw before negotiation
+export const COUNTDOWN_MS = 3000; // 3-2-1 before every round
+export const NEGOTIATION_MS = 60000; // 1 minute: the initial throw and the promise can change
 export const FINAL_MS = 5000; // last seconds: pick the private FINAL throw (initial throw is locked)
 export const REVEAL_MS = 4000; // reveal stays on screen this long
 export const WAIT_REVEAL_MS = 6000; // how long to wait for a missing reveal before calling it a no-show
-export const MAX_ROUNDS = 10; // safety cap so a table that never agrees cannot play forever
+export const MAX_ROUNDS = 10; // the match always ends after this round
 export const SCORE_OFFSET = 500; // result score is saved as 500 + net points (it cannot be negative)
 
 export const beats = (a: Throw, b: Throw) =>
@@ -54,8 +56,6 @@ export const allowedThrows = (prev: Throw | null): Throw[] => THROWS.filter((t) 
 export type PromiseKind = 'pick' | 'avoid';
 export type SetChoice = Throw | 'both'; // which of the OTHER two throws you are disabled from
 export type Promise_ = { kind: PromiseKind; t: Throw; a: boolean; b: SetChoice | null; code: string };
-
-export const END_CODE = 'end||x'; // "end the match after this round": needs both players
 
 export const othersOf = (t: Throw): Throw[] => THROWS.filter((x) => x !== t);
 
@@ -118,23 +118,6 @@ export function promiseLines(code: string): string[] {
   return lines;
 }
 
-// ------------------------------------------------------------------ end the match
-// Both players must agree: both offered it, or one offered and the other accepted.
-export function endAgreed(da: JankenDoc | undefined, db: JankenDoc | undefined): boolean {
-  if (!da || !db) return false;
-  const endA = da.offers.includes(END_CODE);
-  const endB = db.offers.includes(END_CODE);
-  return (endA && (endB || db.acc.includes(END_CODE))) || (endB && da.acc.includes(END_CODE));
-}
-
-export type OfferStatus = 'pending' | 'agreed' | 'rejected';
-// Status of an END offer made by `proposer` towards `other`.
-export function endStatus(proposer: JankenDoc | undefined, other: JankenDoc | undefined): OfferStatus {
-  if (!other || !proposer) return 'pending';
-  if (other.offers.includes(END_CODE) || other.acc.includes(END_CODE)) return 'agreed';
-  return other.rej.includes(END_CODE) ? 'rejected' : 'pending';
-}
-
 // ------------------------------------------------------------------ what promises do to you
 // A throw you are disabled from in a later round (because of a promise you made).
 export type Ban = { t: Throw; round: number };
@@ -184,7 +167,6 @@ export type Effect = { uid: string; text: string };
 export type RoundLine = { k: number; a: string; b: string; ta: Throw; tb: Throw; winner: string | null; effects: Effect[] };
 export type Replay = {
   score: Record<string, number>;
-  left: string[]; // players who agreed to end the match
   prev: Record<string, Throw | null>; // each player's last throw (for Forced Rotation)
   lines: RoundLine[];
   carry: Carry; // the throws players are disabled from in the NEXT rounds
@@ -218,16 +200,14 @@ export function replay(seed: string, players: string[], out: string[], docs: Jan
     score[p] = 0;
     prev[p] = null;
   });
-  const left = new Set<string>();
   const lines: RoundLine[] = [];
   const rounds: Replay['rounds'] = [];
   const carry = emptyCarry();
   for (let k = 1; k <= upTo; k++) {
-    const active = players.filter((p) => !out.includes(p) && !left.has(p));
+    const active = players.filter((p) => !out.includes(p));
     const prevPairs = k > 1 ? rounds[k - 2]?.pairs ?? [] : [];
     const { pairs, bye } = pairings(seed, k, active, prevPairs);
     rounds.push({ pairs, bye });
-    const leaving: string[] = [];
     for (const [a, b] of pairs) {
       const da = docOf(docs, a, k);
       const db = docOf(docs, b, k);
@@ -243,11 +223,9 @@ export function replay(seed: string, players: string[], out: string[], docs: Jan
       lines.push({ k, a, b, ta: da.throw, tb: db.throw, winner, effects });
       prev[a] = da.throw;
       prev[b] = db.throw;
-      if (endAgreed(da, db)) leaving.push(a, b);
     }
-    leaving.forEach((p) => left.add(p));
   }
-  return { score, left: [...left], prev, lines, carry, rounds };
+  return { score, prev, lines, carry, rounds };
 }
 
 // ---- Registry hooks

@@ -176,7 +176,7 @@ export const GAMES: Game[] = [
       'You have 3 chances to make a mistake.',
     ],
   },
-{
+  {
     id: 'janken-negotiation',
     name: 'Janken Negotiation',
     domain: 'experience',
@@ -185,17 +185,17 @@ export const GAMES: Game[] = [
     difficulty: 'hard',
     rules: [
       'You play a series of Rock-Paper-Scissors rounds against your opponents.',
-      'Before each throw, you commit an initial throw. Everyone can see it, and you may change it during the 30-second negotiation.',
+      'Each round starts with a 3-2-1 countdown, followed by a 1-minute negotiation.',
+      'During the negotiation you choose an initial throw. Everyone can see it, and you may change it as often as you like.',
       'Negotiate with your opponent through promises, persuasion or bluffing. Long-press ROCK, PAPER or SCISSORS to promise to pick it or promise NOT to pick it, then choose what happens to you next round if you kept the promise or if you lied.',
       'A promise is only words: you can still lie. But the game checks your real final throw, and if a consequence you chose applies, the throws you are disabled from are greyed out in your next round.',
-      'Negotiations may also include betting on whether to extend or end the match.',
       'In the last 5 seconds, you pick your FINAL throw in private. It can differ from your initial throw, and you may change it until the time is up.',
       'When the time is up, all final throws are revealed at the same time.',
       'Forced Rotation: you cannot throw the same thing in two rounds in a row.',
     ],
     clearConditions: [
-      'Win as many rounds as possible before you and your opponent agree to end the match.',
-      'The player with the most points wins.',
+      'The match lasts 10 rounds, and round 10 is the last.',
+      'Win as many rounds as possible: the player with the most points after round 10 wins.',
     ],
   },
 
