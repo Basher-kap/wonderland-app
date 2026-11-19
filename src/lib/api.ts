@@ -434,7 +434,7 @@ export function subscribeStages(
 
 // ------------------------------------------------------- Janken Negotiation ----
 // One document per player per round (id "<uid>_<k>"). It is rewritten while players negotiate
-// (promise, Double or Nothing, end-match offers). `throw` is '' until the reveal and cannot change
+// (public initial throw, offers and answers). `throw` is '' until the reveal and cannot change
 // after it, so nobody can read a final throw before its owner publishes it at the end of the timer.
 export type JankenSaved = JankenDoc & { matchId: string; roundNo: number };
 
@@ -451,10 +451,10 @@ export async function saveJanken(
     matchId: round.matchId,
     roundNo: round.roundNo,
     k,
-    dbl: data.dbl,
-    term: data.term,
-    promise: data.promise,
     initial: data.initial,
+    offers: data.offers,
+    acc: data.acc,
+    rej: data.rej,
     throw: data.throw,
   });
 }

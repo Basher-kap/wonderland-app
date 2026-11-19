@@ -186,7 +186,9 @@ export const GAMES: Game[] = [
     rules: [
       'You play a series of Rock-Paper-Scissors rounds against your opponents.',
       'Before each throw, you commit an initial throw. Everyone can see it, and you may change it during the 30-second negotiation.',
-      'Negotiate with your opponent through promises, persuasion or bluffing. Negotiations may also include betting on whether to extend or end the match.',
+      'Negotiate with your opponent through promises, persuasion or bluffing. Long-press ROCK, PAPER or SCISSORS to open its negotiation menu: promise to pick it, promise not to pick it, dare your opponent, double or nothing, or sacrifice.',
+      'An offer only counts when your opponent accepts it. An accepted offer is binding; anything only said out loud is not, so you can still betray it.',
+      'Negotiations may also include betting on whether to extend or end the match.',
       'In the last 5 seconds, you pick your FINAL throw in private. It can differ from your initial throw, and you may change it until the time is up.',
       'When the time is up, all final throws are revealed at the same time.',
       'Double or Nothing: if both players agree, the winner gets double points and the loser loses double.',
