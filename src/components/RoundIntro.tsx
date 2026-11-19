@@ -11,7 +11,8 @@ import { colors, domainInfo, radius } from '../theme';
 //   3. "Rule: ..."
 //   4. (only if the game has one) "Prohibition: ..."
 //   5. (only if the game has one) "Additional Rule: ..." (or the game's own heading, e.g. "Extended Rule")
-//   6. "Clear Condition: ..."
+//   6. (only if the game has examples) "Example: ..."
+//   7. "Clear Condition: ..."
 // Steps 1 and 2 move on by themselves (tap to skip); the rule dialogs wait for a tap so
 // everybody can read them. After the last one, onDone() starts the game.
 
@@ -42,6 +43,9 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
             lines: game.additionalRules,
           },
         ]
+      : []),
+    ...(game.example?.length
+      ? [{ key: 'example', kind: 'lines' as const, heading: 'Example', lines: game.example }]
       : []),
     {
       key: 'clear',
