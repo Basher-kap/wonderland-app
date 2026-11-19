@@ -48,7 +48,7 @@ export const GAMES: Game[] = [
     // The points (game/wordle.ts) are NOT listed here on purpose: they are not shown to the players.
     clearConditions: [
       'Each player has only 5 attempts to guess the hidden word.',
-      'The game ends as soon as the first player correctly guesses the word.',
+      'The game ends as soon as the first player correctly guesses all the words.',
     ],
   },
   {
