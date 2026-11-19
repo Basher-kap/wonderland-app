@@ -65,7 +65,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const [menuFor, setMenuFor] = useState<Throw | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [left, setLeft] = useState(INITIAL_MS);
-  const [sendFailed, setSendFailed] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null); // why sharing with the others failed
+  const [seenNotes, setSeenNotes] = useState('');
   const [local, setLocal] = useState<JankenDoc[]>([]); // practice run: my docs and the bot's
 
   const docs: JankenDoc[] = room ? room.janken?.docs ?? [] : local;
@@ -100,7 +101,8 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
     if (room?.janken) {
       room.janken
         .save(doc.k, { dbl: doc.dbl, term: doc.term, promise: doc.promise, initial: doc.initial, throw: doc.throw })
-        .catch(() => setSendFailed(true));
+        .then(() => setSendError(null))
+        .catch((e) => setSendError((e as { code?: string } | null)?.code ?? (e instanceof Error ? e.message : 'unknown error')));
     } else {
       setLocal((d) => [...d.filter((x) => !(x.uid === doc.uid && x.k === doc.k)), doc]);
     }
@@ -284,6 +286,12 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
   const mineNotes = phase === 'done' ? [] : ownNotes();
   const theirNotes = phase === 'done' ? [] : oppNotes();
   const noteCount = mineNotes.length + theirNotes.length;
+  // The opponent's notes (promise, offers) light the pill up until you open the panel.
+  const theirSig = theirNotes.join('|');
+  const hasNew = theirNotes.length > 0 && theirSig !== seenNotes;
+  useEffect(() => {
+    if (notesOpen) setSeenNotes(theirSig);
+  }, [notesOpen, theirSig]);
 
   // ------------------------------------------------------------------ circle of players
   const size = Math.min(width - 24, 400);
@@ -321,7 +329,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
         {!gone && partner && (
           <>
             <Text style={styles.tag}>INITIAL THROW</Text>
-            <Text style={styles.throwText}>{initialOf ? `${THROW_ICON[initialOf]} ${THROW_LABEL[initialOf]}` : '—'}</Text>
+            <Text style={styles.throwText}>
+              {initialOf ? `${THROW_ICON[initialOf]} ${THROW_LABEL[initialOf]}` : isMe ? '—' : 'waiting…'}
+            </Text>
             <Text style={styles.tag}>FINAL THROW</Text>
             {reveal && shownFinal ? (
               <Text style={styles.revealed}>
@@ -384,9 +394,13 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
           each player is combined here. Drawn over the circle so it never pushes the layout. */}
       {noteCount > 0 && (
         <View style={styles.notesAnchor} pointerEvents="box-none">
-          <Pressable onPress={() => setNotesOpen((o) => !o)} style={styles.notesPill} accessibilityRole="button">
-            <Text style={styles.notesPillText}>
-              Notes ({noteCount}) {notesOpen ? '▴' : '▾'}
+          <Pressable
+            onPress={() => setNotesOpen((o) => !o)}
+            style={[styles.notesPill, hasNew && styles.notesPillNew]}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.notesPillText, hasNew && { color: colors.bg }]}>
+              {hasNew ? `● ${oppName} says something · ` : ''}Notes ({noteCount}) {notesOpen ? '▴' : '▾'}
             </Text>
           </Pressable>
           {notesOpen && (
@@ -493,15 +507,32 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
           {now.score[uid] ?? 0} points.
         </Text>
       )}
-      {sendFailed && (
-        <Button
-          label="Send again"
-          variant="secondary"
-          onPress={() => {
-            setSendFailed(false);
-            if (lastSent.current) save(lastSent.current);
-          }}
-        />
+      {room && !room.janken && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>Sharing is switched off in this build.</Text>
+          <Text style={styles.errorText}>
+            GameScreen.tsx and types.ts are not the updated versions (no room.janken), so nobody sees anybody else's
+            throw or notes. Replace them, then restart the app.
+          </Text>
+        </View>
+      )}
+      {sendError && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorTitle}>The other players are NOT receiving your throw and notes.</Text>
+          <Text style={styles.errorText}>
+            Error: {sendError}.{' '}
+            {sendError === 'permission-denied'
+              ? 'The Firestore rules in your project are out of date: deploy backend/firestore.rules (firebase deploy --only firestore:rules), then tap Send again.'
+              : 'Check your connection, then tap Send again.'}
+          </Text>
+          <Button
+            label="Send again"
+            variant="secondary"
+            onPress={() => {
+              if (lastSent.current) save(lastSent.current);
+            }}
+          />
+        </View>
       )}
     </View>
   );
@@ -522,6 +553,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
+  notesPillNew: { backgroundColor: colors.accent },
   notesPillText: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   notesPanel: {
     marginTop: 6,
@@ -555,5 +587,8 @@ const styles = StyleSheet.create({
   throwIcon: { fontSize: 28 },
   throwLabel: { color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 2 },
   menu: { backgroundColor: colors.cardAlt, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 12, gap: 8 },
+  errorBox: { backgroundColor: colors.cardAlt, borderColor: colors.danger, borderWidth: 2, borderRadius: radius.md, padding: 10, gap: 6 },
+  errorTitle: { color: colors.danger, fontSize: 13, fontWeight: '800' },
+  errorText: { color: colors.text, fontSize: 12 },
   menuTitle: { color: colors.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });
