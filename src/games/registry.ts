@@ -119,6 +119,7 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: describeInversion,
     endsOnFirstFinish: true,
     endsWhenOneLeft: true,
+    fullScreen: true, // the whole screen, no scrolling: the controller buttons must stay in the frame
   },
   'magical-banana': {
     Component: MagicalBananaGame,

@@ -7,10 +7,16 @@ import { FestivalBackground } from '../components/FestivalBackground';
 import { MayaGlyph } from '../components/MayaGlyph';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
+import { EsportsArenaBackground } from '../components/EsportsArenaBackground';
+import { OrphanageBackground } from '../components/OrphanageBackground';
+import { WildWestBackground } from '../components/WildWestBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { FONT_FORTUNE, fortune as fo } from './fortuneTheme';
 import { cave as cv, FONT_XIBALBA } from './xibalbaTheme';
 import { food as f } from './foodLandTheme';
+import { FONT_DISPLAY, west as h } from './hangmanTheme';
+import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
+import { FONT_DISPLAY as FONT_ESP, esp as e } from './inversionTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -25,6 +31,9 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'human-calculator') return QuizStageBackground;
   if (gameId === 'fortune') return FestivalBackground;
   if (gameId === 'traps-of-xibalba') return CaveBackground;
+  if (gameId === 'hangman') return WildWestBackground;
+  if (gameId === 'schulte-table') return OrphanageBackground;
+  if (gameId === 'inversion') return EsportsArenaBackground;
   return null;
 }
 
@@ -140,6 +149,78 @@ function HankoDecor() {
   );
 }
 
+// Hangman: the rules are a poster nailed to a board, a nail in every corner.
+function PosterNails() {
+  return (
+    <View pointerEvents="none" style={nails.wrap}>
+      <View style={[nails.nail, { top: 6, left: 6 }]} />
+      <View style={[nails.nail, { top: 6, right: 6 }]} />
+      <View style={[nails.nail, { bottom: 6, left: 6 }]} />
+      <View style={[nails.nail, { bottom: 6, right: 6 }]} />
+    </View>
+  );
+}
+
+const nails = StyleSheet.create({
+  wrap: { ...StyleSheet.absoluteFill },
+  nail: { position: 'absolute', width: 7, height: 7, borderRadius: 4, backgroundColor: h.brassDark },
+});
+
+const HANGMAN_INTRO: IntroTheme = {
+  Backdrop: WildWestBackground,
+  accent: h.wanted,
+  text: h.paperInk,
+  hint: h.cream,
+  bullet: h.wanted,
+  fontFamily: FONT_DISPLAY,
+  dialog: { backgroundColor: h.paper, borderColor: h.woodDark, borderWidth: 4, borderRadius: 4 },
+  Decor: PosterNails,
+};
+
+// Schulte Table: the rules are a paper note stuck on the wall with a strip of tape.
+function TapeDecor() {
+  return <View pointerEvents="none" style={tape.strip} />;
+}
+
+const tape = StyleSheet.create({
+  strip: { position: 'absolute', top: -11, alignSelf: 'center', width: 84, height: 22, backgroundColor: k.tape, transform: [{ rotate: '-3deg' }] },
+});
+
+const SCHULTE_INTRO: IntroTheme = {
+  Backdrop: OrphanageBackground,
+  accent: k.title,
+  text: k.ink,
+  hint: k.inkSoft,
+  bullet: k.title,
+  fontFamily: FONT_KIDS,
+  dialog: { backgroundColor: k.paper, borderColor: k.paperEdge, borderWidth: 3, borderRadius: 22 },
+  Decor: TapeDecor,
+};
+
+// Inversion: the rules appear on an arena screen, with a bracket in each corner.
+function ScreenBrackets() {
+  const arm = { position: 'absolute' as const, width: 16, height: 16, borderColor: e.cyan };
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <View style={[arm, { top: 6, left: 6, borderTopWidth: 2, borderLeftWidth: 2 }]} />
+      <View style={[arm, { top: 6, right: 6, borderTopWidth: 2, borderRightWidth: 2 }]} />
+      <View style={[arm, { bottom: 6, left: 6, borderBottomWidth: 2, borderLeftWidth: 2 }]} />
+      <View style={[arm, { bottom: 6, right: 6, borderBottomWidth: 2, borderRightWidth: 2 }]} />
+    </View>
+  );
+}
+
+const INVERSION_INTRO: IntroTheme = {
+  Backdrop: EsportsArenaBackground,
+  accent: e.magenta,
+  text: e.text,
+  hint: e.muted,
+  bullet: e.cyan,
+  fontFamily: FONT_ESP,
+  dialog: { backgroundColor: e.panel, borderColor: e.bezelEdge, borderWidth: 2, borderRadius: 8 },
+  Decor: ScreenBrackets,
+};
+
 const hanko = StyleSheet.create({
   seal: { position: 'absolute', top: 12, right: 14, width: 38, height: 38, borderRadius: 6, backgroundColor: fo.vermilion, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
   mark: { color: fo.paper, fontSize: 24, fontWeight: '800' },
@@ -192,5 +273,8 @@ export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'wordle') return WORDLE_INTRO;
   if (gameId === 'human-calculator') return CALC_INTRO;
   if (gameId === 'magical-banana') return FOOD_INTRO;
+  if (gameId === 'hangman') return HANGMAN_INTRO;
+  if (gameId === 'schulte-table') return SCHULTE_INTRO;
+  if (gameId === 'inversion') return INVERSION_INTRO;
   return null;
 }
