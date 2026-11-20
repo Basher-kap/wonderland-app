@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -123,7 +124,10 @@ export function LobbyScreen() {
               {item.name}
               {item.isHost ? '  (host)' : ''}
             </Text>
-            <Text style={styles.lives}>♥ {item.lives}</Text>
+            <View style={styles.livesBox} accessible accessibilityLabel={`${item.lives} lives`}>
+              <MaterialCommunityIcons name="heart" size={16} color={colors.chance} />
+              <Text style={styles.lives}>{item.lives}</Text>
+            </View>
           </View>
         )}
       />
@@ -151,25 +155,26 @@ const styles = StyleSheet.create({
     margin: 20,
     padding: 20,
     alignItems: 'center',
-    backgroundColor: space.card,
+    ...space.glass,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
   },
   codeLabel: { color: colors.muted, fontSize: 13 },
-  code: { color: colors.accent, fontSize: 40, fontWeight: '700', letterSpacing: 6, marginVertical: 4 },
+  code: { color: colors.accent, fontSize: 40, fontWeight: '700', letterSpacing: 6, marginVertical: 4, ...space.glowText },
   codeHint: { color: colors.muted, fontSize: 12 },
   heading: { color: colors.text, fontSize: 18, fontWeight: '600', marginHorizontal: 20, marginBottom: 10 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: space.card,
+    ...space.glass,
     padding: 14,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
   name: { color: colors.text, fontSize: 16 },
+  livesBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   lives: { color: colors.chance, fontSize: 16, fontWeight: '600' },
   footer: { padding: 20, gap: 10 },
   waiting: { color: colors.muted, textAlign: 'center' },

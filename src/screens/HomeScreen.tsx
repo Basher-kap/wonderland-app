@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   hello: { color: colors.text, fontSize: 17, fontWeight: '600' },
   sub: { color: colors.muted, fontSize: 13 },
   panel: {
-    backgroundColor: space.card,
+    ...space.glass,
     borderRadius: radius.lg,
     padding: 16,
     gap: 12,
@@ -148,12 +148,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 2,
   },
-  sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 12 },
+  sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 12, ...space.glowText },
   domainHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   domainTitle: { fontSize: 18, fontWeight: '600' },
   domainBlurb: { color: colors.muted, fontSize: 13, marginBottom: 8 },
   gameCard: {
-    backgroundColor: space.card,
+    ...space.glass,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 8,

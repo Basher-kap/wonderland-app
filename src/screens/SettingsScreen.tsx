@@ -71,7 +71,7 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 20, gap: 10 },
-  heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 8 },
+  heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 8, ...space.glowText },
   label: { color: colors.text, fontSize: 15, fontWeight: '600' },
   hint: { color: colors.muted, fontSize: 12, marginTop: 2 },
   input: {
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: space.card,
+    ...space.glass,
     borderRadius: radius.md,
     padding: 14,
     marginTop: 16,

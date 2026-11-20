@@ -70,7 +70,10 @@ export function DomainBadge({ domain }: { domain: Domain }) {
 export function TicketChip({ tickets }: { tickets: number }) {
   return (
     <View style={styles.ticket}>
-      <Text style={{ color: colors.accent, fontWeight: '600' }}>🎟 {tickets}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} accessible accessibilityLabel={`${tickets} tickets`}>
+        <MaterialCommunityIcons name="ticket-confirmation" size={18} color={colors.accent} />
+        <Text style={{ color: colors.accent, fontWeight: '600' }}>{tickets}</Text>
+      </View>
     </View>
   );
 }
