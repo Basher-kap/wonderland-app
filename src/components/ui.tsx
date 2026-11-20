@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, Domain, domainInfo, radius } from '../theme';
+import { space } from '../spaceTheme';
 
 type ButtonProps = {
   label: string;
@@ -80,14 +81,22 @@ export function TicketChip({ tickets }: { tickets: number }) {
 
 const styles = StyleSheet.create({
   button: {
+    minHeight: 48,
     paddingVertical: 14,
     paddingHorizontal: 18,
-    borderRadius: radius.md,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primary: { backgroundColor: colors.accent },
-  secondary: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  primary: {
+    backgroundColor: colors.accent,
+    shadowColor: colors.accent,
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  secondary: { ...space.glass, borderWidth: 1 },
   buttonText: { fontSize: 16, fontWeight: '600' },
   badge: {
     borderWidth: 1,
@@ -100,11 +109,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ticket: {
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(239, 159, 39, 0.5)',
+    shadowColor: colors.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
 });

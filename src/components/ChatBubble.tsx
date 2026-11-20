@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, radius } from '../theme';
+import { space } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Props = {
@@ -266,10 +267,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: colors.accent,
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
   },
   badge: {
     position: 'absolute',
@@ -279,6 +280,8 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -288,10 +291,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     right: 12,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
+    ...space.glass,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: 12,
     elevation: 6,
   },
@@ -300,14 +302,21 @@ const styles = StyleSheet.create({
   hint: { color: colors.muted, fontSize: 12, marginBottom: 4 },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 20, transform: [{ scaleY: -1 }] },
   msg: {
-    backgroundColor: colors.cardAlt,
-    borderRadius: radius.md,
-    padding: 8,
+    backgroundColor: space.cardAlt,
+    borderRadius: 16,
+    borderBottomLeftRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     marginVertical: 3,
     alignSelf: 'flex-start',
     maxWidth: '88%',
   },
-  msgMine: { alignSelf: 'flex-end', backgroundColor: colors.border },
+  msgMine: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#4B3FB5',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 4,
+  },
   msgName: { color: colors.accent, fontSize: 11, fontWeight: '700' },
   msgText: { color: colors.text, fontSize: 14 },
   joinChip: {
@@ -330,11 +339,11 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: space.input,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 12,
+    borderColor: space.border,
+    borderRadius: 999,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     color: colors.text,
   },

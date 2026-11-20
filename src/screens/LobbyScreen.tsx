@@ -105,7 +105,7 @@ export function LobbyScreen() {
 
   return (
     <SpaceBackground>
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <VoiceButton code={params.code} />
       <View style={styles.codeBox}>
         <Text style={styles.codeLabel}>Lobby ID</Text>

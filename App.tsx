@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
 import { DarkTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +10,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ChatBubble } from './src/components/ChatBubble';
+import { SpaceTabBar } from './src/components/SpaceTabBar';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LeaderboardScreen } from './src/screens/LeaderboardScreen';
@@ -35,23 +35,10 @@ const navTheme = {
   },
 };
 
-const tabIcons: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
-  Home: 'home-outline',
-  Leaderboard: 'trophy-outline',
-  Settings: 'settings-outline',
-};
-
+// The tab bar itself (icons, colours, glow) lives in components/SpaceTabBar.tsx.
 function MainTabs() {
   return (
-    <Tabs.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
-        tabBarIcon: ({ color, size }) => <Ionicons name={tabIcons[route.name]} size={size} color={color} />,
-      })}
-    >
+    <Tabs.Navigator tabBar={(props) => <SpaceTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="Home" component={HomeScreen} />
       <Tabs.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Tabs.Screen name="Settings" component={SettingsScreen} />
@@ -77,7 +64,8 @@ function RootNavigator() {
       {signedIn ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ title: 'Lobby' }} />
+          {/* The lobby draws its own space background edge to edge, so it has no header bar. */}
+          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Game" component={GameScreen} options={{ title: 'Game' }} />
         </>
       ) : (
