@@ -64,7 +64,7 @@ export function RoundIntro({
   const last = index === steps.length - 1;
   const color = domainInfo[game.domain].color;
 
-  const next = React.useCallback(() => {
+  const advance = React.useCallback(() => {
     if (index >= steps.length - 1) onDone();
     else setIndex(index + 1);
   }, [index, steps.length, onDone]);
@@ -73,9 +73,14 @@ export function RoundIntro({
     fade.setValue(0);
     Animated.timing(fade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
     if (step.kind === 'lines') return;
-    const t = setTimeout(next, AUTO_MS);
+    const t = setTimeout(advance, AUTO_MS);
     return () => clearTimeout(t);
-  }, [index, step.kind, next, fade]);
+  }, [index, step.kind, advance, fade]);
+
+  // Tapping only moves the rule dialogs on: the title and the name cannot be skipped.
+  const next = React.useCallback(() => {
+    if (step.kind === 'lines') advance();
+  }, [step.kind, advance]);
 
   return (
     <SafeAreaView style={styles.root}>
@@ -101,7 +106,7 @@ export function RoundIntro({
           )}
         </Animated.View>
         <Text style={styles.hint}>
-          {step.kind === 'lines' ? (last ? 'Tap to start' : 'Tap to continue') : 'Tap to skip'}
+          {step.kind === 'lines' ? (last ? 'Tap to start' : 'Tap to continue') : ' '}
         </Text>
       </Pressable>
     </SafeAreaView>
