@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Button } from '../components/ui';
 import {
   ANSWER_MS,
@@ -13,7 +22,7 @@ import {
   START_CHANCES,
 } from '../game/humanCalculator';
 import type { QuestionDoc, Standings } from '../game/humanCalculator';
-import { colors, radius } from '../theme';
+import { calc as c, CALC_BG_IMAGE, FONT_LABEL, FONT_SCREEN } from '../gameThemes/humanCalculatorTheme';
 import type { GameProps } from './types';
 
 // Human Calculator. A question is a run of terms ("+5", "-2", "x2", "/5") shown one at a time and
@@ -26,17 +35,98 @@ import type { GameProps } from './types';
 // player standing wins. The result (chances left, question reached) is reported ONCE with onFinish.
 // All the rules live in src/game/humanCalculator.ts; every phone replays the same standings from the
 // answers saved in the lobby, so nothing but the answers has to be sent.
+//
+// LOOK: a quiz-show stage (src/gameThemes/humanCalculatorTheme.ts). The terms, the typed answer and
+// the correct answer appear on the big monitor. Chances are lamps (lit = still in), the 5 seconds
+// are a row of bulbs under the screen that go out one by one and turn red at the end.
 
 type Phase = 'show' | 'answer' | 'sent' | 'reveal' | 'ready' | 'spectate';
 
 const MAX_DIGITS = 5;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '<'];
+const TIMER_BULBS = 12;
 
-const Hearts = ({ n }: { n: number }) => (
-  <Text style={styles.hearts}>
-    {Array.from({ length: START_CHANCES }, (_, i) => (i < n ? '♥' : '♡')).join(' ')}
-  </Text>
+// ---- chances: one lamp each, lit = still in the game
+const Chances = ({ n, size = 16 }: { n: number; size?: number }) => (
+  <View style={styles.lamps} accessible accessibilityLabel={`${n} of ${START_CHANCES} chances left`}>
+    {Array.from({ length: START_CHANCES }, (_, i) => (
+      <View
+        key={i}
+        style={[
+          { width: size, height: size, borderRadius: size },
+          i < n ? [styles.lampOn, { shadowRadius: size / 2 }] : styles.lampOff,
+        ]}
+      />
+    ))}
+  </View>
 );
+
+// ---- big digits on the monitor; a new term pops in (skipped with reduce-motion)
+function ScreenText({ value, size, color, reduceMotion }: { value: string; size: number; color?: string; reduceMotion: boolean }) {
+  const pop = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (reduceMotion || value.trim() === '') return;
+    pop.setValue(0.88);
+    Animated.spring(pop, { toValue: 1, friction: 6, tension: 160, useNativeDriver: true }).start();
+  }, [value, reduceMotion, pop]);
+  return (
+    <Animated.Text
+      style={[styles.digits, { fontSize: size, minHeight: size * 1.15, lineHeight: size * 1.15 }, color ? { color } : null, { transform: [{ scale: pop }] }]}
+    >
+      {value}
+    </Animated.Text>
+  );
+}
+
+// ---- the monitor: bezel, screen, optional timer bulbs, and a stand
+function Monitor({ children, timerLeft }: { children: React.ReactNode; timerLeft?: number | null }) {
+  const lit = timerLeft == null ? 0 : Math.ceil((timerLeft / ANSWER_MS) * TIMER_BULBS);
+  return (
+    <View style={styles.monitorWrap}>
+      <View style={styles.bezel}>
+        <View style={styles.screen}>{children}</View>
+        {timerLeft != null && (
+          <View style={styles.timerRow} accessible accessibilityLabel={`${Math.ceil(timerLeft / 1000)} seconds left`}>
+            {Array.from({ length: TIMER_BULBS }, (_, i) => (
+              <View
+                key={i}
+                style={[styles.timerBulb, i < lit ? { backgroundColor: lit <= 3 ? c.hot : c.gold } : { backgroundColor: c.bulbOff }]}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+      <View style={styles.neck} />
+      <View style={styles.base} />
+    </View>
+  );
+}
+
+// ---- the placeholder stage (only while there is no CALC_BG_IMAGE)
+function StageBackdrop() {
+  const folds = [0, 1, 2, 3];
+  return (
+    <>
+      <View pointerEvents="none" style={styles.spotWrap}>
+        {[1, 0.74, 0.5].map((k, i) => (
+          <View key={i} style={{ position: 'absolute', alignSelf: 'center', top: (1 - k) * 150, width: 300 * k, height: 300 * k, borderRadius: 300, backgroundColor: c.spot, opacity: 0.035 }} />
+        ))}
+      </View>
+      {(['left', 'right'] as const).map((side) => (
+        <View key={side} pointerEvents="none" style={[styles.curtain, side === 'left' ? { left: 0 } : { right: 0 }]}>
+          {folds.map((f) => (
+            <View key={f} style={{ flex: 1, backgroundColor: f % 2 ? c.curtainFold : c.curtain }} />
+          ))}
+        </View>
+      ))}
+      <View pointerEvents="none" style={styles.valance}>
+        {Array.from({ length: 14 }, (_, i) => (
+          <View key={i} style={styles.valanceBulb} />
+        ))}
+      </View>
+    </>
+  );
+}
 
 export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
@@ -47,6 +137,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const [left, setLeft] = useState(ANSWER_MS);
   const [count, setCount] = useState(3);
   const [sendFailed, setSendFailed] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const [local, setLocal] = useState<QuestionDoc[]>([]); // solo practice run: no lobby, my own answers
 
   const typedRef = useRef('');
@@ -55,6 +146,10 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const answerStart = useRef(Date.now());
   const startedAt = useRef(Date.now());
   const reported = useRef(false);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
 
   const players = room ? room.playerIds : [uid];
   const out = room ? room.out : [];
@@ -192,28 +287,27 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   }, [phase]);
 
   // ------------------------------------------------------------------ screens
-  const keySize = Math.min(86, (width - 32 - 24) / 3);
+  // screen padding 20+20, stage padding 12+12, podium padding 12+12
+  const keySize = Math.max(54, Math.min(80, Math.floor((width - 88 - 16) / 3)));
   const chancesLeft = stAll.chances[uid] ?? START_CHANCES;
 
-  const Reveal = ({ rq, st }: { rq: number; st: Standings }) => {
+  // The scoreboard: the correct answer is on the monitor, everybody's answer is here.
+  const Board = ({ rq, st }: { rq: number; st: Standings }) => {
     const rqQuestion = buildQuestion(seed, rq);
     const rows = players.filter((p) => docs.some((d) => d.uid === p && d.stage === rq));
     return (
-      <View style={styles.revealCard}>
-        <Text style={styles.small}>Question {rq}</Text>
-        <Text style={styles.bigAnswer}>{rqQuestion.answer}</Text>
-        <Text style={styles.small}>{rqQuestion.terms.map(labelOf).join('  ')}</Text>
-        <View style={{ height: 12 }} />
+      <View style={styles.board}>
+        <Text style={styles.boardHead}>{rqQuestion.terms.map(labelOf).join('  ')}</Text>
         {rows.map((p) => {
           const d = docs.find((x) => x.uid === p && x.stage === rq)!;
           return (
             <View key={p} style={styles.row}>
-              <Text style={[styles.rowName, p === uid && { color: colors.accent }]} numberOfLines={1}>
+              <Text style={[styles.rowName, p === uid && { color: c.gold }]} numberOfLines={1}>
                 {nameOf(p)}
               </Text>
               <Text style={styles.rowAnswer}>{typeof d.answer === 'number' ? d.answer : "time's up"}</Text>
-              <Text style={[styles.mark, { color: d.solved ? '#3A9D5D' : colors.danger }]}>{d.solved ? '✓' : '✗'}</Text>
-              <Hearts n={st.chances[p] ?? 0} />
+              <Text style={[styles.mark, { color: d.solved ? c.ok : c.bad }]}>{d.solved ? '✓' : '✗'}</Text>
+              <Chances n={st.chances[p] ?? 0} size={11} />
             </View>
           );
         })}
@@ -221,104 +315,184 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     );
   };
 
-  const header = (
-    <View style={styles.top}>
-      <Text style={styles.small}>Question {q}</Text>
-      <Hearts n={chancesLeft} />
-    </View>
+  const revealMonitor = (rq: number) => (
+    <Monitor>
+      <Text style={styles.cap}>Question {rq}</Text>
+      <ScreenText value={String(buildQuestion(seed, rq).answer)} size={64} reduceMotion={reduceMotion} />
+    </Monitor>
   );
+
+  const frame = (body: React.ReactNode) =>
+    CALC_BG_IMAGE ? (
+      <ImageBackground source={CALC_BG_IMAGE} resizeMode="cover" style={styles.stage} imageStyle={{ borderRadius: 16 }}>
+        <View pointerEvents="none" style={styles.dim} />
+        {body}
+      </ImageBackground>
+    ) : (
+      <View style={styles.stage}>
+        <StageBackdrop />
+        {body}
+      </View>
+    );
 
   if (phase === 'spectate') {
     const last = stAll.completed;
     const meAlive = (stAll.chances[uid] ?? 0) > 0;
-    return (
+    return frame(
       <View style={styles.wrap}>
-        <Text style={styles.title}>
-          {meAlive && stAll.gameOver ? 'You are the last player standing!' : meAlive ? 'Waiting for the others...' : "You're out."}
-        </Text>
-        <Text style={styles.small}>
-          {stAll.gameOver ? 'The game is over. Waiting for the final result...' : 'The others are still playing. You can watch.'}
-        </Text>
-        {last >= 1 && <Reveal rq={last} st={stAll} />}
+        <Monitor>
+          <Text style={styles.screenTitle}>
+            {meAlive && stAll.gameOver ? 'You are the last player standing!' : meAlive ? 'Waiting for the others...' : "You're out."}
+          </Text>
+          <Text style={styles.cap}>
+            {stAll.gameOver ? 'The game is over. Waiting for the final result...' : 'The others are still playing. You can watch.'}
+          </Text>
+        </Monitor>
+        {last >= 1 && <Board rq={last} st={stAll} />}
         {sendFailed && <Button label="Send again" variant="secondary" onPress={retrySend} />}
       </View>
     );
   }
 
-  return (
+  return frame(
     <View style={styles.wrap}>
-      {header}
+      <View style={styles.top}>
+        <View style={styles.plate}>
+          <Text style={styles.plateText}>Question {q}</Text>
+        </View>
+        <Chances n={chancesLeft} />
+      </View>
 
       {phase === 'show' && (
-        <View style={styles.stage}>
-          <Text style={styles.term}>{shown >= 0 ? labelOf(question.terms[shown]) : ' '}</Text>
-          <Text style={styles.small}>Watch the numbers...</Text>
-        </View>
+        <Monitor>
+          <ScreenText value={shown >= 0 ? labelOf(question.terms[shown]) : ' '} size={88} reduceMotion={reduceMotion} />
+          <Text style={styles.cap}>Watch the numbers...</Text>
+        </Monitor>
       )}
 
       {phase === 'answer' && (
-        <View style={styles.stage}>
-          <View style={styles.barTrack}>
-            <View style={[styles.barFill, { width: `${(left / ANSWER_MS) * 100}%` }]} />
+        <>
+          <Monitor timerLeft={left}>
+            <Text style={styles.cap}>{Math.ceil(left / 1000)}s left</Text>
+            <ScreenText value={typed.length > 0 ? typed : '?'} size={56} color={typed.length > 0 ? c.screenText : c.screenMuted} reduceMotion={true} />
+          </Monitor>
+          <View style={styles.podium}>
+            <View style={[styles.pad, { width: keySize * 3 + 16 }]}>
+              {KEYS.map((k) => (
+                <Pressable
+                  key={k}
+                  onPress={() => press(k)}
+                  accessibilityRole="button"
+                  accessibilityLabel={k === '<' ? 'Delete digit' : k === 'C' ? 'Clear' : k}
+                  style={({ pressed }) => [styles.key, { width: keySize, height: keySize * 0.7 }, pressed && { transform: [{ translateY: 3 }], borderBottomWidth: 1 }]}
+                >
+                  <Text style={styles.keyText}>{k === '<' ? '⌫' : k}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={() => send(typed.length > 0 ? Number(typed) : null)}
+              disabled={typed.length === 0}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.sendBtn, typed.length === 0 && { opacity: 0.4 }, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.sendText}>Send</Text>
+            </Pressable>
           </View>
-          <Text style={styles.small}>{Math.ceil(left / 1000)}s left</Text>
-          <Text style={styles.typed}>{typed.length > 0 ? typed : '?'}</Text>
-          <View style={[styles.pad, { width: keySize * 3 + 16 }]}>
-            {KEYS.map((k) => (
-              <Pressable
-                key={k}
-                onPress={() => press(k)}
-                style={({ pressed }) => [styles.key, { width: keySize, height: keySize * 0.7 }, pressed && { opacity: 0.6 }]}
-              >
-                <Text style={styles.keyText}>{k === '<' ? '⌫' : k}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Button label="Send" onPress={() => send(typed.length > 0 ? Number(typed) : null)} disabled={typed.length === 0} />
-        </View>
+        </>
       )}
 
       {phase === 'sent' && (
-        <View style={styles.stage}>
-          <Text style={styles.title}>Answer sent</Text>
-          <Text style={styles.small}>
+        <Monitor>
+          <Text style={styles.screenTitle}>Answer sent</Text>
+          <Text style={styles.cap}>
             Waiting for the others ({players.filter((p) => stq.chances[p] > 0 && docs.some((d) => d.uid === p && d.stage === q)).length}/
             {players.filter((p) => stq.chances[p] > 0).length})
           </Text>
           {sendFailed && <Button label="Send again" variant="secondary" onPress={retrySend} />}
-        </View>
+        </Monitor>
       )}
 
-      {phase === 'reveal' && <Reveal rq={q} st={stq} />}
+      {phase === 'reveal' && (
+        <>
+          {revealMonitor(q)}
+          <Board rq={q} st={stq} />
+        </>
+      )}
 
       {phase === 'ready' && (
-        <View style={styles.stage}>
-          <Text style={styles.small}>Get ready for question {q + 1}</Text>
-          <Text style={styles.term}>{count}</Text>
-        </View>
+        <Monitor>
+          <Text style={styles.cap}>Get ready for question {q + 1}</Text>
+          <ScreenText value={String(count)} size={88} reduceMotion={reduceMotion} />
+        </Monitor>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16, gap: 12 },
+  stage: { backgroundColor: c.stage, borderRadius: 16, padding: 12, minHeight: 560, overflow: 'hidden' },
+  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10,8,20,0.3)', borderRadius: 16 },
+  wrap: { gap: 14, paddingTop: 18 },
+
+  // placeholder stage
+  spotWrap: { position: 'absolute', left: 0, right: 0, top: 30, height: 300 },
+  curtain: { position: 'absolute', top: 0, bottom: 0, width: '13%', flexDirection: 'row' },
+  valance: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 22,
+    backgroundColor: c.curtainFold,
+    borderBottomWidth: 3,
+    borderBottomColor: c.gold,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  valanceBulb: { width: 6, height: 6, borderRadius: 6, backgroundColor: c.gold, opacity: 0.9 },
+
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  small: { color: colors.muted, fontSize: 14, textAlign: 'center' },
-  hearts: { color: colors.danger, fontSize: 18, letterSpacing: 2 },
-  term: { color: colors.text, fontSize: 96, fontWeight: '800', minHeight: 110, textAlign: 'center' },
-  typed: { color: colors.accent, fontSize: 48, fontWeight: '800', minHeight: 58 },
-  barTrack: { width: '100%', height: 10, borderRadius: 5, backgroundColor: colors.card, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: colors.accent },
+  plate: { backgroundColor: c.board, borderColor: c.gold, borderWidth: 1.5, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
+  plateText: { color: c.boardText, fontFamily: FONT_LABEL, fontSize: 15, fontWeight: '800' },
+  lamps: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  lampOn: { backgroundColor: c.gold, borderWidth: 1, borderColor: '#FFE08A', shadowColor: c.gold, shadowOpacity: 0.9, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  lampOff: { backgroundColor: c.bulbOff, borderWidth: 1, borderColor: c.goldDim },
+
+  // monitor
+  monitorWrap: { alignItems: 'center' },
+  bezel: { alignSelf: 'stretch', backgroundColor: c.bezel, borderColor: c.bezelEdge, borderWidth: 3, borderRadius: 14, padding: 8, gap: 8 },
+  screen: { backgroundColor: c.screen, borderRadius: 7, minHeight: 190, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12 },
+  neck: { width: 44, height: 14, backgroundColor: c.bezelEdge },
+  base: { width: 130, height: 8, borderRadius: 4, backgroundColor: c.bezel, borderWidth: 2, borderColor: c.bezelEdge },
+  timerRow: { flexDirection: 'row', gap: 5, justifyContent: 'center', paddingBottom: 2 },
+  timerBulb: { width: 14, height: 14, borderRadius: 14 },
+  digits: {
+    color: c.screenText,
+    fontFamily: FONT_SCREEN,
+    fontWeight: '800',
+    textAlign: 'center',
+    textShadowColor: c.screenGlow,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  cap: { color: c.screenMuted, fontFamily: FONT_LABEL, fontSize: 14, textAlign: 'center' },
+  screenTitle: { color: c.screenText, fontFamily: FONT_LABEL, fontSize: 22, fontWeight: '800', textAlign: 'center' },
+
+  // podium + keypad
+  podium: { backgroundColor: c.podium, borderTopColor: c.gold, borderTopWidth: 4, borderRadius: 10, padding: 12, alignItems: 'center', gap: 12 },
   pad: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  key: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  keyText: { color: colors.text, fontSize: 26, fontWeight: '700' },
-  revealCard: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, alignItems: 'center', gap: 4 },
-  bigAnswer: { color: colors.accent, fontSize: 64, fontWeight: '800' },
+  key: { backgroundColor: c.key, borderColor: c.keyEdge, borderWidth: 1, borderBottomWidth: 4, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  keyText: { color: c.keyText, fontFamily: FONT_SCREEN, fontSize: 26, fontWeight: '800' },
+  sendBtn: { backgroundColor: c.gold, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40, alignItems: 'center' },
+  sendText: { color: '#1B1405', fontFamily: FONT_LABEL, fontSize: 17, fontWeight: '800' },
+
+  // scoreboard
+  board: { backgroundColor: c.board, borderColor: c.gold, borderWidth: 2, borderRadius: 12, padding: 14, gap: 4 },
+  boardHead: { color: c.boardMuted, fontFamily: FONT_SCREEN, fontSize: 14, textAlign: 'center', marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', paddingVertical: 4 },
-  rowName: { color: colors.text, fontSize: 15, flex: 1 },
-  rowAnswer: { color: colors.text, fontSize: 15, minWidth: 64, textAlign: 'right' },
+  rowName: { color: c.boardText, fontFamily: FONT_LABEL, fontSize: 15, flex: 1 },
+  rowAnswer: { color: c.boardText, fontFamily: FONT_SCREEN, fontSize: 15, minWidth: 64, textAlign: 'right' },
   mark: { fontSize: 18, fontWeight: '800', width: 20, textAlign: 'center' },
 });

@@ -13,6 +13,7 @@ import { GAME_MODULES } from '../games/registry';
 import type { ResultRow } from '../games/registry';
 import type { GameResult, GameRoom } from '../games/types';
 import * as api from '../lib/api';
+import { getGameBackdrop } from '../gameThemes/gameThemes';
 import { isDemoMode } from '../lib/firebase';
 import { colors, DOMAIN_ORDER, radius } from '../theme';
 import type { RootStackParamList } from '../navigation/types';
@@ -382,8 +383,10 @@ export function GameScreen() {
     );
   }
   
-  return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+  // A game with its own look (Magical Banana: Food Land) gets its own background behind everything.
+  const Backdrop = getGameBackdrop(game.id);
+  const page = (
+    <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.body}>
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
@@ -558,6 +561,7 @@ export function GameScreen() {
       )}
     </SafeAreaView>
   );
+  return Backdrop ? <Backdrop>{page}</Backdrop> : page;
 }
 
 const styles = StyleSheet.create({
