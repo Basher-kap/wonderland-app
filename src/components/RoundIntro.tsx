@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DomainIcon } from './ui';
+import { VoiceButton } from './VoiceButton';
 import type { Difficulty, Game } from '../data/games';
 import { colors, domainInfo, radius } from '../theme';
 
@@ -51,10 +52,12 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
 export function RoundIntro({
   game,
   difficulty,
+  code,
   onDone,
 }: {
   game: Game;
   difficulty: Difficulty;
+  code?: string; // the lobby, so the mic stays within reach while the rules are read
   onDone: () => void;
 }) {
   const steps = React.useMemo(() => buildSteps(game, difficulty), [game, difficulty]);
@@ -84,6 +87,7 @@ export function RoundIntro({
 
   return (
     <SafeAreaView style={styles.root}>
+      <VoiceButton code={code} />
       <Pressable style={styles.tap} onPress={next} accessibilityRole="button">
         <Animated.View style={[styles.dialog, { borderColor: color, opacity: fade }]}>
           {step.kind === 'title' && (
