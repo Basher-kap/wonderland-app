@@ -1,15 +1,16 @@
 import React from 'react';
 import type { ViewStyle } from 'react-native';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { FoodLandBackground } from '../components/FoodLandBackground';
+import { CaveBackground } from '../components/CaveBackground';
+import { FestivalBackground } from '../components/FestivalBackground';
+import { MayaGlyph } from '../components/MayaGlyph';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
-import { OrphanageBackground } from '../components/OrphanageBackground';
-import { WildWestBackground } from '../components/WildWestBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
+import { FONT_FORTUNE, fortune as fo } from './fortuneTheme';
+import { cave as cv, FONT_XIBALBA } from './xibalbaTheme';
 import { food as f } from './foodLandTheme';
-import { FONT_DISPLAY, west as h } from './hangmanTheme';
-import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -22,8 +23,8 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'magical-banana') return FoodLandBackground;
   if (gameId === 'wordle') return LibraryBackground;
   if (gameId === 'human-calculator') return QuizStageBackground;
-  if (gameId === 'hangman') return WildWestBackground;
-  if (gameId === 'schulte-table') return OrphanageBackground;
+  if (gameId === 'fortune') return FestivalBackground;
+  if (gameId === 'traps-of-xibalba') return CaveBackground;
   return null;
 }
 
@@ -130,59 +131,66 @@ const CALC_INTRO: IntroTheme = {
   Decor: MarqueeDecor,
 };
 
-// Hangman: the rules are a poster nailed to a board, a nail in every corner.
-function PosterNails() {
+// Fortune: the rules are an omikuji slip, with a red hanko seal ("fortune") in the corner.
+function HankoDecor() {
   return (
-    <View pointerEvents="none" style={nails.wrap}>
-      <View style={[nails.nail, { top: 6, left: 6 }]} />
-      <View style={[nails.nail, { top: 6, right: 6 }]} />
-      <View style={[nails.nail, { bottom: 6, left: 6 }]} />
-      <View style={[nails.nail, { bottom: 6, right: 6 }]} />
+    <View pointerEvents="none" style={hanko.seal}>
+      <Text style={hanko.mark}>福</Text>
     </View>
   );
 }
 
-const nails = StyleSheet.create({
-  wrap: { ...StyleSheet.absoluteFillObject },
-  nail: { position: 'absolute', width: 7, height: 7, borderRadius: 4, backgroundColor: h.brassDark },
+const hanko = StyleSheet.create({
+  seal: { position: 'absolute', top: 12, right: 14, width: 38, height: 38, borderRadius: 6, backgroundColor: fo.vermilion, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
+  mark: { color: fo.paper, fontSize: 24, fontWeight: '800' },
 });
 
-const HANGMAN_INTRO: IntroTheme = {
-  Backdrop: WildWestBackground,
-  accent: h.wanted,
-  text: h.paperInk,
-  hint: h.cream,
-  bullet: h.wanted,
-  fontFamily: FONT_DISPLAY,
-  dialog: { backgroundColor: h.paper, borderColor: h.woodDark, borderWidth: 4, borderRadius: 4 },
-  Decor: PosterNails,
+const FORTUNE_INTRO: IntroTheme = {
+  Backdrop: FestivalBackground,
+  accent: fo.vermilionDark,
+  text: fo.ink,
+  hint: fo.textSoft,
+  bullet: fo.vermilionDark,
+  fontFamily: FONT_FORTUNE,
+  dialog: { backgroundColor: fo.paper, borderColor: fo.vermilionDark, borderWidth: 3, borderRadius: 6 },
+  Decor: HankoDecor,
 };
 
-// Schulte Table: the rules are a paper note stuck on the wall with a strip of tape.
-function TapeDecor() {
-  return <View pointerEvents="none" style={tape.strip} />;
+// Traps of Xibalba: the rules are a stone tablet, with a carved glyph in each top corner.
+function GlyphDecor() {
+  return (
+    <>
+      <View pointerEvents="none" style={glyphs.left}>
+        <MayaGlyph kind="face" size={24} color={cv.jadeDim} />
+      </View>
+      <View pointerEvents="none" style={glyphs.right}>
+        <MayaGlyph kind="sun" size={24} color={cv.jadeDim} />
+      </View>
+    </>
+  );
 }
 
-const tape = StyleSheet.create({
-  strip: { position: 'absolute', top: -11, alignSelf: 'center', width: 84, height: 22, backgroundColor: k.tape, transform: [{ rotate: '-3deg' }] },
+const glyphs = StyleSheet.create({
+  left: { position: 'absolute', top: 10, left: 12 },
+  right: { position: 'absolute', top: 10, right: 12 },
 });
 
-const SCHULTE_INTRO: IntroTheme = {
-  Backdrop: OrphanageBackground,
-  accent: k.title,
-  text: k.ink,
-  hint: k.inkSoft,
-  bullet: k.title,
-  fontFamily: FONT_KIDS,
-  dialog: { backgroundColor: k.paper, borderColor: k.paperEdge, borderWidth: 3, borderRadius: 22 },
-  Decor: TapeDecor,
+const XIBALBA_INTRO: IntroTheme = {
+  Backdrop: CaveBackground,
+  accent: cv.jade,
+  text: cv.bone,
+  hint: cv.boneMuted,
+  bullet: cv.torch,
+  fontFamily: FONT_XIBALBA,
+  dialog: { backgroundColor: cv.tablet, borderColor: cv.stoneEdge, borderWidth: 4, borderRadius: 6, paddingTop: 40 },
+  Decor: GlyphDecor,
 };
 
 export function getIntroTheme(gameId?: string): IntroTheme | null {
+  if (gameId === 'traps-of-xibalba') return XIBALBA_INTRO;
+  if (gameId === 'fortune') return FORTUNE_INTRO;
   if (gameId === 'wordle') return WORDLE_INTRO;
   if (gameId === 'human-calculator') return CALC_INTRO;
   if (gameId === 'magical-banana') return FOOD_INTRO;
-  if (gameId === 'hangman') return HANGMAN_INTRO;
-  if (gameId === 'schulte-table') return SCHULTE_INTRO;
   return null;
 }

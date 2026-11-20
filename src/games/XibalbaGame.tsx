@@ -12,7 +12,8 @@ import {
   tick,
 } from '../game/xibalba';
 import * as api from '../lib/api';
-import { colors, radius } from '../theme';
+import { MayaGlyph } from '../components/MayaGlyph';
+import { cave as c, FONT_XIBALBA } from '../gameThemes/xibalbaTheme';
 import type { GameProps } from './types';
 
 // Traps of Xibalba: everybody steps one line of the trapped floor at a time, all at once. Each
@@ -25,6 +26,10 @@ import type { GameProps } from './types';
 // phone shows; the picks are not in the saved state until they are revealed. The other phones only
 // show the state and send picks. If the host forfeits the game, the others cannot continue (known
 // limit, same as Fortune and Magical Banana). The forfeit buttons are GameScreen's.
+//
+// LOOK: the Maya underworld, inside a cave (src/gameThemes/xibalbaTheme.ts). The cave, the torches and the
+// rules dialogs are in components/CaveBackground.tsx and gameThemes/gameThemes.tsx. Only the row being stepped
+// on is fully lit; the rows around it fade into the dark the further they are.
 //
 // Hidden notes kept here on purpose, not on the game screen: how many tiles are false on each line,
 // that the picks stay secret until the time is up, that the way back is over the same tiles, and
@@ -223,6 +228,14 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
 
   const rows = Array.from({ length: ROWS }, (_, i) => ROWS - 1 - i); // the last line is on top
 
+  // The torch lights the row being stepped on; the rows around it fade into the dark.
+  const focusRow = picking ? st.row : rev ? rev.row : st.row;
+  const litOf = (r: number) => {
+    if (st.phase === 'over') return 0.55;
+    const d = Math.abs(r - focusRow);
+    return d === 0 ? 1 : d === 1 ? 0.6 : d === 2 ? 0.42 : 0.3;
+  };
+
   return (
     <View style={styles.root}>
       <Text style={styles.meta}>
@@ -244,7 +257,7 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
                 {name(id)}
                 {id === uid ? ' (you)' : ''}
               </Text>
-              <Text style={[styles.playerState, ready && { color: colors.experience }]}>
+              <Text style={[styles.playerState, ready && { color: c.jade }]}>
                 {out ? 'FELL' : ready ? '✔' : picking ? '…' : ''}
               </Text>
             </View>
@@ -255,13 +268,17 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
       {/* The floor */}
       <View style={styles.board} onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}>
         <View style={styles.platform}>
-          <Text style={styles.platformText}>🗿</Text>
+          <View style={styles.glyphRow}>
+            {(['face', 'step', 'face'] as const).map((k, i) => (
+              <MayaGlyph key={i} kind={k} size={22} color={c.glyph} />
+            ))}
+          </View>
         </View>
         {rows.map((r) => {
           const active = picking && st.row === r;
           const shown = !!rev && st.phase !== 'pick' && rev.row === r;
           return (
-            <View key={r} style={[styles.row, { gap: GAP }]}>
+            <View key={r} style={[styles.row, { gap: GAP, opacity: litOf(r) }, active && styles.rowLit]}>
               <View style={{ width: GUTTER, alignItems: 'center' }}>
                 <Text style={styles.arrow}>{active ? (st.leg === 'forward' ? '▲' : '▼') : ''}</Text>
               </View>
@@ -303,18 +320,22 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
           );
         })}
         <View style={styles.platform}>
-          <Text style={styles.platformText}>🗿</Text>
+          <View style={styles.glyphRow}>
+            {(['face', 'step', 'face'] as const).map((k, i) => (
+              <MayaGlyph key={i} kind={k} size={22} color={c.glyph} />
+            ))}
+          </View>
         </View>
       </View>
 
       {picking && (
-        <Text style={[styles.timer, left < 4000 && { color: colors.danger }]}>{secondsLeft(left)}s</Text>
+        <Text style={[styles.timer, left < 4000 && { color: c.hot }]}>{secondsLeft(left)}s</Text>
       )}
 
       {st.phase === 'reveal' && rev && (
         <View style={styles.reveal}>
           {revealLines().map((line, i) => (
-            <Text key={i} style={[styles.revealLine, i === 0 && { color: colors.text, fontWeight: '800' }]}>
+            <Text key={i} style={[styles.revealLine, i === 0 && { color: c.bone, fontWeight: '800' }]}>
               {line}
             </Text>
           ))}
@@ -335,12 +356,21 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
   );
 }
 
+// A slab edge: the top-left catches the torchlight, the bottom-right is in shadow.
+const edge = (light: string, dark: string) => ({
+  borderTopColor: light,
+  borderLeftColor: light,
+  borderBottomColor: dark,
+  borderRightColor: dark,
+});
+const flat = (col: string) => edge(col, col);
+
 const styles = StyleSheet.create({
   root: { gap: 12 },
   waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
-  waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  waitingText: { color: colors.muted, fontSize: 15 },
-  meta: { color: colors.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  waitingTitle: { color: c.bone, fontFamily: FONT_XIBALBA, fontSize: 18, fontWeight: '700' },
+  waitingText: { color: c.boneMuted, fontFamily: FONT_XIBALBA, fontSize: 15 },
+  meta: { color: c.boneMuted, fontFamily: FONT_XIBALBA, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   player: {
     flexBasis: '48%',
@@ -348,71 +378,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: colors.card,
+    backgroundColor: c.panel,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: c.stoneEdge,
+    borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  playerMe: { backgroundColor: colors.cardAlt },
+  playerMe: { backgroundColor: c.stone, borderColor: c.jadeDim },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  playerName: { color: colors.muted, fontSize: 13, fontWeight: '600', flex: 1 },
-  playerState: { color: colors.muted, fontSize: 13, fontWeight: '800' },
+  playerName: { color: c.boneMuted, fontFamily: FONT_XIBALBA, fontSize: 13, fontWeight: '600', flex: 1 },
+  playerState: { color: c.boneMuted, fontFamily: FONT_XIBALBA, fontSize: 13, fontWeight: '800' },
   board: {
     alignSelf: 'stretch',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    backgroundColor: c.floor,
+    borderWidth: 2,
+    borderColor: c.stoneEdge,
+    borderRadius: 10,
     padding: PAD,
     gap: GAP,
   },
   platform: {
     height: 34,
-    borderRadius: radius.sm,
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  platformText: { fontSize: 20 },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  arrow: { color: colors.accent, fontSize: 12, fontWeight: '900' },
-  tile: {
     borderRadius: 6,
-    backgroundColor: colors.cardAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: c.tablet,
+    borderWidth: 2,
+    ...edge(c.stoneHi, c.stoneLo),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileActive: { borderColor: colors.muted },
-  tileChosen: { backgroundColor: colors.accent, borderColor: colors.accent },
-  tileSafe: { backgroundColor: '#1F6B52', borderColor: colors.experience },
-  tileTrap: { backgroundColor: '#7A2B2B', borderColor: colors.danger },
-  tileMark: { color: colors.text, fontSize: 16, fontWeight: '900', lineHeight: 18 },
+  glyphRow: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  rowLit: { backgroundColor: 'rgba(255,138,42,0.10)', borderRadius: 8, marginVertical: -3, paddingVertical: 3 },
+  arrow: { color: c.torch, fontSize: 12, fontWeight: '900' },
+  tile: {
+    borderRadius: 5,
+    backgroundColor: c.stone,
+    borderWidth: 2,
+    ...edge(c.stoneHi, c.stoneLo),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileActive: { backgroundColor: '#2D3C3A', ...flat(c.jadeDim) },
+  tileChosen: { backgroundColor: c.torch, ...flat(c.torchSoft) },
+  tileSafe: { backgroundColor: c.jadeDeep, ...flat(c.jade) },
+  tileTrap: { backgroundColor: c.blood, ...flat(c.bloodBright) },
+  tileMark: { color: c.bone, fontSize: 16, fontWeight: '900', lineHeight: 18 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 2 },
   chip: { width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  chipText: { color: colors.bg, fontSize: 9, fontWeight: '900' },
-  timer: { color: colors.accent, fontSize: 22, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
-  note: { color: colors.accent, fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  chipText: { color: c.dark1, fontSize: 9, fontWeight: '900' },
+  timer: { color: c.torch, fontFamily: FONT_XIBALBA, fontSize: 22, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
+  note: { color: c.torchSoft, fontFamily: FONT_XIBALBA, fontSize: 15, fontWeight: '600', textAlign: 'center' },
   reveal: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: c.panel,
     borderWidth: 2,
-    borderColor: colors.accent,
-    borderRadius: radius.md,
+    borderColor: c.torch,
+    borderRadius: 8,
     padding: 14,
     gap: 6,
   },
-  revealLine: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  revealLine: { color: c.boneMuted, fontFamily: FONT_XIBALBA, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   over: {
-    backgroundColor: colors.card,
+    backgroundColor: c.panel,
     borderWidth: 2,
-    borderColor: colors.accent,
-    borderRadius: radius.md,
+    borderColor: c.jade,
+    borderRadius: 8,
     padding: 18,
   },
-  overText: { color: colors.accent, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
+  overText: { color: c.jade, fontFamily: FONT_XIBALBA, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
 });
