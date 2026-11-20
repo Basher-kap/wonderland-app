@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DomainIcon } from './ui';
 import { VoiceButton } from './VoiceButton';
 import type { Difficulty, Game } from '../data/games';
+import { getIntroTheme } from '../gameThemes/gameThemes';
 import { colors, domainInfo, radius } from '../theme';
 
 // The dialogs shown, one after another, when a game is drawn:
@@ -67,7 +68,11 @@ export function RoundIntro({
   const fade = useRef(new Animated.Value(0)).current;
   const step = steps[index];
   const last = index === steps.length - 1;
-  const color = domainInfo[game.domain].color;
+  const look = getIntroTheme(game.id); // a game with its own look (Magical Banana: Food Land)
+  const color = look ? look.accent : domainInfo[game.domain].color;
+  const textColor = look ? look.text : colors.text;
+  const Backdrop = look?.Backdrop;
+  const Awning = look?.Awning;
 
   // The parent passes a new onDone on every render; keep the latest one in a ref so a lobby update
   // during the intro does not recreate `advance` and restart the fade and the auto-advance timer.
@@ -92,36 +97,56 @@ export function RoundIntro({
     if (step.kind === 'lines') advance();
   }, [step.kind, advance]);
 
-  return (
-    <SafeAreaView style={styles.root}>
+  const content = (
+    <>
+      {step.kind === 'title' && (
+        <View style={{ alignItems: 'center', gap: 10 }}>
+          <DomainIcon domain={game.domain} size={44} color={look ? color : undefined} />
+          <Text style={[styles.big, { color, fontFamily: look?.fontFamily }]}>{step.lines![0]}</Text>
+          <Text style={[styles.medium, { color: textColor, fontFamily: look?.fontFamily }]}>{step.lines![1]}</Text>
+        </View>
+      )}
+      {step.kind === 'name' && <Text style={[styles.huge, { color, fontFamily: look?.fontFamily }]}>{step.lines![0]}</Text>}
+      {step.kind === 'lines' && (
+        <View style={{ gap: 10 }}>
+          <Text style={[styles.heading, { color, fontFamily: look?.fontFamily }]}>{step.heading}:</Text>
+          {step.lines!.map((line, i) => (
+            <Text key={i} style={[styles.line, { color: textColor, fontFamily: look?.fontFamily }]}>
+              {step.lines!.length > 1 ? (
+                <>
+                  <Text style={{ color: look ? look.bullet : textColor }}>•</Text>
+                  {`  ${line}`}
+                </>
+              ) : (
+                line
+              )}
+            </Text>
+          ))}
+        </View>
+      )}
+    </>
+  );
+
+  const screen = (
+    <SafeAreaView style={[styles.root, look && { backgroundColor: 'transparent' }]}>
       <VoiceButton code={code} />
       <Pressable style={styles.tap} onPress={next} accessibilityRole="button">
-        <Animated.View style={[styles.dialog, { borderColor: color, opacity: fade }]}>
-          {step.kind === 'title' && (
-            <View style={{ alignItems: 'center', gap: 10 }}>
-              <DomainIcon domain={game.domain} size={44} />
-              <Text style={[styles.big, { color }]}>{step.lines![0]}</Text>
-              <Text style={styles.medium}>{step.lines![1]}</Text>
-            </View>
-          )}
-          {step.kind === 'name' && <Text style={[styles.huge, { color }]}>{step.lines![0]}</Text>}
-          {step.kind === 'lines' && (
-            <View style={{ gap: 10 }}>
-              <Text style={[styles.heading, { color }]}>{step.heading}:</Text>
-              {step.lines!.map((line, i) => (
-                <Text key={i} style={styles.line}>
-                  {step.lines!.length > 1 ? `•  ${line}` : line}
-                </Text>
-              ))}
-            </View>
-          )}
-        </Animated.View>
-        <Text style={styles.hint}>
+        {Awning ? (
+          <Animated.View style={{ opacity: fade }}>
+            <Awning />
+            <View style={[styles.dialog, { borderColor: color }, look?.dialog]}>{content}</View>
+          </Animated.View>
+        ) : (
+          <Animated.View style={[styles.dialog, { borderColor: color, opacity: fade }, look?.dialog]}>{content}</Animated.View>
+        )}
+        <Text style={[styles.hint, look && { color: look.hint }]}>
           {step.kind === 'lines' ? (last ? 'Tap to start' : 'Tap to continue') : ' '}
         </Text>
       </Pressable>
     </SafeAreaView>
   );
+
+  return Backdrop ? <Backdrop>{screen}</Backdrop> : screen;
 }
 
 const styles = StyleSheet.create({
