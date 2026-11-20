@@ -3,11 +3,11 @@
 // moving to the left"). The player presses one of TWO buttons (LEFT/RIGHT or UP/DOWN). When the
 // INVERSED sign is on, the opposite button is the right one. Every player gets the same tasks
 // (from the seed) and plays them at their own pace; a wrong button or running out of time costs
-// one of the 3 chances.
+// one of the 5 chances.
 import { makeRng } from './schulte';
 
 export const TASK_COUNT = 30;
-export const MAX_CHANCES = 3;
+export const MAX_CHANCES = 5;
 
 export type Dir = 'left' | 'right' | 'up' | 'down';
 export type Axis = 'horizontal' | 'vertical';
