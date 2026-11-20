@@ -73,6 +73,7 @@ export function RoundIntro({
   const textColor = look ? look.text : colors.text;
   const Backdrop = look?.Backdrop;
   const Awning = look?.Awning;
+  const Decor = look?.Decor;
 
   // The parent passes a new onDone on every render; keep the latest one in a ref so a lobby update
   // during the intro does not recreate `advance` and restart the fade and the auto-advance timer.
@@ -134,10 +135,16 @@ export function RoundIntro({
         {Awning ? (
           <Animated.View style={{ opacity: fade }}>
             <Awning />
-            <View style={[styles.dialog, { borderColor: color }, look?.dialog]}>{content}</View>
+            <View style={[styles.dialog, { borderColor: color }, look?.dialog]}>
+              {content}
+              {Decor && <Decor />}
+            </View>
           </Animated.View>
         ) : (
-          <Animated.View style={[styles.dialog, { borderColor: color, opacity: fade }, look?.dialog]}>{content}</Animated.View>
+          <Animated.View style={[styles.dialog, { borderColor: color, opacity: fade }, look?.dialog]}>
+            {content}
+            {Decor && <Decor />}
+          </Animated.View>
         )}
         <Text style={[styles.hint, look && { color: look.hint }]}>
           {step.kind === 'lines' ? (last ? 'Tap to start' : 'Tap to continue') : ' '}

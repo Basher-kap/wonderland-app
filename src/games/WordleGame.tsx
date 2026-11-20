@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
-  ImageBackground,
   Pressable,
   StyleSheet,
   Text,
@@ -22,7 +21,7 @@ import {
   WORD_LENGTH,
 } from '../game/wordle';
 import type { LetterState, Outcome } from '../game/wordle';
-import { FONT_BODY, FONT_TILE, tileWeight, WORDLE_BG_IMAGE, wordle as w } from '../gameThemes/wordleTheme';
+import { FONT_BODY, FONT_TILE, tileWeight, wordle as w } from '../gameThemes/wordleTheme';
 import type { GameProps } from './types';
 
 // Wordle ("Waadoru"): 3 levels (an easy word, a moderate word, a hard word). Everybody guesses the
@@ -37,7 +36,8 @@ import type { GameProps } from './types';
 // After the 3rd level the player's result (points + time) is reported with onFinish. Points are
 // not shown here. All the rules live in src/game/wordle.ts.
 //
-// LOOK: a reading room after hours (src/gameThemes/wordleTheme.ts). A correct letter hangs a
+// LOOK: a reading room after hours (src/gameThemes/wordleTheme.ts). The bookshelves, the lamp and
+// the rules dialogs are in components/LibraryBackground.tsx and gameThemes/gameThemes.tsx. A correct letter hangs a
 // bookmark ribbon, a letter in the wrong spot gets a folded corner, a letter that is not in the word
 // is dimmed, so the result never depends on colour alone. A guess turns over one tile at a time.
 
@@ -126,50 +126,6 @@ function Tile({
         </>
       )}
     </Animated.View>
-  );
-}
-
-// ---- the dim bookshelf wall + lamp glow (only while there is no WORDLE_BG_IMAGE)
-function ShelfWall() {
-  const spines = useMemo(() => {
-    let s = 7;
-    const rnd = () => {
-      s = (s * 1664525 + 1013904223) % 4294967296;
-      return s / 4294967296;
-    };
-    return Array.from({ length: 22 }, () => ({
-      h: 26 + Math.floor(rnd() * 22),
-      flex: 0.6 + rnd() * 0.9,
-      color: w.spines[Math.floor(rnd() * w.spines.length)],
-    }));
-  }, []);
-  return (
-    <View pointerEvents="none" style={styles.shelfWrap}>
-      <View style={styles.shelfBooks}>
-        {spines.map((b, i) => (
-          <View key={i} style={{ flex: b.flex, height: b.h, backgroundColor: b.color, borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(0,0,0,0.35)', opacity: 0.75 }} />
-        ))}
-      </View>
-      <View style={styles.shelfPlank} />
-    </View>
-  );
-}
-
-function LampGlow() {
-  const rings = [1, 0.78, 0.56, 0.36];
-  const size = 330;
-  return (
-    <View pointerEvents="none" style={{ position: 'absolute', alignSelf: 'center', top: 70, width: size, height: size }}>
-      {rings.map((k, i) => {
-        const d = size * k;
-        return (
-          <View
-            key={i}
-            style={{ position: 'absolute', left: (size - d) / 2, top: (size - d) / 2, width: d, height: d, borderRadius: d, backgroundColor: w.lampGlow, opacity: 0.045 }}
-          />
-        );
-      })}
-    </View>
   );
 }
 
@@ -293,9 +249,9 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     if (room) room.readyFor(level + 1).catch(() => setReadyFor(0));
   };
 
-  // screen padding 20+20, scene padding 8+8, blotter padding 10+10 and border 2+2
-  const cell = Math.min(54, Math.floor((width - 80 - GAP * (WORD_LENGTH - 1)) / WORD_LENGTH));
-  const keyW = Math.floor((width - 56 - 3 * (KEY_ROWS[0].length - 1)) / KEY_ROWS[0].length);
+  // screen padding 20+20, blotter padding 10+10 and border 2+2
+  const cell = Math.min(54, Math.floor((width - 64 - GAP * (WORD_LENGTH - 1)) / WORD_LENGTH));
+  const keyW = Math.floor((width - 40 - 3 * (KEY_ROWS[0].length - 1)) / KEY_ROWS[0].length);
   const keys = useMemo(() => keyStates(guesses, answer), [guesses, answer]);
 
   const rows: { letters: string; states: LetterState[] | null; active: boolean }[] = [];
@@ -310,16 +266,12 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
 
   const scene = (
     <>
-      {!WORDLE_BG_IMAGE && <ShelfWall />}
-      {!WORDLE_BG_IMAGE && <LampGlow />}
-
       <View style={styles.header} accessible accessibilityLabel={`Level ${level} of ${LEVEL_COUNT}, ${LEVEL_NAMES[level - 1]} word. Attempt ${attempt} of ${MAX_ATTEMPTS}`}>
         <View style={styles.bookmark}>
           <Text style={styles.bookmarkSmall}>Level</Text>
           <Text style={styles.bookmarkBig}>
             {level} of {LEVEL_COUNT}
           </Text>
-          <View style={styles.bookmarkNotch} />
         </View>
         <Text style={styles.headerWord}>{LEVEL_NAMES[level - 1]} word</Text>
         <Text style={styles.headerAttempt}>
@@ -430,40 +382,16 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     </>
   );
 
-  return WORDLE_BG_IMAGE ? (
-    <ImageBackground source={WORDLE_BG_IMAGE} resizeMode="cover" style={styles.scene} imageStyle={{ borderRadius: 16 }}>
-      <View pointerEvents="none" style={styles.dim} />
-      {scene}
-    </ImageBackground>
-  ) : (
-    <View style={styles.scene}>{scene}</View>
-  );
+  return <View style={styles.scene}>{scene}</View>;
 }
 
 const styles = StyleSheet.create({
-  scene: { backgroundColor: w.walnut, borderRadius: 16, paddingHorizontal: 8, paddingBottom: 14, gap: 12, overflow: 'hidden' },
-  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,12,8,0.35)', borderRadius: 16 },
+  scene: { gap: 12 },
 
-  shelfWrap: { marginHorizontal: -8 },
-  shelfBooks: { flexDirection: 'row', alignItems: 'flex-end', height: 48, paddingHorizontal: 4 },
-  shelfPlank: { height: 6, backgroundColor: w.walnutLight, borderBottomWidth: 2, borderBottomColor: '#120B07' },
-
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, marginTop: -4 },
-  bookmark: { backgroundColor: w.oxblood, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14, alignItems: 'center', marginTop: -2 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bookmark: { backgroundColor: w.oxblood, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', borderBottomLeftRadius: 6, borderBottomRightRadius: 6 },
   bookmarkSmall: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 12 },
   bookmarkBig: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 16, fontWeight: '800' },
-  bookmarkNotch: {
-    position: 'absolute',
-    bottom: 0,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 20,
-    borderRightWidth: 20,
-    borderBottomWidth: 8,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: w.walnut,
-  },
   headerWord: { flex: 1, color: w.paperText, fontFamily: FONT_BODY, fontSize: 20, fontWeight: '800' },
   headerAttempt: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 15, fontWeight: '600' },
 

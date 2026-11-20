@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
-  ImageBackground,
   Pressable,
   StyleSheet,
   Text,
@@ -22,7 +21,7 @@ import {
   START_CHANCES,
 } from '../game/humanCalculator';
 import type { QuestionDoc, Standings } from '../game/humanCalculator';
-import { calc as c, CALC_BG_IMAGE, FONT_LABEL, FONT_SCREEN } from '../gameThemes/humanCalculatorTheme';
+import { calc as c, FONT_LABEL, FONT_SCREEN } from '../gameThemes/humanCalculatorTheme';
 import type { GameProps } from './types';
 
 // Human Calculator. A question is a run of terms ("+5", "-2", "x2", "/5") shown one at a time and
@@ -36,7 +35,8 @@ import type { GameProps } from './types';
 // All the rules live in src/game/humanCalculator.ts; every phone replays the same standings from the
 // answers saved in the lobby, so nothing but the answers has to be sent.
 //
-// LOOK: a quiz-show stage (src/gameThemes/humanCalculatorTheme.ts). The terms, the typed answer and
+// LOOK: a quiz-show stage (src/gameThemes/humanCalculatorTheme.ts). The curtains, the marquee, the
+// floor and the rules dialogs are in components/QuizStageBackground.tsx and gameThemes/gameThemes.tsx. The terms, the typed answer and
 // the correct answer appear on the big monitor. Chances are lamps (lit = still in), the 5 seconds
 // are a row of bulbs under the screen that go out one by one and turn red at the end.
 
@@ -99,32 +99,6 @@ function Monitor({ children, timerLeft }: { children: React.ReactNode; timerLeft
       <View style={styles.neck} />
       <View style={styles.base} />
     </View>
-  );
-}
-
-// ---- the placeholder stage (only while there is no CALC_BG_IMAGE)
-function StageBackdrop() {
-  const folds = [0, 1, 2, 3];
-  return (
-    <>
-      <View pointerEvents="none" style={styles.spotWrap}>
-        {[1, 0.74, 0.5].map((k, i) => (
-          <View key={i} style={{ position: 'absolute', alignSelf: 'center', top: (1 - k) * 150, width: 300 * k, height: 300 * k, borderRadius: 300, backgroundColor: c.spot, opacity: 0.035 }} />
-        ))}
-      </View>
-      {(['left', 'right'] as const).map((side) => (
-        <View key={side} pointerEvents="none" style={[styles.curtain, side === 'left' ? { left: 0 } : { right: 0 }]}>
-          {folds.map((f) => (
-            <View key={f} style={{ flex: 1, backgroundColor: f % 2 ? c.curtainFold : c.curtain }} />
-          ))}
-        </View>
-      ))}
-      <View pointerEvents="none" style={styles.valance}>
-        {Array.from({ length: 14 }, (_, i) => (
-          <View key={i} style={styles.valanceBulb} />
-        ))}
-      </View>
-    </>
   );
 }
 
@@ -287,8 +261,8 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   }, [phase]);
 
   // ------------------------------------------------------------------ screens
-  // screen padding 20+20, stage padding 12+12, podium padding 12+12
-  const keySize = Math.max(54, Math.min(80, Math.floor((width - 88 - 16) / 3)));
+  // screen padding 20+20, podium padding 12+12, key gaps 16
+  const keySize = Math.max(54, Math.min(80, Math.floor((width - 80) / 3)));
   const chancesLeft = stAll.chances[uid] ?? START_CHANCES;
 
   // The scoreboard: the correct answer is on the monitor, everybody's answer is here.
@@ -322,18 +296,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     </Monitor>
   );
 
-  const frame = (body: React.ReactNode) =>
-    CALC_BG_IMAGE ? (
-      <ImageBackground source={CALC_BG_IMAGE} resizeMode="cover" style={styles.stage} imageStyle={{ borderRadius: 16 }}>
-        <View pointerEvents="none" style={styles.dim} />
-        {body}
-      </ImageBackground>
-    ) : (
-      <View style={styles.stage}>
-        <StageBackdrop />
-        {body}
-      </View>
-    );
+  const frame = (body: React.ReactNode) => <View style={styles.stage}>{body}</View>;
 
   if (phase === 'spectate') {
     const last = stAll.completed;
@@ -431,27 +394,8 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  stage: { backgroundColor: c.stage, borderRadius: 16, padding: 12, minHeight: 560, overflow: 'hidden' },
-  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10,8,20,0.3)', borderRadius: 16 },
-  wrap: { gap: 14, paddingTop: 18 },
-
-  // placeholder stage
-  spotWrap: { position: 'absolute', left: 0, right: 0, top: 30, height: 300 },
-  curtain: { position: 'absolute', top: 0, bottom: 0, width: '13%', flexDirection: 'row' },
-  valance: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 22,
-    backgroundColor: c.curtainFold,
-    borderBottomWidth: 3,
-    borderBottomColor: c.gold,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  valanceBulb: { width: 6, height: 6, borderRadius: 6, backgroundColor: c.gold, opacity: 0.9 },
+  stage: { minHeight: 560 },
+  wrap: { gap: 14, paddingTop: 6 },
 
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   plate: { backgroundColor: c.board, borderColor: c.gold, borderWidth: 1.5, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4 },
