@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Button } from '../components/ui';
 import {
   isValidWord,
@@ -13,7 +22,7 @@ import {
   WORD_LENGTH,
 } from '../game/wordle';
 import type { LetterState, Outcome } from '../game/wordle';
-import { colors, radius } from '../theme';
+import { FONT_BODY, FONT_TILE, tileWeight, WORDLE_BG_IMAGE, wordle as w } from '../gameThemes/wordleTheme';
 import type { GameProps } from './types';
 
 // Wordle ("Waadoru"): 3 levels (an easy word, a moderate word, a hard word). Everybody guesses the
@@ -27,15 +36,142 @@ import type { GameProps } from './types';
 //   3. each player taps "Ready"; when EVERYBODY is ready a 3-2-1 countdown starts the next word.
 // After the 3rd level the player's result (points + time) is reported with onFinish. Points are
 // not shown here. All the rules live in src/game/wordle.ts.
+//
+// LOOK: a reading room after hours (src/gameThemes/wordleTheme.ts). A correct letter hangs a
+// bookmark ribbon, a letter in the wrong spot gets a folded corner, a letter that is not in the word
+// is dimmed, so the result never depends on colour alone. A guess turns over one tile at a time.
 
 const GAP = 6;
+const FLIP_MS = 260;
 const KEY_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
 
-const STATE_COLOR: Record<LetterState, string> = {
-  green: '#3A9D5D',
-  yellow: '#C9A227',
-  gray: '#4A4A55',
+const STATE_STYLE: Record<LetterState, { bg: string; text: string }> = {
+  green: w.correct,
+  yellow: w.present,
+  gray: w.absent,
 };
+
+// ---- one letter tile: turns over like a page when its result arrives
+function Tile({
+  letter,
+  state,
+  size,
+  typed,
+  bad,
+  delay,
+  reduceMotion,
+}: {
+  letter: string;
+  state?: LetterState;
+  size: number;
+  typed: boolean;
+  bad: boolean;
+  delay: number;
+  reduceMotion: boolean;
+}) {
+  const [shown, setShown] = useState<LetterState | undefined>(state);
+  const prev = useRef<LetterState | undefined>(state);
+  const flip = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!state) {
+      prev.current = undefined;
+      flip.setValue(0);
+      setShown(undefined);
+      return;
+    }
+    if (prev.current === state || reduceMotion) {
+      prev.current = state;
+      setShown(state);
+      return;
+    }
+    prev.current = state;
+    flip.setValue(0);
+    const swap = setTimeout(() => setShown(state), delay + FLIP_MS / 2);
+    Animated.sequence([Animated.delay(delay), Animated.timing(flip, { toValue: 1, duration: FLIP_MS, useNativeDriver: true })]).start();
+    return () => clearTimeout(swap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const look = shown ? STATE_STYLE[shown] : null;
+  const scaleX = flip.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.06, 1] });
+  const fold = Math.max(10, Math.round(size * 0.26));
+
+  return (
+    <Animated.View
+      style={[
+        styles.tile,
+        { width: size, height: size, transform: [{ scaleX }] },
+        typed && styles.tileTyped,
+        bad && styles.tileBad,
+        look && { backgroundColor: look.bg, borderColor: look.bg },
+      ]}
+    >
+      <Text style={[styles.tileText, { fontSize: Math.round(size * 0.52) }, look && { color: look.text }, shown === 'gray' && { opacity: 0.85 }]}>
+        {letter.toUpperCase()}
+      </Text>
+
+      {/* correct: a bookmark ribbon hangs off the top edge */}
+      {shown === 'green' && (
+        <View pointerEvents="none" style={[styles.ribbon, { left: size / 2 - 5 }]}>
+          <View style={[styles.ribbonNotch, { borderBottomColor: w.correct.bg }]} />
+        </View>
+      )}
+
+      {/* wrong spot: the top-right corner is folded over */}
+      {shown === 'yellow' && (
+        <>
+          <View pointerEvents="none" style={[styles.cut, { top: -2, right: -2, borderTopWidth: fold + 2, borderLeftWidth: fold + 2 }]} />
+          <View pointerEvents="none" style={[styles.fold, { top: 0, right: 0, borderBottomWidth: fold, borderRightWidth: fold }]} />
+        </>
+      )}
+    </Animated.View>
+  );
+}
+
+// ---- the dim bookshelf wall + lamp glow (only while there is no WORDLE_BG_IMAGE)
+function ShelfWall() {
+  const spines = useMemo(() => {
+    let s = 7;
+    const rnd = () => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+    return Array.from({ length: 22 }, () => ({
+      h: 26 + Math.floor(rnd() * 22),
+      flex: 0.6 + rnd() * 0.9,
+      color: w.spines[Math.floor(rnd() * w.spines.length)],
+    }));
+  }, []);
+  return (
+    <View pointerEvents="none" style={styles.shelfWrap}>
+      <View style={styles.shelfBooks}>
+        {spines.map((b, i) => (
+          <View key={i} style={{ flex: b.flex, height: b.h, backgroundColor: b.color, borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(0,0,0,0.35)', opacity: 0.75 }} />
+        ))}
+      </View>
+      <View style={styles.shelfPlank} />
+    </View>
+  );
+}
+
+function LampGlow() {
+  const rings = [1, 0.78, 0.56, 0.36];
+  const size = 330;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', alignSelf: 'center', top: 70, width: size, height: size }}>
+      {rings.map((k, i) => {
+        const d = size * k;
+        return (
+          <View
+            key={i}
+            style={{ position: 'absolute', left: (size - d) / 2, top: (size - d) / 2, width: d, height: d, borderRadius: d, backgroundColor: w.lampGlow, opacity: 0.045 }}
+          />
+        );
+      })}
+    </View>
+  );
+}
 
 export function WordleGame({ seed, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
@@ -49,12 +185,16 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
   const [readyFor, setReadyFor] = useState(0); // the level I tapped "Ready" after (0 = none yet)
   const [count, setCount] = useState<number | null>(null); // 3, 2, 1 before the next word
   const [sendFailed, setSendFailed] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const startedAt = useRef(Date.now());
   const done = useRef(false); // this level is finished for me
   const outcomes = useRef<Outcome[]>([]);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => flashTimer.current && clearTimeout(flashTimer.current), []);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
 
   // ---- the others (a solo practice run has no room: nobody to wait for)
   const everyoneDone =
@@ -153,8 +293,9 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     if (room) room.readyFor(level + 1).catch(() => setReadyFor(0));
   };
 
-  const cell = Math.min(54, Math.floor((width - 40 - GAP * (WORD_LENGTH - 1)) / WORD_LENGTH));
-  const keyW = Math.floor((width - 32 - 4 * (KEY_ROWS[0].length - 1)) / KEY_ROWS[0].length);
+  // screen padding 20+20, scene padding 8+8, blotter padding 10+10 and border 2+2
+  const cell = Math.min(54, Math.floor((width - 80 - GAP * (WORD_LENGTH - 1)) / WORD_LENGTH));
+  const keyW = Math.floor((width - 56 - 3 * (KEY_ROWS[0].length - 1)) / KEY_ROWS[0].length);
   const keys = useMemo(() => keyStates(guesses, answer), [guesses, answer]);
 
   const rows: { letters: string; states: LetterState[] | null; active: boolean }[] = [];
@@ -165,39 +306,42 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
   }
 
   const nameOf = (uid: string) => room?.usernames[uid] ?? 'Player';
+  const attempt = Math.min(guesses.length + (status === 'playing' ? 1 : 0), MAX_ATTEMPTS);
 
-  return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>
-          Level {level}/{LEVEL_COUNT} · {LEVEL_NAMES[level - 1]} word
-        </Text>
-        <Text style={styles.headerText}>
-          Attempt {Math.min(guesses.length + (status === 'playing' ? 1 : 0), MAX_ATTEMPTS)}/{MAX_ATTEMPTS}
+  const scene = (
+    <>
+      {!WORDLE_BG_IMAGE && <ShelfWall />}
+      {!WORDLE_BG_IMAGE && <LampGlow />}
+
+      <View style={styles.header} accessible accessibilityLabel={`Level ${level} of ${LEVEL_COUNT}, ${LEVEL_NAMES[level - 1]} word. Attempt ${attempt} of ${MAX_ATTEMPTS}`}>
+        <View style={styles.bookmark}>
+          <Text style={styles.bookmarkSmall}>Level</Text>
+          <Text style={styles.bookmarkBig}>
+            {level} of {LEVEL_COUNT}
+          </Text>
+          <View style={styles.bookmarkNotch} />
+        </View>
+        <Text style={styles.headerWord}>{LEVEL_NAMES[level - 1]} word</Text>
+        <Text style={styles.headerAttempt}>
+          Attempt {attempt} of {MAX_ATTEMPTS}
         </Text>
       </View>
 
-      <View style={styles.board}>
+      <View style={styles.blotter}>
         {rows.map((row, r) => (
           <View key={r} style={styles.row}>
-            {Array.from({ length: WORD_LENGTH }, (_, c) => {
-              const letter = row.letters[c] ?? '';
-              const state = row.states?.[c];
-              return (
-                <View
-                  key={c}
-                  style={[
-                    styles.cell,
-                    { width: cell, height: cell },
-                    state && { backgroundColor: STATE_COLOR[state], borderColor: STATE_COLOR[state] },
-                    row.active && letter !== '' && styles.cellTyped,
-                    row.active && badRow && styles.cellBad,
-                  ]}
-                >
-                  <Text style={styles.cellText}>{letter.toUpperCase()}</Text>
-                </View>
-              );
-            })}
+            {Array.from({ length: WORD_LENGTH }, (_, c) => (
+              <Tile
+                key={c}
+                letter={row.letters[c] ?? ''}
+                state={row.states?.[c]}
+                size={cell}
+                typed={row.active && (row.letters[c] ?? '') !== ''}
+                bad={row.active && badRow}
+                delay={c * 140}
+                reduceMotion={reduceMotion}
+              />
+            ))}
           </View>
         ))}
       </View>
@@ -210,22 +354,26 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
           {KEY_ROWS.map((letters, i) => (
             <View key={letters} style={styles.keyRow}>
               {i === 2 && (
-                <Pressable onPress={submit} accessibilityRole="button" style={[styles.key, styles.keyWide, { height: 48 }]}>
-                  <Text style={styles.keyText}>ENTER</Text>
+                <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Enter" style={[styles.key, styles.keyWide, { height: 48 }]}>
+                  <Text style={styles.keyTextSmall}>Enter</Text>
                 </Pressable>
               )}
-              {letters.split('').map((l) => (
-                <Pressable
-                  key={l}
-                  onPress={() => press(l)}
-                  accessibilityRole="button"
-                  style={[styles.key, { width: keyW, height: 48 }, keys[l] && { backgroundColor: STATE_COLOR[keys[l]] }]}
-                >
-                  <Text style={styles.keyText}>{l.toUpperCase()}</Text>
-                </Pressable>
-              ))}
+              {letters.split('').map((l) => {
+                const k = keys[l] ? STATE_STYLE[keys[l]] : null;
+                return (
+                  <Pressable
+                    key={l}
+                    onPress={() => press(l)}
+                    accessibilityRole="button"
+                    accessibilityLabel={l}
+                    style={[styles.key, { width: keyW, height: 48 }, k && { backgroundColor: k.bg, borderColor: k.bg }]}
+                  >
+                    <Text style={[styles.keyText, k && { color: k.text }]}>{l.toUpperCase()}</Text>
+                  </Pressable>
+                );
+              })}
               {i === 2 && (
-                <Pressable onPress={erase} accessibilityRole="button" style={[styles.key, styles.keyWide, { height: 48 }]}>
+                <Pressable onPress={erase} accessibilityRole="button" accessibilityLabel="Delete letter" style={[styles.key, styles.keyWide, { height: 48 }]}>
                   <Text style={styles.keyText}>⌫</Text>
                 </Pressable>
               )}
@@ -237,9 +385,7 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
       {/* Finished this level, others still playing */}
       {finished && !everyoneDone && (
         <View style={styles.panel}>
-          <Text style={[styles.panelTitle, { color: status === 'solved' ? STATE_COLOR.green : colors.text }]}>
-            {status === 'solved' ? 'You guessed it!' : 'Out of attempts.'}
-          </Text>
+          <Text style={styles.panelTitle}>{status === 'solved' ? 'You guessed it!' : 'Out of attempts.'}</Text>
           <Text style={styles.panelText}>
             Waiting for the other players to finish… ({doneCount}/{room?.playerIds.length ?? 1} done)
           </Text>
@@ -247,83 +393,148 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
         </View>
       )}
 
-      {/* Everybody is done with this level: show the answer to all */}
+      {/* Everybody is done with this level: the answer, as a dictionary entry */}
       {finished && everyoneDone && (
-        <View style={[styles.panel, styles.reveal]}>
-          <Text style={styles.panelText}>The {LEVEL_NAMES[level - 1].toLowerCase()} word was</Text>
-          <Text style={styles.answer}>{answer.toUpperCase()}</Text>
+        <View style={styles.entry}>
+          <Text style={styles.entryText}>The {LEVEL_NAMES[level - 1].toLowerCase()} word was</Text>
+          <Text style={styles.headword}>{answer.toLowerCase()}</Text>
+          <View style={styles.entryRule} />
           {room &&
             room.playerIds.map((p) => {
               const s = room.stages.find((x) => x.uid === p && x.stage === level);
               return (
-                <Text key={p} style={styles.panelText}>
+                <Text key={p} style={styles.entryText}>
                   {s ? (s.solved ? '✓' : '✗') : '–'} {nameOf(p)}
                 </Text>
               );
             })}
 
           {lastLevel ? (
-            <Text style={styles.panelText}>That was the last word. Finishing the game…</Text>
+            <Text style={styles.entryText}>That was the last word. Finishing the game…</Text>
           ) : count !== null ? (
             <>
-              <Text style={styles.panelText}>Next word in</Text>
+              <Text style={styles.entryText}>Next word in</Text>
               <Text style={styles.countdown}>{count}</Text>
             </>
           ) : readyFor === level ? (
-            <Text style={styles.panelText}>
+            <Text style={styles.entryText}>
               Waiting for the other players to be ready… ({readyCount}/{room?.playerIds.length ?? 1})
             </Text>
           ) : (
-            <Button label={`Ready for the ${LEVEL_NAMES[level].toLowerCase()} word`} onPress={tapReady} />
+            <Pressable onPress={tapReady} accessibilityRole="button" style={({ pressed }) => [styles.readyBtn, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.readyText}>Ready for the {LEVEL_NAMES[level].toLowerCase()} word</Text>
+            </Pressable>
           )}
         </View>
       )}
-    </View>
+    </>
+  );
+
+  return WORDLE_BG_IMAGE ? (
+    <ImageBackground source={WORDLE_BG_IMAGE} resizeMode="cover" style={styles.scene} imageStyle={{ borderRadius: 16 }}>
+      <View pointerEvents="none" style={styles.dim} />
+      {scene}
+    </ImageBackground>
+  ) : (
+    <View style={styles.scene}>{scene}</View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 12 },
-  header: { flexDirection: 'row', justifyContent: 'space-between' },
-  headerText: { color: colors.muted, fontSize: 15, fontWeight: '600' },
-  board: { alignItems: 'center', gap: GAP },
-  row: { flexDirection: 'row', gap: GAP },
-  cell: {
-    backgroundColor: colors.card,
+  scene: { backgroundColor: w.walnut, borderRadius: 16, paddingHorizontal: 8, paddingBottom: 14, gap: 12, overflow: 'hidden' },
+  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,12,8,0.35)', borderRadius: 16 },
+
+  shelfWrap: { marginHorizontal: -8 },
+  shelfBooks: { flexDirection: 'row', alignItems: 'flex-end', height: 48, paddingHorizontal: 4 },
+  shelfPlank: { height: 6, backgroundColor: w.walnutLight, borderBottomWidth: 2, borderBottomColor: '#120B07' },
+
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4, marginTop: -4 },
+  bookmark: { backgroundColor: w.oxblood, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 14, alignItems: 'center', marginTop: -2 },
+  bookmarkSmall: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 12 },
+  bookmarkBig: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 16, fontWeight: '800' },
+  bookmarkNotch: {
+    position: 'absolute',
+    bottom: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 20,
+    borderRightWidth: 20,
+    borderBottomWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: w.walnut,
+  },
+  headerWord: { flex: 1, color: w.paperText, fontFamily: FONT_BODY, fontSize: 20, fontWeight: '800' },
+  headerAttempt: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 15, fontWeight: '600' },
+
+  blotter: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: GAP,
+    backgroundColor: w.blotter,
     borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: w.brass,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
-  cellTyped: { borderColor: colors.muted },
-  cellBad: { borderColor: '#FF5252', backgroundColor: '#4A1F1F' },
-  cellText: { color: colors.text, fontSize: 26, fontWeight: '800' },
-  message: { color: colors.logic, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  row: { flexDirection: 'row', gap: GAP },
+
+  tile: { backgroundColor: w.page, borderWidth: 2, borderColor: w.pageEdge, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  tileTyped: { borderColor: w.brass },
+  tileBad: { borderColor: w.badRow, backgroundColor: w.badFace },
+  tileText: { color: w.ink, fontFamily: FONT_TILE, fontWeight: tileWeight },
+  ribbon: { position: 'absolute', top: -5, width: 10, height: 17, backgroundColor: w.ribbon },
+  ribbonNotch: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  cut: { position: 'absolute', width: 0, height: 0, borderTopColor: w.blotter, borderLeftColor: 'transparent' },
+  fold: { position: 'absolute', width: 0, height: 0, borderBottomColor: w.brassDark, borderRightColor: 'transparent' },
+
+  message: { color: '#F0C674', fontFamily: FONT_BODY, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+
   keyboard: { gap: 6, alignItems: 'center' },
-  keyRow: { flexDirection: 'row', gap: 4, justifyContent: 'center' },
+  keyRow: { flexDirection: 'row', gap: 3, justifyContent: 'center' },
   key: {
-    backgroundColor: colors.card,
+    backgroundColor: w.page,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: w.pageEdge,
+    borderBottomWidth: 3,
+    borderBottomColor: w.brassDark,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyWide: { paddingHorizontal: 10, minWidth: 52 },
-  keyText: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  keyWide: { paddingHorizontal: 8, minWidth: 48 },
+  keyText: { color: w.ink, fontFamily: FONT_TILE, fontSize: 15, fontWeight: tileWeight },
+  keyTextSmall: { color: w.ink, fontFamily: FONT_BODY, fontSize: 13, fontWeight: '800' },
+
   panel: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: w.blotter,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: w.brass,
     padding: 14,
     gap: 6,
     alignItems: 'center',
   },
-  reveal: { borderColor: colors.accent, borderWidth: 2 },
-  panelTitle: { fontSize: 18, fontWeight: '800' },
-  panelText: { color: colors.muted, fontSize: 15, textAlign: 'center' },
-  answer: { color: colors.accent, fontSize: 32, fontWeight: '800', letterSpacing: 4 },
-  countdown: { color: colors.text, fontSize: 56, fontWeight: '800', textAlign: 'center' },
+  panelTitle: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 19, fontWeight: '800' },
+  panelText: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 15, textAlign: 'center' },
+
+  entry: { backgroundColor: w.page, borderRadius: 12, borderWidth: 2, borderColor: w.brass, padding: 16, gap: 6, alignItems: 'center' },
+  entryText: { color: w.ink, fontFamily: FONT_BODY, fontSize: 15, textAlign: 'center' },
+  headword: { color: w.oxblood, fontFamily: FONT_BODY, fontSize: 38, fontWeight: '800', fontStyle: 'italic' },
+  entryRule: { height: 2, width: '60%', backgroundColor: w.pageEdge, marginBottom: 4 },
+  countdown: { color: w.oxblood, fontFamily: FONT_TILE, fontSize: 56, fontWeight: tileWeight, textAlign: 'center' },
+  readyBtn: { backgroundColor: w.blotter, borderRadius: 10, borderWidth: 2, borderColor: w.brass, paddingVertical: 12, paddingHorizontal: 18, marginTop: 6 },
+  readyText: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 16, fontWeight: '800' },
 });
