@@ -18,7 +18,7 @@ export type Game = {
   clearConditions?: string[];
   prohibitions?: string[]; // optional extra rule: "Prohibition: ..."
   additionalRules?: string[]; // optional extra dialog, shown after the Rule (and the Prohibition)
-  example?: string[]; // optional extra dialog, shown after the Rule (and the Prohibition)
+  example?: string[]; // optional "Example" dialog, shown right after the Rule
   additionalRulesHeading?: string; // heading of that dialog; defaults to "Additional Rule"
   // Not decided for most games yet, so they use DEFAULT_DIFFICULTY until you set one here.
   difficulty?: Difficulty;
@@ -80,7 +80,10 @@ export const GAMES: Game[] = [
       'The first player must say a word related to the given starting word.',
       'The next player must immediately say another word related to the previous player’s answer before the rhythm ends.',
       'The game continues in the same order, with each player providing a related word.',
-      'Example: if the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
+    ],
+    // Its own "Example" dialog in the round intro, right after the Rule.
+    example: [
+      'If the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
       'If the next player says “Yellow”, the following player may respond with “Sun” or “Gold”.',
     ],
     prohibitions: [

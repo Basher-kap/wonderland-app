@@ -10,8 +10,10 @@ import { colors, domainInfo, radius } from '../theme';
 //   1. "Game of <Domain>" + "Difficulty: <level>"
 //   2. the game's name in Japanese
 //   3. "Rule: ..."
-//   4. "Clear Condition: ..."
+//   4. (only if the game has one) "Example: ..."
 //   5. (only if the game has one) "Prohibition: ..."
+//   6. (only if the game has one) "Additional Rule: ..."
+//   7. "Clear Condition: ..."
 // Steps 1 and 2 move on by themselves (tap to skip); the rule dialogs wait for a tap so
 // everybody can read them. After the last one, onDone() starts the game.
 
@@ -30,6 +32,9 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
     },
     { key: 'name', kind: 'name', lines: [game.japaneseName ?? game.name] },
     { key: 'rule', kind: 'lines', heading: 'Rule', lines: game.rules?.length ? game.rules : ['To be announced.'] },
+    ...(game.example?.length
+      ? [{ key: 'example', kind: 'lines' as const, heading: 'Example', lines: game.example }]
+      : []),
     ...(game.prohibitions?.length
       ? [{ key: 'prohibition', kind: 'lines' as const, heading: 'Prohibition', lines: game.prohibitions }]
       : []),
