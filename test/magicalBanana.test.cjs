@@ -151,6 +151,20 @@ t('a player who is out cannot move or vote', () => {
   s = m.tick(s, s.endsAt); // b out, c to answer
   assert.strictEqual(m.apply(s, { uid: 'b', rev: s.rev, kind: 'judge' }, T0), s);
 });
+t('a disqualified player can still vote; one who left the game cannot', () => {
+  let s = word(started(), 'a', 'Yellow');
+  s = m.tick(s, s.endsAt); // b ran out of time: disqualified; c has to answer
+  assert.deepStrictEqual(s.alive, ['a', 'c']);
+  s = judge(s, 'c', s.endsAt - 1000); // c judges a's word
+  assert.deepStrictEqual(s.judge.voters, ['b', 'c']); // everybody but the author a, b included
+  const v = vote(s, 'b', 'no');
+  assert.notStrictEqual(v, s); // the disqualified player's vote is accepted
+  assert.strictEqual(v.judge.votes.b, 'no');
+  assert.strictEqual(m.apply(s, { uid: 'b', rev: s.rev, kind: 'judge' }, T0), s); // but b still cannot judge
+  const left = m.tick(s, s.endsAt - 500, ['b']); // b leaves the game: nobody waits for their vote
+  assert.deepStrictEqual(left.judge.voters, ['c']);
+  assert.deepStrictEqual(left.gone, ['b']);
+});
 t('state survives JSON (it is saved as text)', () => {
   const s = judge(word(started(), 'a', 'Yellow'), 'b');
   assert.deepStrictEqual(JSON.parse(JSON.stringify(s)), s);

@@ -1,7 +1,8 @@
 // Magical Banana: pure rules of the word chain, no React, no Firebase.
 //
 // Players sit in a circle and say a word related to the previous word. Anybody can press JUDGE
-// to have the latest word judged by a vote (OK / NO). Last player in wins.
+// to have the latest word judged by a vote (OK / NO); disqualified players can still vote.
+// Last player in wins.
 //
 // The game is a small state machine. The HOST's phone is the only one that runs it: players
 // send "moves" (a word, a judge request, a vote) and the host applies them with `apply`, and
@@ -27,7 +28,7 @@ export type Judge = {
   author: string; // whose word is judged
   word: string;
   prev: string; // the word it should be related to
-  voters: string[]; // everybody still in, except the author
+  voters: string[]; // everybody who has not left (disqualified players included), except the author
   votes: Record<string, Vote>;
 };
 // What happened last, for the message on the screen.
@@ -45,6 +46,7 @@ export type State = {
   rev: number; // goes up on every step of the game (moves are made for one rev)
   order: string[]; // the circle
   alive: string[];
+  gone: string[]; // players who forfeited the game: they no longer vote (disqualified players still do)
   strikes: Record<string, number>; // DRAWs received
   words: Record<string, string>; // what each player's box shows
   history: Entry[]; // the valid words so far; the last one is the word to answer
@@ -80,6 +82,7 @@ export function newGame(order: string[], startWord: string, now: number): State 
     rev: 1,
     order: order.slice(),
     alive: order.slice(),
+    gone: [],
     strikes: {},
     words: Object.fromEntries(order.map((id) => [id, ''])),
     history: [{ by: null, word: startWord, judged: true }],
@@ -146,7 +149,8 @@ function endGame(s: State) {
 // ----------------------------------------------------------------- moves ----
 export function apply(state: State, move: Move, now: number): State {
   if (move.rev !== state.rev) return state; // made for an older step of the game
-  if (!state.alive.includes(move.uid)) return state;
+  // Only players still in can say a word or press JUDGE; disqualified players can still VOTE.
+  if (move.kind !== 'vote' && !state.alive.includes(move.uid)) return state;
 
   if (move.kind === 'word') {
     if (state.phase !== 'turn' || move.uid !== state.current) return state;
@@ -165,7 +169,8 @@ export function apply(state: State, move: Move, now: number): State {
     if (state.phase !== 'turn') return state;
     const top = lastEntry(state);
     if (!top.by || top.judged) return state; // nothing to judge, or already judged
-    const voters = state.alive.filter((id) => id !== top.by);
+    // Everybody who has not left, except the author: disqualified players vote too.
+    const voters = state.order.filter((id) => id !== top.by && !(state.gone ?? []).includes(id));
     if (voters.length === 0) return state;
     const s = edit(state);
     s.phase = 'judging';
@@ -236,6 +241,7 @@ function dropPlayer(state: State, uid: string, now: number, kind: 'timeout' | 'f
   const s = edit(state);
   const wasCurrent = s.current === uid;
   s.alive = s.alive.filter((id) => id !== uid);
+  if (kind === 'forfeit') s.gone = [...(s.gone ?? []), uid];
   s.last = { kind, uid };
   if (s.alive.length <= 1) {
     endGame(s);
@@ -259,10 +265,26 @@ function dropPlayer(state: State, uid: string, now: number, kind: 'timeout' | 'f
   return s;
 }
 
+// A disqualified player forfeits the game: they stop being a voter.
+function playerLeft(state: State, uid: string, now: number): State {
+  const s = edit(state);
+  s.gone = [...(s.gone ?? []), uid];
+  if (s.phase === 'judging' && s.judge) {
+    s.judge.voters = s.judge.voters.filter((id) => id !== uid);
+    delete s.judge.votes[uid];
+    if (s.judge.voters.every((id) => id in s.judge!.votes)) resolveJudging(s, now);
+  }
+  return s;
+}
+
 // Call a few times per second on the host. `left` = players who forfeited the game.
 export function tick(state: State, now: number, left: string[] = []): State {
   if (state.phase === 'over') return state;
-  for (const id of left) if (state.alive.includes(id)) return dropPlayer(state, id, now, 'forfeit');
+  for (const id of left) {
+    if ((state.gone ?? []).includes(id)) continue;
+    if (state.alive.includes(id)) return dropPlayer(state, id, now, 'forfeit');
+    return playerLeft(state, id, now); // already disqualified, and now leaves: stop waiting for their vote
+  }
   if (state.endsAt === 0 || now < state.endsAt) return state;
 
   if (state.phase === 'countdown') {

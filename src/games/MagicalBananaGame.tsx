@@ -335,12 +335,18 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
           </View>
         </View>
       )}
-      {st.phase === 'judging' && judge && !iVote && alive && (
+      {st.phase === 'judging' && judge && !iVote && (
         <Text style={styles.note}>
-          {judge.author === uid ? 'Your word is being judged…' : 'Vote sent. Waiting for the others…'}
+          {judge.author === uid
+            ? 'Your word is being judged…'
+            : judge.voters.includes(uid)
+              ? 'Vote sent. Waiting for the others…'
+              : 'Waiting for the others…'}
         </Text>
       )}
-      {!alive && st.phase !== 'over' && <Text style={styles.note}>You are out. Watching the game…</Text>}
+      {!alive && st.phase !== 'over' && (
+        <Text style={styles.note}>You are out. You can still vote when a word is judged.</Text>
+      )}
     </View>
   );
 }
