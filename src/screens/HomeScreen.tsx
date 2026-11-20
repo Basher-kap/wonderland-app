@@ -10,6 +10,8 @@ import { GAMES } from '../data/games';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, DOMAIN_ORDER, domainInfo, radius } from '../theme';
+import SpaceBackground from '../components/SpaceBackground';
+import { space } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -52,6 +54,7 @@ export function HomeScreen() {
   };
 
   return (
+    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
@@ -113,18 +116,19 @@ export function HomeScreen() {
         })}
       </ScrollView>
     </SafeAreaView>
+    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 20, paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hello: { color: colors.text, fontSize: 17, fontWeight: '600' },
   sub: { color: colors.muted, fontSize: 13 },
   panel: {
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.lg,
     padding: 16,
     gap: 12,
@@ -135,7 +139,7 @@ const styles = StyleSheet.create({
   joinRow: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: space.input,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -149,7 +153,7 @@ const styles = StyleSheet.create({
   domainTitle: { fontSize: 18, fontWeight: '600' },
   domainBlurb: { color: colors.muted, fontSize: 13, marginBottom: 8 },
   gameCard: {
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 8,

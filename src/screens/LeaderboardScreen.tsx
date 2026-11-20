@@ -7,6 +7,8 @@ import { LADDERS, Track, nextTitle, titleFor } from '../data/ranks';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, DOMAIN_ORDER, domainInfo, radius } from '../theme';
+import SpaceBackground from '../components/SpaceBackground';
+import { space } from '../spaceTheme';
 
 // Demo mode only. Points: +10 per round won, -5 per round lost, per domain.
 const DEMO: api.LeaderboardRow[] = [
@@ -45,6 +47,7 @@ export function LeaderboardScreen() {
   const me = rows.find((r) => r.uid === uid);
 
   return (
+    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.heading}>Leaderboard</Text>
@@ -106,17 +109,18 @@ export function LeaderboardScreen() {
         ))}
       </ScrollView>
     </SafeAreaView>
+    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 20, paddingBottom: 40 },
   heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 6 },
   rule: { color: colors.muted, fontSize: 13, marginBottom: 14 },
   empty: { color: colors.muted, marginBottom: 12 },
   meCard: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: space.cardAlt,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 14,
@@ -132,7 +136,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 8,
@@ -146,7 +150,7 @@ const styles = StyleSheet.create({
   titles: { color: colors.accent, fontSize: 12, marginTop: 2 },
   total: { color: colors.text, fontSize: 20, fontWeight: '700' },
   ladder: {
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.md,
     padding: 14,
     marginBottom: 8,

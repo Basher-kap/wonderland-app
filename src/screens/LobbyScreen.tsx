@@ -12,6 +12,8 @@ import { GAMES } from '../data/games';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
 import { colors, radius } from '../theme';
+import SpaceBackground from '../components/SpaceBackground';
+import { space } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 // Demo mode only: fake friends so the screen is not empty.
@@ -101,6 +103,7 @@ export function LobbyScreen() {
   };
 
   return (
+    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <VoiceButton code={params.code} />
       <View style={styles.codeBox}>
@@ -138,16 +141,17 @@ export function LobbyScreen() {
         <Button label="Leave lobby" variant="secondary" onPress={leave} />
       </View>
     </SafeAreaView>
+    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: 'transparent' },
   codeBox: {
     margin: 20,
     padding: 20,
     alignItems: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
@@ -159,7 +163,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     padding: 14,
     borderRadius: radius.md,
     borderWidth: 1,

@@ -5,6 +5,8 @@ import { Button, TicketChip } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../lib/api';
 import { colors, radius } from '../theme';
+import SpaceBackground from '../components/SpaceBackground';
+import { space } from '../spaceTheme';
 
 // Same rule as the server: 3-16 letters, numbers or underscores.
 const USERNAME_RULE = /^[A-Za-z0-9_]{3,16}$/;
@@ -35,6 +37,7 @@ export function SettingsScreen() {
   };
 
   return (
+    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.content}>
         <Text style={styles.heading}>Settings</Text>
@@ -61,17 +64,18 @@ export function SettingsScreen() {
         <Button label="Sign out" variant="secondary" onPress={() => signOut()} style={{ marginTop: 24 }} />
       </View>
     </SafeAreaView>
+    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 20, gap: 10 },
   heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 8 },
   label: { color: colors.text, fontSize: 15, fontWeight: '600' },
   hint: { color: colors.muted, fontSize: 12, marginTop: 2 },
   input: {
-    backgroundColor: colors.card,
+    backgroundColor: space.input,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -83,7 +87,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: space.card,
     borderRadius: radius.md,
     padding: 14,
     marginTop: 16,
