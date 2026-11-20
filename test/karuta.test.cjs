@@ -138,15 +138,32 @@ test('stale / invalid grabs are ignored', () => {
   assert.strictEqual(K.apply(s, { uid: s.order[0], rev: s.targetNo, kind: 'grab', owner: 'ghost', card }, 1), s);
 });
 
-test('nobody takes the target: it disappears after LIVE_MS and a new wait starts', () => {
+test('nobody takes the target: after LIVE_MS the system takes it from its owner, then a new wait starts', () => {
   let s = toLive(K.newGame(ids(3), 'f', 0), 0);
   const no = s.targetNo;
+  const target = s.target;
+  const owner = s.order.find((id) => s.racks[id].includes(target));
+  const n = s.racks[owner].length;
   assert.strictEqual(K.tick(s, s.endsAt - 1), s);
   s = K.tick(s, s.endsAt);
   assert.strictEqual(s.phase, 'waiting');
   assert.strictEqual(s.targetNo, no + 1);
   assert.strictEqual(s.target, null);
-  assert.strictEqual(s.events[s.events.length - 1].kind, 'nobody');
+  assert.strictEqual(s.racks[owner].length, n - 1);
+  assert.ok(!s.racks[owner].includes(target));
+  assert.ok(s.taken.includes(target));
+  const e = s.events[s.events.length - 1];
+  assert.ok(e.kind === 'auto' && e.by === owner && e.card === target);
+  assert.strictEqual(total(s), 26);
+});
+
+test('auto-take of the owner\'s last card clears the game for the owner', () => {
+  let s = toLive(K.newGame(ids(3), 'f2', 0), 0);
+  const owner = s.order.find((id) => s.racks[id].includes(s.target));
+  s.racks[owner] = [s.target];
+  s = K.tick(s, s.endsAt);
+  assert.strictEqual(s.phase, 'over');
+  assert.strictEqual(s.winner, owner);
 });
 
 test('advance grab: secret in public state, only who has grabbed is shown', () => {

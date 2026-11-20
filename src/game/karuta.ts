@@ -15,7 +15,9 @@
 //        - a wrong card: the grabber RECEIVES that card (it leaves its owner's rack and joins the
 //          grabber's rack). Grabbing a wrong card of your own rack changes nothing, but it is your
 //          one grab for this target.
-//      Nobody takes the target in LIVE_MS: it disappears and the next waiting time starts.
+//      Nobody takes the target in LIVE_MS: the SYSTEM takes it for them, from the rack of the player
+//      who holds it (`autoTake`): the card leaves the game, nothing is sent to anybody, and the next
+//      waiting time starts.
 //   4. The first player with an empty rack clears the game and wins.
 //
 // The game is a small state machine, like Battleships and Fortune. The HOST's phone is the only
@@ -42,9 +44,9 @@ export type Phase = 'memorize' | 'waiting' | 'live' | 'giving' | 'over';
 // took   = the target was taken correctly (by `by`, from `owner`'s rack)
 // wrong  = `by` grabbed a wrong card `card` of `owner`'s rack (received it, unless own)
 // gave   = `by` sent `card` to `owner` (the penalty after a correct grab)
-// nobody = nobody took the target in time
+// auto   = nobody took the target in time: the system took it from `by`'s rack
 // forfeit= `by` left the game
-export type EventKind = 'took' | 'wrong' | 'gave' | 'nobody' | 'forfeit';
+export type EventKind = 'took' | 'wrong' | 'gave' | 'auto' | 'forfeit';
 export type KarutaEvent = {
   n: number;
   kind: EventKind;
@@ -273,6 +275,18 @@ function give(s: State, uid: string, card: string, auto: boolean, now: number) {
   afterAction(s, now);
 }
 
+// Nobody took the target in time: the system takes it from the rack of the player who holds it.
+function autoTake(s: State, now: number) {
+  const target = s.target as string;
+  const owner = activePlayers(s).find((id) => s.racks[id].includes(target));
+  if (owner) {
+    s.racks[owner] = s.racks[owner].filter((c) => c !== target);
+    s.taken.push(target);
+    addEvent(s, { kind: 'auto', by: owner, card: target });
+  }
+  afterAction(s, now);
+}
+
 // The target appears. The advance grabs are judged now, oldest first.
 function reveal(s: State, now: number) {
   const target = chooseTarget(s);
@@ -390,8 +404,7 @@ export function tick(state: State, now: number, left: string[] = []): State {
       reveal(s, now);
       break;
     case 'live':
-      addEvent(s, { kind: 'nobody', by: '' });
-      startWaiting(s, now);
+      autoTake(s, now);
       break;
     case 'giving': {
       // Too slow: the host sends a random card for them.

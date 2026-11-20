@@ -272,8 +272,8 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
           : `${w} grabbed the wrong card and received ${e.card} from ${poss(e.owner as string)} rack`;
       case 'gave':
         return `${w} sent ${e.card} to ${e.owner === uid ? 'you' : name(e.owner as string)}${e.auto ? ' (out of time)' : ''}`;
-      case 'nobody':
-        return 'Nobody took the card in time';
+      case 'auto':
+        return `Nobody took ${e.card} in time: it was taken from ${e.by === uid ? 'your' : `${name(e.by)}’s`} rack`;
       case 'forfeit':
         return `${w} left the game`;
     }
