@@ -4,8 +4,10 @@ import { StyleSheet, View } from 'react-native';
 import { FoodLandBackground } from '../components/FoodLandBackground';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
+import { WildWestBackground } from '../components/WildWestBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { food as f } from './foodLandTheme';
+import { FONT_DISPLAY, west as h } from './hangmanTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -18,6 +20,7 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'magical-banana') return FoodLandBackground;
   if (gameId === 'wordle') return LibraryBackground;
   if (gameId === 'human-calculator') return QuizStageBackground;
+  if (gameId === 'hangman') return WildWestBackground;
   return null;
 }
 
@@ -124,9 +127,38 @@ const CALC_INTRO: IntroTheme = {
   Decor: MarqueeDecor,
 };
 
+// Hangman: the rules are a poster nailed to a board, a nail in every corner.
+function PosterNails() {
+  return (
+    <View pointerEvents="none" style={nails.wrap}>
+      <View style={[nails.nail, { top: 6, left: 6 }]} />
+      <View style={[nails.nail, { top: 6, right: 6 }]} />
+      <View style={[nails.nail, { bottom: 6, left: 6 }]} />
+      <View style={[nails.nail, { bottom: 6, right: 6 }]} />
+    </View>
+  );
+}
+
+const nails = StyleSheet.create({
+  wrap: { ...StyleSheet.absoluteFillObject },
+  nail: { position: 'absolute', width: 7, height: 7, borderRadius: 4, backgroundColor: h.brassDark },
+});
+
+const HANGMAN_INTRO: IntroTheme = {
+  Backdrop: WildWestBackground,
+  accent: h.wanted,
+  text: h.paperInk,
+  hint: h.cream,
+  bullet: h.wanted,
+  fontFamily: FONT_DISPLAY,
+  dialog: { backgroundColor: h.paper, borderColor: h.woodDark, borderWidth: 4, borderRadius: 4 },
+  Decor: PosterNails,
+};
+
 export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'wordle') return WORDLE_INTRO;
   if (gameId === 'human-calculator') return CALC_INTRO;
   if (gameId === 'magical-banana') return FOOD_INTRO;
+  if (gameId === 'hangman') return HANGMAN_INTRO;
   return null;
 }

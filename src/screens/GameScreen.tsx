@@ -374,17 +374,20 @@ export function GameScreen() {
 
   // A full-screen game (Karuta) takes the whole screen while it is played: no title, no round box.
   // The forfeit buttons stay in the header.
+  // A game with its own look (Hangman) has its background behind the full screen too, so the strip
+  // under the keys (the home-indicator area) is not the Space colour.
+  const Backdrop = getGameBackdrop(game.id);
   if (playing && gameModule?.fullScreen) {
-    return (
-      <SafeAreaView style={styles.root} edges={['bottom']}>
+    const fullPage = (
+      <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
         <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
         <VoiceButton code={code} />
       </SafeAreaView>
     );
+    return Backdrop ? <Backdrop>{fullPage}</Backdrop> : fullPage;
   }
   
   // A game with its own look (Magical Banana: Food Land) gets its own background behind everything.
-  const Backdrop = getGameBackdrop(game.id);
   const page = (
     <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.body}>

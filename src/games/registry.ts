@@ -106,6 +106,7 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: (r) => (r.finished ? `revealed the word in ${formatSeconds(r.totalMs)}` : 'was hanged'),
     needsRoom: true,
     endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the keys must never leave the frame
     summary: (seed, me) => {
       const word = pickHangmanEntry(seed).text.toUpperCase();
       return me.iWon ? `YOU GOT THE WORD: ${word}` : `The word was: ${word}`;

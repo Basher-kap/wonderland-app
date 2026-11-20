@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   display,
   guess,
@@ -16,7 +18,8 @@ import {
   withClues,
   wrongCount,
 } from '../game/hangman';
-import { colors, radius } from '../theme';
+import { Bullets, GallowsScene, GRID_H, GRID_W, Skyline } from '../components/HangmanScene';
+import { displayWeight, FONT_DISPLAY, west } from '../gameThemes/hangmanTheme';
 import type { GameProps } from './types';
 
 // Hangman: guess the hidden proper noun one letter at a time. Everybody gets the same word
@@ -27,39 +30,22 @@ import type { GameProps } from './types';
 // in src/game/hangman.ts; this file is only the screen. The back/forfeit buttons are provided by
 // GameScreen. The answer is NOT shown to a hanged player (others may still be playing); it is
 // shown to everyone in the round summary once the round is over.
+//
+// THE LOOK (Wild West, see gameThemes/hangmanTheme.ts): the gallows scene on top, the WANTED poster
+// with the hidden name under it, the keys on the plank wall at the bottom. The game is registered as
+// `fullScreen`, so GameScreen gives it the whole screen with no ScrollView. Everything here is sized
+// from the space it is given (onLayout), so the keys are always inside the frame and nothing scrolls.
 
 const ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+const BAR_H = 44; // the clock and clue row laid over the top of the sky
+const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (VoiceButton): keep clear
+const HANG_DELAY_MS = 450; // after the 6th wrong guess, the trapdoor opens
+const HANG_RESULT_MS = 1800; // ...and only then the result is sent, so everybody can watch it fall
 const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (ms: number) => `${pad(Math.floor(ms / 60000))}:${pad(Math.floor(ms / 1000) % 60)}.${Math.floor((ms % 1000) / 100)}`;
 
-// The gallows and the person, drawn with plain views. `parts` = how many parts are drawn (0-6).
-function Drawing({ parts }: { parts: number }) {
-  const ink = parts >= MAX_WRONG ? colors.danger : colors.text;
-  return (
-    <View style={styles.drawing}>
-      <View style={[styles.line, { left: 20, bottom: 0, width: 110, height: 4 }]} />
-      <View style={[styles.line, { left: 50, bottom: 0, width: 4, height: 170 }]} />
-      <View style={[styles.line, { left: 50, top: 6, width: 90, height: 4 }]} />
-      <View style={[styles.line, { left: 136, top: 6, width: 3, height: 22 }]} />
-      {parts >= 1 && <View style={[styles.head, { borderColor: ink }]} />}
-      {parts >= 2 && <View style={[styles.limb, { backgroundColor: ink, left: 136, top: 58, width: 3, height: 50 }]} />}
-      {parts >= 3 && (
-        <View style={[styles.limb, { backgroundColor: ink, left: 118, top: 68, width: 3, height: 34, transform: [{ rotate: '35deg' }] }]} />
-      )}
-      {parts >= 4 && (
-        <View style={[styles.limb, { backgroundColor: ink, left: 154, top: 68, width: 3, height: 34, transform: [{ rotate: '-35deg' }] }]} />
-      )}
-      {parts >= 5 && (
-        <View style={[styles.limb, { backgroundColor: ink, left: 122, top: 110, width: 3, height: 40, transform: [{ rotate: '25deg' }] }]} />
-      )}
-      {parts >= 6 && (
-        <View style={[styles.limb, { backgroundColor: ink, left: 150, top: 110, width: 3, height: 40, transform: [{ rotate: '-25deg' }] }]} />
-      )}
-    </View>
-  );
-}
-
 type Clue = { key: string; uid: string; letter: string; at: number };
+type Result = { finished: boolean; totalMs: number };
 
 export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
   const entry = useMemo(() => pickEntry(seed), [seed]);
@@ -68,9 +54,16 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
   const [popups, setPopups] = useState<Clue[]>([]); // clue messages waiting to be shown
   const [elapsed, setElapsed] = useState(0);
   const [asking, setAsking] = useState(false);
+  const [trapOpen, setTrapOpen] = useState(false);
+  const [box, setBox] = useState({ w: 0, h: 0 }); // the whole game area
+  const [scene, setScene] = useState({ w: 0, h: 0 }); // the sky part of it
   const startedAt = useRef(Date.now());
   const done = useRef(false);
   const seen = useRef<Set<string> | null>(null);
+  const pending = useRef<Result | null>(null); // a result waiting for the trapdoor to finish
+  const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
 
   // Every clue given in this round, oldest first. In a lobby they come from the shared docs.
   const clues: Clue[] = useMemo(() => {
@@ -95,12 +88,35 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearInterval(id);
   }, []);
 
-  const finish = (won: boolean) => {
+  // If the round ends for everybody while the trapdoor is still falling, the result I was holding
+  // back is sent now, so it is never lost.
+  useEffect(
+    () => () => {
+      if (pendingTimer.current) clearTimeout(pendingTimer.current);
+      const r = pending.current;
+      pending.current = null;
+      if (r) onFinishRef.current(r);
+    },
+    []
+  );
+
+  // `delay` > 0: the clock stops now, but the result is sent after the delay (the hanging).
+  const finish = (won: boolean, delay = 0) => {
     if (done.current) return;
     done.current = true;
     const total = Date.now() - startedAt.current;
     setElapsed(total);
-    onFinish({ finished: won, totalMs: total });
+    const result = { finished: won, totalMs: total };
+    if (delay <= 0) {
+      onFinish(result);
+      return;
+    }
+    pending.current = result;
+    pendingTimer.current = setTimeout(() => {
+      const r = pending.current;
+      pending.current = null;
+      if (r) onFinishRef.current(r);
+    }, delay);
   };
 
   // A clue can also be the last letter I needed.
@@ -108,6 +124,13 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
     if (solved) finish(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solved]);
+
+  // The 6th wrong guess completes the outlaw; a moment later the trapdoor opens.
+  useEffect(() => {
+    if (!hanged) return;
+    const id = setTimeout(() => setTrapOpen(true), HANG_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [hanged]);
 
   // Pop-up for every NEW clue (the first look at the list only records what is already there).
   useEffect(() => {
@@ -158,92 +181,154 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
     if (next === view) return;
     setState(next);
     if (isSolved(next)) finish(true);
-    else if (isHanged(next)) finish(false);
+    else if (isHanged(next)) finish(false, HANG_RESULT_MS);
   };
 
   const shown = display(view);
   // Break the word into words so long names wrap between words, never in the middle of one.
   const words: (string | null)[][] = [[]];
   shown.forEach((ch) => (ch === ' ' ? words.push([]) : words[words.length - 1].push(ch)));
+  const longest = Math.max(1, ...words.map((w) => w.length));
+
+  // ---- sizes: everything is worked out from the space the screen gives us ----------------------
+  const onBox = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setBox((b) => (b.w === width && b.h === height ? b : { w: width, h: height }));
+  };
+  const onScene = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setScene((s) => (s.w === width && s.h === height ? s : { w: width, h: height }));
+  };
+  const colW = Math.min(box.w - 24, 520); // the poster and the keys share one column
+  const keyGap = 4;
+  const keyW = Math.max(24, Math.min(44, Math.floor((colW - keyGap * 9) / 10)));
+  const keyH = Math.max(38, Math.min(48, Math.round(box.h * 0.065)));
+  const keysH = keyH * 3 + 6 * 2;
+  // The longest word of the name always fits on one line of the poster.
+  const posterInner = colW - 28;
+  const slotW = Math.max(14, Math.min(28, Math.floor((posterInner - (longest - 1) * 3) / longest)));
+  const slotH = Math.round(slotW * 1.45);
+  const u = scene.w > 0 ? Math.max(0.5, Math.min(scene.w / GRID_W, (scene.h - BAR_H) / GRID_H)) : 0;
+  const boxLeft = (scene.w - GRID_W * u) / 2;
+  const locked = solved || hanged;
+  const spoken = shown.map((c) => (c === null ? 'blank' : c)).join(' ');
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>{entry.category}</Text>
-        <Text style={[styles.headerText, styles.clock]}>{clock(elapsed)}</Text>
-        <Pressable
-          onPress={onClue}
-          disabled={!canClue}
-          accessibilityRole="button"
-          accessibilityLabel="Ask for a clue"
-          style={[styles.clueButton, !canClue && { opacity: 0.4 }]}
-        >
-          <Text style={styles.clueButtonText}>Clue ({Math.max(0, leftForMe)})</Text>
-        </Pressable>
-      </View>
-
-      <Drawing parts={wrong} />
-
-      <View style={styles.wordArea}>
-        {words.map((w, wi) => (
-          <View key={wi} style={styles.wordRow}>
-            {w.map((ch, i) =>
-              // Digits and punctuation (K2, Grey's Anatomy) are shown for free, with no blank.
-              ch !== null && !isLetter(ch) ? (
-                <View key={i} style={styles.symbol}>
-                  <Text style={styles.slotLetter}>{ch}</Text>
-                </View>
-              ) : (
-                <View key={i} style={styles.slot}>
-                  <Text style={styles.slotLetter}>{ch ?? ' '}</Text>
-                </View>
-              )
-            )}
+    <View style={styles.root} onLayout={onBox}>
+      <View style={styles.scene} onLayout={onScene}>
+        {u > 0 && <Skyline sceneW={scene.w} u={u} boxLeft={boxLeft} />}
+        {u > 0 && (
+          <View pointerEvents="none" style={{ position: 'absolute', left: boxLeft, bottom: 0, width: GRID_W * u, height: GRID_H * u }}>
+            <GallowsScene u={u} parts={wrong} open={trapOpen} />
           </View>
-        ))}
+        )}
+
+        <View style={styles.topBar}>
+          <View style={styles.plate} accessible accessibilityLabel="Time">
+            <Text style={styles.clock}>{clock(elapsed)}</Text>
+          </View>
+          <Pressable
+            onPress={onClue}
+            disabled={!canClue}
+            accessibilityRole="button"
+            accessibilityLabel="Ask for a clue"
+            style={[styles.plate, styles.clueButton, !canClue && { opacity: 0.45 }]}
+          >
+            <MaterialCommunityIcons name="star" size={18} color={west.brass} />
+            <Text style={styles.clueText}>Clue ({Math.max(0, leftForMe)})</Text>
+          </Pressable>
+        </View>
+        <View style={styles.bullets}>
+          <Bullets left={Math.max(0, MAX_WRONG - wrong)} total={MAX_WRONG} />
+        </View>
       </View>
 
-      {solved && <Text style={[styles.banner, { color: colors.experience }]}>You revealed the word!</Text>}
-      {hanged && <Text style={[styles.banner, { color: colors.danger }]}>You were hanged!</Text>}
-
-      {!solved && !hanged && (
-        <View style={styles.keyboard}>
-          {ROWS.map((row) => (
-            <View key={row} style={styles.keyRow}>
-              {row.split('').map((l) => {
-                const used = view.guessed.includes(l);
-                const bad = used && !view.word.includes(l);
-                return (
-                  <Pressable
-                    key={l}
-                    onPress={() => onPick(l)}
-                    disabled={used}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Letter ${l}`}
-                    style={({ pressed }) => [
-                      styles.key,
-                      used && !bad && styles.keyHit,
-                      bad && styles.keyMiss,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text style={[styles.keyText, used && { opacity: 0.6 }]}>{l}</Text>
-                  </Pressable>
-                );
-              })}
+      <View style={styles.wall}>
+        {/* the WANTED poster: the hidden name is the outlaw's name */}
+        <View style={[styles.poster, { width: colW }]} accessible accessibilityLabel={`Wanted, ${entry.category}. ${spoken}`}>
+          <View style={styles.nailRow} pointerEvents="none">
+            <View style={styles.nail} />
+            <View style={styles.nail} />
+          </View>
+          <View style={styles.posterHead}>
+            <Text style={styles.wanted}>WANTED</Text>
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>{entry.category}</Text>
             </View>
-          ))}
+          </View>
+          <View style={styles.wordArea}>
+            {words.map((w, wi) => (
+              <View key={wi} style={styles.wordRow}>
+                {w.map((ch, i) =>
+                  // Digits and punctuation (K2, Grey's Anatomy) are shown for free, with no blank.
+                  ch !== null && !isLetter(ch) ? (
+                    <View key={i} style={{ width: Math.round(slotW * 0.6), height: slotH, alignItems: 'center', justifyContent: 'flex-end' }}>
+                      <Text style={[styles.slotLetter, { fontSize: Math.round(slotW * 0.95) }]}>{ch}</Text>
+                    </View>
+                  ) : (
+                    <View key={i} style={[styles.slot, { width: slotW, height: slotH }]}>
+                      <Text style={[styles.slotLetter, { fontSize: Math.round(slotW * 0.95) }]}>{ch ?? ' '}</Text>
+                    </View>
+                  )
+                )}
+              </View>
+            ))}
+          </View>
         </View>
-      )}
 
-      {/* Someone asked for a clue: everybody sees who, and the letter. */}
+        {/* the keys, on the plank wall; when the game is over they give way to one line of text */}
+        <View style={{ height: keysH, width: colW, marginTop: 10, justifyContent: 'center' }}>
+          {locked ? (
+            <Text style={[styles.banner, { color: solved ? '#B7D77A' : west.missText }]}>
+              {solved ? 'You revealed the word!' : 'You were hanged!'}
+            </Text>
+          ) : (
+            <View style={{ gap: 6 }}>
+              {ROWS.map((row) => (
+                <View key={row} style={[styles.keyRow, { gap: keyGap }]}>
+                  {row.split('').map((l) => {
+                    const used = view.guessed.includes(l);
+                    const bad = used && !view.word.includes(l);
+                    return (
+                      <Pressable
+                        key={l}
+                        onPress={() => onPick(l)}
+                        disabled={used}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Letter ${l}`}
+                        accessibilityState={{ disabled: used }}
+                        style={({ pressed }) => [
+                          styles.key,
+                          { width: keyW, height: keyH },
+                          used && !bad && styles.keyHit,
+                          bad && styles.keyMiss,
+                          pressed && { transform: [{ translateY: 2 }], borderBottomWidth: 1 },
+                        ]}
+                      >
+                        <Text style={[styles.keyText, { fontSize: Math.round(keyW * 0.58) }, bad && styles.keyTextMiss]}>{l}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Someone asked for a clue: everybody sees who, and the letter, on a telegram. */}
       <Modal visible={!!popup} transparent animationType="fade" onRequestClose={() => setPopups((p) => p.slice(1))}>
         <View style={styles.popupBackdrop}>
           {popup && (
-            <View style={styles.popupBox}>
-              <Text style={styles.popupTitle}>{nameOf(popup.uid)} asked for a clue</Text>
-              <Text style={styles.popupLetter}>{popup.letter}</Text>
-              <Text style={styles.popupText}>This letter is in the word.</Text>
+            <View style={styles.telegram}>
+              <View style={styles.telegramHead}>
+                <Text style={styles.telegramHeadText}>Telegram</Text>
+              </View>
+              <View style={styles.telegramBody}>
+                <Text style={styles.popupTitle}>{nameOf(popup.uid)} asked for a clue</Text>
+                <Text style={styles.popupLetter}>{popup.letter}</Text>
+                <Text style={styles.popupText}>This letter is in the word.</Text>
+              </View>
             </View>
           )}
         </View>
@@ -253,55 +338,94 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 12 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerText: { color: colors.muted, fontSize: 15, fontWeight: '600' },
-  clock: { color: colors.text, fontSize: 22, fontVariant: ['tabular-nums'] },
-  drawing: { width: 180, height: 190, alignSelf: 'center' },
-  line: { position: 'absolute', backgroundColor: colors.muted, borderRadius: 2 },
-  head: { position: 'absolute', left: 124, top: 28, width: 28, height: 28, borderRadius: 14, borderWidth: 3 },
-  limb: { position: 'absolute', borderRadius: 2 },
-  wordArea: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 18, rowGap: 10 },
-  wordRow: { flexDirection: 'row', gap: 4 },
-  slot: { width: 22, height: 34, borderBottomWidth: 3, borderBottomColor: colors.experience, alignItems: 'center', justifyContent: 'flex-end' },
-  symbol: { width: 14, height: 34, alignItems: 'center', justifyContent: 'flex-end' },
-  clueButton: {
-    borderWidth: 1,
-    borderColor: colors.experience,
-    borderRadius: radius.sm,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  clueButtonText: { color: colors.experience, fontSize: 15, fontWeight: '700' },
-  popupBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  popupBox: {
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.experience,
-    borderRadius: radius.md,
-    paddingVertical: 22,
-    paddingHorizontal: 28,
+  root: { flex: 1, backgroundColor: west.wall },
+  scene: { flex: 1, minHeight: 140, overflow: 'hidden' },
+  topBar: {
+    position: 'absolute',
+    top: 6,
+    left: 12,
+    right: 0,
+    height: BAR_H - 8,
+    paddingRight: MIC_SPACE,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  popupTitle: { color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  popupLetter: { color: colors.experience, fontSize: 64, fontWeight: '800' },
-  popupText: { color: colors.muted, fontSize: 15 },
-  slotLetter: { color: colors.text, fontSize: 22, fontWeight: '800' },
-  banner: { textAlign: 'center', fontSize: 24, fontWeight: '800', paddingVertical: 8 },
-  keyboard: { gap: 8, marginTop: 4 },
-  keyRow: { flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  plate: {
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: west.plate,
+    borderWidth: 1.5,
+    borderColor: west.brassDark,
+    justifyContent: 'center',
+  },
+  clock: { color: west.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 18, fontVariant: ['tabular-nums'] },
+  clueButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderColor: west.brass },
+  clueText: { color: west.brass, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 15 },
+  bullets: { position: 'absolute', left: 12, top: BAR_H + 2 },
+
+  wall: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 8,
+    backgroundColor: west.wall,
+    borderTopWidth: 4,
+    borderTopColor: west.wood,
+  },
+  poster: {
+    backgroundColor: west.paper,
+    borderWidth: 2,
+    borderColor: west.paperEdge,
+    borderRadius: 3,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 6,
+  },
+  nailRow: { position: 'absolute', top: 4, left: 5, right: 5, flexDirection: 'row', justifyContent: 'space-between' },
+  nail: { width: 5, height: 5, borderRadius: 3, backgroundColor: west.brassDark },
+  posterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wanted: { color: west.wanted, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 24, letterSpacing: 2 },
+  tag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 2,
+    borderColor: west.wanted,
+    borderRadius: 3,
+    transform: [{ rotate: '-3deg' }],
+  },
+  tagText: { color: west.wanted, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 14 },
+  wordArea: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 14, rowGap: 6 },
+  wordRow: { flexDirection: 'row', gap: 3 },
+  slot: { borderBottomWidth: 3, borderBottomColor: west.paperInk, alignItems: 'center', justifyContent: 'flex-end' },
+  slotLetter: { color: west.paperInk, fontFamily: FONT_DISPLAY, fontWeight: displayWeight },
+
+  banner: { textAlign: 'center', fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 24 },
+  keyRow: { flexDirection: 'row', justifyContent: 'center' },
   key: {
-    width: 31,
-    height: 44,
-    backgroundColor: colors.card,
+    backgroundColor: west.key,
     borderWidth: 1,
-    borderColor: colors.experience,
-    borderRadius: radius.sm,
+    borderTopColor: west.keyTop,
+    borderLeftColor: west.keyTop,
+    borderRightColor: west.keyBase,
+    borderBottomColor: west.keyBase,
+    borderBottomWidth: 3,
+    borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  keyHit: { backgroundColor: '#1F6F55', borderColor: colors.experience },
-  keyMiss: { backgroundColor: '#5A2424', borderColor: colors.danger },
-  keyText: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  keyHit: { backgroundColor: west.hit, borderTopColor: west.hit, borderLeftColor: west.hit, borderRightColor: west.hitBase, borderBottomColor: west.hitBase },
+  keyMiss: { backgroundColor: west.miss, borderColor: west.miss },
+  keyText: { color: west.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight },
+  keyTextMiss: { color: west.missText, textDecorationLine: 'line-through', opacity: 0.8 },
+
+  popupBackdrop: { flex: 1, backgroundColor: 'rgba(20,8,12,0.65)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  telegram: { width: 260, backgroundColor: west.paper, borderWidth: 2, borderColor: west.paperEdge, borderRadius: 3, overflow: 'hidden' },
+  telegramHead: { backgroundColor: west.paperInk, paddingVertical: 6, alignItems: 'center' },
+  telegramHeadText: { color: west.paper, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 15, letterSpacing: 2 },
+  telegramBody: { alignItems: 'center', gap: 6, paddingVertical: 18, paddingHorizontal: 20 },
+  popupTitle: { color: west.paperInk, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 18, textAlign: 'center' },
+  popupLetter: { color: west.wanted, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 64 },
+  popupText: { color: west.paperInk, fontFamily: FONT_DISPLAY, fontSize: 15 },
 });
