@@ -120,6 +120,11 @@ export function ChatBubble({ navRef, routeName }: Props) {
     return api.subscribeChat(setMsgs, (e) => console.warn('chat listener failed', e));
   }, [signedIn]);
 
+  // Opening the chat also clears the messages older than a day.
+  useEffect(() => {
+    if (open && signedIn && !isDemoMode) void api.cleanOldChat();
+  }, [open, signedIn]);
+
   const newest = msgs.length ? msgs[msgs.length - 1].at : 0;
   useEffect(() => {
     if (open && newest > lastSeen) {

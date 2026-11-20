@@ -6,6 +6,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -13,6 +14,9 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  Timestamp,
+  where,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { JankenDoc } from '../game/janken';
@@ -658,6 +662,38 @@ export async function sendChat(username: string, rawText: string): Promise<void>
     text,
     createdAt: serverTimestamp(),
   });
+}
+
+// Daily chat cleaning, done by whoever opens the chat: messages older than a day are deleted
+// (the rules allow anyone signed in to delete a message once it is older than one day).
+// It runs at most once an hour per app session and never touches anything newer, so it cannot
+// affect profiles, tickets, the leaderboard or lobbies.
+const CHAT_KEEP_MS = 24 * 3600 * 1000 + 10 * 60 * 1000; // a day, plus 10 minutes of clock-difference margin
+let lastChatClean = 0;
+
+export async function cleanOldChat(): Promise<number> {
+  if (!db || !auth?.currentUser) return 0;
+  const now = Date.now();
+  if (now - lastChatClean < 3600 * 1000) return 0;
+  lastChatClean = now;
+  let removed = 0;
+  try {
+    for (let page = 0; page < 10; page++) {
+      const snap = await getDocs(
+        query(collection(db, 'chat'), where('createdAt', '<', Timestamp.fromMillis(now - CHAT_KEEP_MS)), limit(100))
+      );
+      if (snap.empty) break;
+      const batch = writeBatch(db);
+      snap.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+      removed += snap.size;
+      if (snap.size < 100) break;
+    }
+  } catch (e) {
+    lastChatClean = 0; // try again next time the chat is opened
+    console.warn('cleanOldChat failed', e);
+  }
+  return removed;
 }
 
 // Newest 50 messages, delivered oldest first. Older ones simply scroll out of view.
