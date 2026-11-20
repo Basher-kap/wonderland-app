@@ -15,7 +15,7 @@ import {
   tick,
 } from '../game/magicalBanana';
 import * as api from '../lib/api';
-import { colors, radius } from '../theme';
+import { FONT_FOOD, food as f } from '../gameThemes/foodLandTheme';
 import type { GameProps } from './types';
 
 // Magical Banana: players sit in a circle and say a word related to the previous word. The start
@@ -225,6 +225,8 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
   return (
     <View style={styles.root}>
       <View style={{ width: S, height: H, alignSelf: 'center' }}>
+        {/* the big plate the players sit around */}
+        <View pointerEvents="none" style={[styles.plate, { left: S / 2 - rx, top: H / 2 - ry, width: rx * 2, height: ry * 2 }]} />
         {st.order.map((id, i) => {
           const angle = (2 * Math.PI * i) / n - Math.PI / 2;
           const x = S / 2 + rx * Math.cos(angle) - BOX_W / 2;
@@ -310,7 +312,7 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
               maxLength={MAX_WORD_LENGTH}
               returnKeyType="send"
               placeholder="Type a word"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={f.inkMuted}
               style={styles.input}
             />
             <Pressable onPress={submitWord} accessibilityRole="button" style={styles.sendButton}>
@@ -326,11 +328,11 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
             Is “{judge.word}” related to “{judge.prev}”?
           </Text>
           <View style={styles.inputRow}>
-            <Pressable onPress={() => send('vote', { vote: 'ok' })} accessibilityRole="button" style={[styles.voteButton, { borderColor: colors.experience }]}>
-              <Text style={styles.voteText}>OK</Text>
+            <Pressable onPress={() => send('vote', { vote: 'ok' })} accessibilityRole="button" style={[styles.voteButton, styles.voteOk]}>
+              <Text style={[styles.voteText, { color: f.ink }]}>OK</Text>
             </Pressable>
-            <Pressable onPress={() => send('vote', { vote: 'no' })} accessibilityRole="button" style={[styles.voteButton, { borderColor: colors.danger }]}>
-              <Text style={styles.voteText}>NO</Text>
+            <Pressable onPress={() => send('vote', { vote: 'no' })} accessibilityRole="button" style={[styles.voteButton, styles.voteNo]}>
+              <Text style={[styles.voteText, { color: f.cream }]}>NO</Text>
             </Pressable>
           </View>
         </View>
@@ -354,86 +356,94 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
 const styles = StyleSheet.create({
   root: { gap: 12 },
   waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
-  waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  waitingText: { color: colors.muted, fontSize: 15 },
+  waitingTitle: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 18, fontWeight: '700' },
+  waitingText: { color: f.textSoft, fontFamily: FONT_FOOD, fontSize: 15 },
+  plate: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: 'rgba(242,138,178,0.55)',
+    backgroundColor: 'rgba(255,243,220,0.08)',
+  },
   player: {
     position: 'absolute',
     width: BOX_W,
     height: BOX_H,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: f.cream,
+    borderWidth: 2,
+    borderColor: f.creamEdge,
+    borderRadius: 10,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playerOnTheClock: { borderColor: colors.logic, borderWidth: 2 },
-  playerMe: { backgroundColor: colors.cardAlt },
-  playerName: { color: colors.muted, fontSize: 11, fontWeight: '600' },
-  playerWord: { color: colors.text, fontSize: 14, fontWeight: '800', maxWidth: BOX_W - 8 },
+  playerOnTheClock: { borderColor: f.berry, borderWidth: 3 },
+  playerMe: { backgroundColor: f.custard },
+  playerName: { color: f.inkMuted, fontFamily: FONT_FOOD, fontSize: 11, fontWeight: '700' },
+  playerWord: { color: f.ink, fontFamily: FONT_FOOD, fontSize: 14, fontWeight: '800', maxWidth: BOX_W - 8 },
   center: {
     position: 'absolute',
     width: 130,
     height: 110,
-    backgroundColor: colors.cardAlt,
+    backgroundColor: f.cocoa,
     borderWidth: 2,
-    borderColor: colors.logic,
-    borderRadius: radius.md,
+    borderColor: f.custard,
+    borderRadius: 22,
     padding: 6,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  centerCount: { color: colors.text, fontSize: 56, fontWeight: '900', flex: 1, textAlignVertical: 'center' },
-  centerLabel: { color: colors.muted, fontSize: 11, fontWeight: '600' },
-  centerWord: { color: colors.text, fontSize: 20, fontWeight: '800', textAlign: 'center', maxWidth: 116 },
-  centerTimer: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  centerCount: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 56, fontWeight: '900', flex: 1, textAlignVertical: 'center' },
+  centerLabel: { color: '#E8CDB8', fontFamily: FONT_FOOD, fontSize: 11, fontWeight: '600' },
+  centerWord: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 20, fontWeight: '800', textAlign: 'center', maxWidth: 116 },
+  centerTimer: { color: f.custard, fontFamily: FONT_FOOD, fontSize: 13, fontWeight: '700' },
   judgeButton: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.sm,
+    backgroundColor: f.berry,
+    borderRadius: 10,
     paddingVertical: 4,
     paddingHorizontal: 18,
   },
-  judgeText: { color: colors.bg, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  note: { color: colors.accent, fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  judgeText: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  note: { color: f.custard, fontFamily: FONT_FOOD, fontSize: 15, fontWeight: '600', textAlign: 'center' },
   panel: {
     gap: 8,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.logic,
-    borderRadius: radius.md,
+    backgroundColor: f.cocoa,
+    borderWidth: 2,
+    borderColor: f.frosting,
+    borderRadius: 14,
     padding: 12,
   },
-  panelTitle: { color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  panelTitle: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   inputRow: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,
     height: 46,
-    color: colors.text,
-    backgroundColor: colors.bg,
+    color: f.ink,
+    backgroundColor: f.cream,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: f.creamEdge,
+    borderRadius: 10,
     paddingHorizontal: 12,
     fontSize: 18,
   },
   sendButton: {
     height: 46,
     paddingHorizontal: 18,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accent,
+    borderRadius: 10,
+    backgroundColor: f.custard,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendText: { color: colors.bg, fontSize: 16, fontWeight: '800' },
+  sendText: { color: f.ink, fontFamily: FONT_FOOD, fontSize: 16, fontWeight: '800' },
   voteButton: {
     flex: 1,
     height: 52,
-    borderRadius: radius.sm,
+    borderRadius: 12,
     borderWidth: 2,
-    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  voteText: { color: colors.text, fontSize: 20, fontWeight: '800' },
+  voteOk: { backgroundColor: f.mint, borderColor: f.mint },
+  voteNo: { backgroundColor: f.berry, borderColor: f.berry },
+  voteText: { fontFamily: FONT_FOOD, fontSize: 20, fontWeight: '800' },
 });
