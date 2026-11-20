@@ -60,6 +60,9 @@ export type GameModule = {
   // The round ends for EVERYBODY as soon as one player finishes successfully (Hangman: the
   // first to reveal the word). The host then picks the winner from the results that are in.
   endsOnFirstFinish?: boolean;
+  // Like endsOnFirstFinish, but the round ends as soon as ONE submitted result satisfies this test
+  // (Wordle: a player who guessed ALL the words; just finishing the last level is not enough).
+  endsOnResult?: (result: ResultRow) => boolean;
   // The game takes the whole screen (no title, no round box around it): Karuta pins the player's own
   // rack to the bottom of the screen. GameScreen then renders it outside the ScrollView.
   fullScreen?: boolean;
@@ -83,6 +86,9 @@ export const GAME_MODULES: Record<string, GameModule> = {
     pickWinner: pickMostPoints,
     describe: (r) => (r.finished ? `guessed ${solvedCount(r.score ?? 0)} of ${LEVEL_COUNT} words` : 'did not finish'),
     multiStage: true,
+    // The game ends as soon as the first player guesses ALL the words (every level solved = the
+    // maximum points).
+    endsOnResult: (r) => r.finished && (r.score ?? 0) >= WORDLE_MAX_POINTS,
     extraPoints: wordleExtraPoints,
     summary: (seed) =>
       'The words were:\n' +

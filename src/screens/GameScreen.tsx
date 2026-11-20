@@ -5,6 +5,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge, DomainStat } from '../components/ui';
 import { RoundIntro } from '../components/RoundIntro';
+import { VoiceButton } from '../components/VoiceButton';
 import { useAuth } from '../context/AuthContext';
 import { difficultyOf, getGame } from '../data/games';
 import { DomainCount, settlementFor } from '../game/engine';
@@ -133,8 +134,11 @@ export function GameScreen() {
   const mine = local?.key === roundKey ? local : null;
   // The round is over when every player has handed in a result (finished, or forfeited the game).
   // Some games (Hangman) also end for everybody as soon as one player finishes successfully.
-  const someoneWon =
-    !!gameModule?.endsOnFirstFinish && roundResults.some((r) => r.finished && !r.forfeited);
+  const someoneWon = roundResults.some(
+    (r) =>
+      !r.forfeited &&
+      ((!!gameModule?.endsOnFirstFinish && r.finished) || (gameModule?.endsOnResult?.(r) ?? false))
+  );
   // Or when only one player is still playing (everybody else is out): that player wins.
   const oneLeft =
     !!gameModule?.endsWhenOneLeft && !!lobby && lobby.playerIds.length > 1 && roundResults.length >= lobby.playerIds.length - 1;
@@ -327,7 +331,9 @@ export function GameScreen() {
   // 1. Intro dialogs, full screen, for an active round (or a practice run).
   const inRound = lobby ? roundActive : !code; // a lobby that is still loading is not a practice run
   if (inRound && !introDone) {
-    return <RoundIntro key={roundKey} game={game} difficulty={difficulty} onDone={() => setIntroDoneFor(roundKey)} />;
+    return (
+      <RoundIntro key={roundKey} game={game} difficulty={difficulty} code={code} onDone={() => setIntroDoneFor(roundKey)} />
+    );
   }
 
   const waitingToStart = !!lobby && !!gameModule && roundActive && !started && !mine;
@@ -371,6 +377,7 @@ export function GameScreen() {
     return (
       <SafeAreaView style={styles.root} edges={['bottom']}>
         <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
+        <VoiceButton code={code} />
       </SafeAreaView>
     );
   }
@@ -543,6 +550,7 @@ export function GameScreen() {
           <Text style={styles.boxText}>You forfeited the match. Ending it now…</Text>
         )}
       </ScrollView>
+      <VoiceButton code={code} />
       {!locked && (
         <View style={styles.footer}>
           <Button label="Back" variant="secondary" onPress={() => navigation.goBack()} />

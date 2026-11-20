@@ -5,6 +5,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Button } from '../components/ui';
+import { VoiceButton } from '../components/VoiceButton';
+import { voice } from '../voice/voice';
 import { useAuth } from '../context/AuthContext';
 import { GAMES } from '../data/games';
 import * as api from '../lib/api';
@@ -23,6 +25,14 @@ export function LobbyScreen() {
   const { uid, username } = useAuth();
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // The voice chat belongs to this lobby: it keeps running while a game is played on top of this
+  // screen, and stops when the lobby screen goes away.
+  useEffect(() => {
+    return () => {
+      void voice.leaveLobby(params.code);
+    };
+  }, [params.code]);
 
   // Live lobby: players joining, lives, and the game the host's phone drew.
   useEffect(() => {
@@ -92,6 +102,7 @@ export function LobbyScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
+      <VoiceButton code={params.code} />
       <View style={styles.codeBox}>
         <Text style={styles.codeLabel}>Lobby ID</Text>
         <Text style={styles.code}>{params.code}</Text>
