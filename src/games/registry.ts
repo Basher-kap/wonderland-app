@@ -4,6 +4,7 @@ import {
   extraPoints as wordleExtraPoints,
   LEVEL_COUNT,
   LEVEL_NAMES,
+  MAX_EXTRA as WORDLE_MAX_POINTS,
   pickAnswer,
   pickWinner as pickMostPoints,
   solvedCount,
@@ -74,6 +75,8 @@ export const GAME_MODULES: Record<string, GameModule> = {
     Component: SchulteGame,
     pickWinner: pickFastestFinisher,
     describe: (r) => (r.finished ? formatSeconds(r.totalMs) : 'did not finish'),
+    // The round ends for everybody as soon as one player has cleared all 5 levels.
+    endsOnFirstFinish: true,
   },
   wordle: {
     Component: WordleGame,

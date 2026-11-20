@@ -80,12 +80,9 @@ export const GAMES: Game[] = [
       'The first player must say a word related to the given starting word.',
       'The next player must immediately say another word related to the previous player’s answer before the rhythm ends.',
       'The game continues in the same order, with each player providing a related word.',
-      
-    ],
-    example: [
-      'If the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
+      'Example: if the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
       'If the next player says “Yellow”, the following player may respond with “Sun” or “Gold”.',
-      ],
+    ],
     prohibitions: [
       'Players who provide invalid or unrelated words are disqualified from the game.',
       'Players who fail to provide an answer within the rhythm are automatically disqualified.',
