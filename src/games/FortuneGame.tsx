@@ -18,9 +18,9 @@ import {
   tick,
   TIERS,
 } from '../game/fortune';
-import type { FortuneTier } from '../game/fortune';
 import * as api from '../lib/api';
-import { colors, radius } from '../theme';
+import { ShrineIcon } from '../components/ShrineIcon';
+import { FONT_FORTUNE, fortune as p, TIER_INK } from '../gameThemes/fortuneTheme';
 import type { GameProps } from './types';
 
 // Fortune: a small temple picks a player at random; that player draws one of the covered fortune
@@ -34,18 +34,13 @@ import type { GameProps } from './types';
 // the others cannot continue (known limit, same as Magical Banana). The forfeit buttons are
 // GameScreen's.
 //
+// LOOK: a night festival with a small shrine (src/gameThemes/fortuneTheme.ts). The lanterns, the torii and
+// the rules dialogs are in components/FestivalBackground.tsx and gameThemes/gameThemes.tsx; the shrine is
+// components/ShrineIcon.tsx; a drawn slip is omikuji paper.
+//
 // Hidden notes kept here on purpose, not in the rules window: the temple chooses at random until
 // everybody was chosen, then starts over; the pane scrolls with covered slips; the drawn slip is
 // shown to everybody; the answer, the right answer and the life lost are revealed to everybody.
-
-const TIER_COLOR: Record<FortuneTier, string> = {
-  daikichi: '#FFD166',
-  chuukichi: '#F6A04D',
-  shokichi: '#5DCAA5',
-  kichi: '#AFA9EC',
-  kyou: '#F09595',
-  daikyou: '#E24B4A',
-};
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
@@ -301,7 +296,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
                 <View
                   style={[
                     styles.lifeFill,
-                    { width: `${Math.round(pct * 100)}%`, backgroundColor: pct > 0.5 ? colors.experience : pct > 0.25 ? colors.accent : colors.danger },
+                    { width: `${Math.round(pct * 100)}%`, backgroundColor: pct > 0.5 ? p.lifeGood : pct > 0.25 ? p.lifeMid : p.lifeLow },
                   ]}
                 />
               </View>
@@ -320,7 +315,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
             accessibilityLabel="Open the temple"
             style={[styles.temple, st.phase === 'temple' && mine && styles.templeActive]}
           >
-            <Text style={styles.templeIcon}>⛩️</Text>
+            <ShrineIcon glow={st.phase === 'temple' && mine} />
           </Pressable>
           {st.phase === 'choosing' && (
             <Text style={styles.stageText}>{roulette ? 'The temple is choosing a player…' : `${name(st.current)} was chosen!`}</Text>
@@ -340,7 +335,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
           <Text style={styles.stageTitle}>
             {mine ? 'Pick a fortune slip!' : `${name(st.current)} is picking a slip…`}
           </Text>
-          <Text style={[styles.timer, left < 4000 && { color: colors.danger }]}>
+          <Text style={[styles.timer, left < 4000 && { color: p.hot }]}>
             {secondsLeft(left)}s{mine ? ` · too slow loses ${PICK_PENALTY} life` : ''}
           </Text>
           <View style={styles.paneRow}>
@@ -362,7 +357,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
               </ScrollView>
             </Animated.View>
             <View style={styles.paneSide}>
-              <Text style={styles.templeIcon}>⛩️</Text>
+              <ShrineIcon scale={0.7} />
               <Text style={styles.stageText}>{covered.length} covered slips</Text>
             </View>
           </View>
@@ -371,8 +366,8 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
 
       {/* The slip everybody can read */}
       {showSlip && slip && tier && question && (
-        <View style={[styles.slip, { borderColor: TIER_COLOR[slip.tier] }]}>
-          <Text style={[styles.slipTier, { color: TIER_COLOR[slip.tier] }]}>
+        <View style={[styles.slip, { borderColor: TIER_INK[slip.tier] }]}>
+          <Text style={[styles.slipTier, { color: TIER_INK[slip.tier] }]}>
             {tier.kanji}  {tier.label}
           </Text>
           <Text style={styles.slipFortune}>“{question.fortune}”</Text>
@@ -384,7 +379,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
           )}
           <Text style={styles.slipBy}>Drawn by {name(st.current)}</Text>
           {st.phase === 'answer' && (
-            <Text style={[styles.timer, left < 8000 && { color: colors.danger }]}>
+            <Text style={[styles.timer, styles.slipTimer, left < 8000 && { color: p.hotOnPaper }]}>
               {secondsLeft(left)}s of {secondsLeft(ANSWER_MS)}s
             </Text>
           )}
@@ -405,7 +400,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
               returnKeyType="send"
               maxLength={12}
               placeholder="Type a number"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={p.inkMuted}
               style={styles.input}
             />
             <Pressable onPress={submitAnswer} accessibilityRole="button" style={styles.sendButton}>
@@ -423,7 +418,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
       {st.phase === 'reveal' && result && (
         <View style={styles.reveal}>
           {resultLines(result).map((line, i) => (
-            <Text key={i} style={[styles.revealLine, i === 0 && { color: colors.text, fontWeight: '800' }]}>
+            <Text key={i} style={[styles.revealLine, i === 0 && { color: p.paper, fontWeight: '800' }]}>
               {line}
             </Text>
           ))}
@@ -453,58 +448,49 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
 const styles = StyleSheet.create({
   root: { gap: 12 },
   waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
-  waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  waitingText: { color: colors.muted, fontSize: 15 },
-  meta: { color: colors.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  waitingTitle: { color: p.paper, fontFamily: FONT_FORTUNE, fontSize: 18, fontWeight: '700' },
+  waitingText: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 15 },
+  meta: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   player: {
     flexBasis: '48%',
     flexGrow: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    backgroundColor: p.wood,
+    borderWidth: 2,
+    borderColor: p.woodEdge,
+    borderRadius: 8,
     padding: 8,
     gap: 6,
   },
-  playerOnTheClock: { borderColor: colors.accent, borderWidth: 2 },
-  playerMe: { backgroundColor: colors.cardAlt },
+  playerOnTheClock: { borderColor: p.lantern, borderWidth: 3 },
+  playerMe: { backgroundColor: p.woodLight },
   playerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 },
-  playerName: { color: colors.muted, fontSize: 13, fontWeight: '600', flexShrink: 1 },
-  playerLife: { color: colors.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  lifeTrack: { height: 6, borderRadius: 3, backgroundColor: colors.bg, overflow: 'hidden' },
+  playerName: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  playerLife: { color: p.paper, fontFamily: FONT_FORTUNE, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  lifeTrack: { height: 6, borderRadius: 3, backgroundColor: '#120A06', overflow: 'hidden' },
   lifeFill: { height: 6, borderRadius: 3 },
   stage: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.logic,
-    borderRadius: radius.md,
+    backgroundColor: p.wood,
+    borderWidth: 2,
+    borderColor: p.gold,
+    borderRadius: 14,
     padding: 14,
     alignItems: 'center',
     gap: 8,
   },
-  temple: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: colors.cardAlt,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  templeActive: { borderColor: colors.accent, borderWidth: 3 },
-  templeIcon: { fontSize: 56 },
-  stageTitle: { color: colors.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  stageText: { color: colors.muted, fontSize: 14, textAlign: 'center' },
-  timer: { color: colors.accent, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  temple: { alignItems: 'center', justifyContent: 'center', padding: 10, borderRadius: 20, borderWidth: 3, borderColor: 'transparent' },
+  templeActive: { borderColor: p.lantern },
+  stageTitle: { color: p.paper, fontFamily: FONT_FORTUNE, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  stageText: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 14, textAlign: 'center' },
+  timer: { color: p.lantern, fontFamily: FONT_FORTUNE, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  slipTimer: { color: p.vermilionDeep },
   paneRow: { flexDirection: 'row', gap: 10, alignSelf: 'stretch', overflow: 'hidden' },
   pane: {
     flex: 3,
-    backgroundColor: colors.bg,
+    backgroundColor: '#150D08',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: p.woodEdge,
+    borderRadius: 8,
     padding: 8,
   },
   paneGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -523,36 +509,36 @@ const styles = StyleSheet.create({
   seal: { position: 'absolute', top: 6, width: 8, height: 22, borderRadius: 2, backgroundColor: '#B23A3A' },
   coveredNo: { color: '#6B4F1D', fontSize: 11, fontWeight: '700' },
   slip: {
-    backgroundColor: colors.card,
-    borderWidth: 2,
-    borderRadius: radius.md,
+    backgroundColor: p.paper,
+    borderWidth: 3,
+    borderRadius: 6,
     padding: 16,
     gap: 10,
     alignItems: 'center',
   },
-  slipTier: { fontSize: 26, fontWeight: '900', letterSpacing: 1 },
-  slipFortune: { color: colors.text, fontSize: 16, fontStyle: 'italic', textAlign: 'center', lineHeight: 23 },
-  slipRule: { alignSelf: 'stretch', height: 1, backgroundColor: colors.border },
-  slipQuestion: { color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 25 },
-  slipBy: { color: colors.muted, fontSize: 13 },
+  slipTier: { fontFamily: FONT_FORTUNE, fontSize: 26, fontWeight: '900', letterSpacing: 1 },
+  slipFortune: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 16, fontStyle: 'italic', textAlign: 'center', lineHeight: 24 },
+  slipRule: { alignSelf: 'stretch', height: 2, backgroundColor: p.paperEdge },
+  slipQuestion: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
+  slipBy: { color: p.inkMuted, fontFamily: FONT_FORTUNE, fontSize: 13 },
   panel: {
     gap: 8,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.logic,
-    borderRadius: radius.md,
+    backgroundColor: p.wood,
+    borderWidth: 2,
+    borderColor: p.gold,
+    borderRadius: 14,
     padding: 12,
   },
-  panelTitle: { color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  panelTitle: { color: p.paper, fontFamily: FONT_FORTUNE, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   inputRow: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,
     height: 46,
-    color: colors.text,
-    backgroundColor: colors.bg,
+    color: p.ink,
+    backgroundColor: p.paper,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: p.paperEdge,
+    borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 20,
     fontVariant: ['tabular-nums'],
@@ -560,29 +546,29 @@ const styles = StyleSheet.create({
   sendButton: {
     height: 46,
     paddingHorizontal: 18,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accent,
+    borderRadius: 8,
+    backgroundColor: p.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendText: { color: colors.bg, fontSize: 16, fontWeight: '800' },
-  hint: { color: colors.muted, fontSize: 13, textAlign: 'center' },
-  note: { color: colors.accent, fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  sendText: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 16, fontWeight: '800' },
+  hint: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 13, textAlign: 'center' },
+  note: { color: p.lantern, fontFamily: FONT_FORTUNE, fontSize: 15, fontWeight: '600', textAlign: 'center' },
   reveal: {
-    backgroundColor: colors.cardAlt,
+    backgroundColor: p.woodLight,
     borderWidth: 2,
-    borderColor: colors.accent,
-    borderRadius: radius.md,
+    borderColor: p.lantern,
+    borderRadius: 14,
     padding: 14,
     gap: 6,
   },
-  revealLine: { color: colors.muted, fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  revealLine: { color: p.textSoft, fontFamily: FONT_FORTUNE, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   over: {
-    backgroundColor: colors.card,
+    backgroundColor: p.wood,
     borderWidth: 2,
-    borderColor: colors.accent,
-    borderRadius: radius.md,
+    borderColor: p.gold,
+    borderRadius: 14,
     padding: 18,
   },
-  overText: { color: colors.accent, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
+  overText: { color: p.gold, fontFamily: FONT_FORTUNE, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
 });
