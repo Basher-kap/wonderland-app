@@ -22,7 +22,7 @@ export { FORTUNE_BANKS };
 export type { FortuneTier };
 
 // ----------------------------------------------------------- tuning ----
-export const GAME_LIVES = 100;
+export const GAME_LIVES = 250;
 export const DECK_SIZE = 100;
 export const PICK_MS = 10000; // time to pick a slip once the pane is open; too slow = lose 25
 export const PICK_PENALTY = 25;
