@@ -4,10 +4,12 @@ import { StyleSheet, View } from 'react-native';
 import { FoodLandBackground } from '../components/FoodLandBackground';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
+import { OrphanageBackground } from '../components/OrphanageBackground';
 import { WildWestBackground } from '../components/WildWestBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { food as f } from './foodLandTheme';
 import { FONT_DISPLAY, west as h } from './hangmanTheme';
+import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -21,6 +23,7 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'wordle') return LibraryBackground;
   if (gameId === 'human-calculator') return QuizStageBackground;
   if (gameId === 'hangman') return WildWestBackground;
+  if (gameId === 'schulte-table') return OrphanageBackground;
   return null;
 }
 
@@ -155,10 +158,31 @@ const HANGMAN_INTRO: IntroTheme = {
   Decor: PosterNails,
 };
 
+// Schulte Table: the rules are a paper note stuck on the wall with a strip of tape.
+function TapeDecor() {
+  return <View pointerEvents="none" style={tape.strip} />;
+}
+
+const tape = StyleSheet.create({
+  strip: { position: 'absolute', top: -11, alignSelf: 'center', width: 84, height: 22, backgroundColor: k.tape, transform: [{ rotate: '-3deg' }] },
+});
+
+const SCHULTE_INTRO: IntroTheme = {
+  Backdrop: OrphanageBackground,
+  accent: k.title,
+  text: k.ink,
+  hint: k.inkSoft,
+  bullet: k.title,
+  fontFamily: FONT_KIDS,
+  dialog: { backgroundColor: k.paper, borderColor: k.paperEdge, borderWidth: 3, borderRadius: 22 },
+  Decor: TapeDecor,
+};
+
 export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'wordle') return WORDLE_INTRO;
   if (gameId === 'human-calculator') return CALC_INTRO;
   if (gameId === 'magical-banana') return FOOD_INTRO;
   if (gameId === 'hangman') return HANGMAN_INTRO;
+  if (gameId === 'schulte-table') return SCHULTE_INTRO;
   return null;
 }

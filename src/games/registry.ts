@@ -80,6 +80,7 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: (r) => (r.finished ? formatSeconds(r.totalMs) : 'did not finish'),
     // The round ends for everybody as soon as one player has cleared all 5 levels.
     endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the tray must always fit in the frame
   },
   wordle: {
     Component: WordleGame,
