@@ -43,9 +43,6 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
       lines: game.clearConditions?.length ? game.clearConditions : ['To be announced.'],
     },
   ];
-  if (game.prohibitions?.length) {
-    steps.push({ key: 'prohibition', kind: 'lines', heading: 'Prohibition', lines: game.prohibitions });
-  }
   return steps;
 }
 
@@ -67,10 +64,15 @@ export function RoundIntro({
   const last = index === steps.length - 1;
   const color = domainInfo[game.domain].color;
 
+  // The parent passes a new onDone on every render; keep the latest one in a ref so a lobby update
+  // during the intro does not recreate `advance` and restart the fade and the auto-advance timer.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
   const advance = React.useCallback(() => {
-    if (index >= steps.length - 1) onDone();
+    if (index >= steps.length - 1) onDoneRef.current();
     else setIndex(index + 1);
-  }, [index, steps.length, onDone]);
+  }, [index, steps.length]);
 
   useEffect(() => {
     fade.setValue(0);
