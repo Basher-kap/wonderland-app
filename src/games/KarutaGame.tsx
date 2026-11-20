@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import {
   apply,
   KarutaEvent,
@@ -25,23 +25,24 @@ import type { GameProps } from './types';
 // secret advance grabs), which every phone shows. If the host forfeits the game the others cannot
 // continue (known limit, same as Battleships and Fortune). The forfeit buttons are GameScreen's.
 //
-// Layout (hidden notes, not in the rules window): the screen is one board. Every OTHER player's
-// rack is a collapsible tab on the left or right edge (alternating, so many players fit); MY rack is
-// the only one that stays open, pinned to the bottom of the screen for the whole game. The floating
-// target card appears anywhere on the board except the bottom (so it never covers my rack). While
+// Layout (hidden notes, not in the rules window): top to bottom: the status line, the target card
+// slot (FIXED at the top, the target always appears in the same place), the latest events, then the
+// other players' racks stacked vertically (each rack is a collapsible row that extends from the left
+// or the right edge, alternating; its cards are in ONE horizontal line), and MY rack, the only one
+// that stays open, in one single line fitting the screen width, pinned to the bottom. While
 // memorizing all racks are open; every time a new target starts to count down, the racks that were
 // open collapse again (players can open them again).
 
 const PLAYER_COLORS = ['#EF9F27', '#5DCAA5', '#AFA9EC', '#F09595', '#7DB8F0', '#E8D44D', '#C792EA', '#8BD17C'];
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
-const pct = (n: number): `${number}%` => `${n * 100}%`;
 
-// A letter card. Defined outside KarutaGame on purpose: the board re-renders several times a second,
-// and a component created inside would be remounted every time (taps would be lost).
-function Card({ letter, small, tint, onPress, disabled, marked, glow }: {
+// A letter card of a given width (the height follows). Defined outside KarutaGame on purpose: the
+// board re-renders several times a second, and a component created inside would be remounted every
+// time (taps would be lost).
+function Card({ letter, width, tint, onPress, disabled, marked, glow }: {
   letter: string;
-  small?: boolean;
+  width: number;
   tint?: string;
   onPress?: () => void;
   disabled?: boolean;
@@ -56,17 +57,21 @@ function Card({ letter, small, tint, onPress, disabled, marked, glow }: {
       accessibilityLabel={`Card ${letter}`}
       style={({ pressed }) => [
         styles.card,
-        small ? styles.cardSmall : styles.cardBig,
-        tint ? { borderBottomColor: tint, borderBottomWidth: 4 } : null,
+        { width, height: Math.round(width * 1.35) },
+        tint ? { borderBottomColor: tint, borderBottomWidth: 3 } : null,
         marked && styles.cardMarked,
         glow && styles.cardGlow,
         pressed && { opacity: 0.6 },
       ]}
     >
-      <Text style={[styles.cardLetter, small ? { fontSize: 20 } : { fontSize: 28 }]}>{letter}</Text>
+      <Text style={[styles.cardLetter, { fontSize: Math.max(8, Math.round(width * 0.55)) }]}>{letter}</Text>
     </Pressable>
   );
 }
+
+// Width of each card so that `count` cards fit in one line of `avail` pixels (never wider than `max`).
+const fitWidth = (avail: number, count: number, gap: number, max: number) =>
+  Math.max(8, Math.min(max, Math.floor((avail - gap * Math.max(0, count - 1)) / Math.max(1, count))));
 
 export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
   const [st, setSt] = useState<State | null>(null);
@@ -77,7 +82,7 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
   const startedAt = useRef(Date.now());
   const sent = useRef('');
   const finished = useRef(false);
-  const bob = useRef(new Animated.Value(0)).current;
+  const { width: screenW } = useWindowDimensions();
   const roomRef = useRef(room);
   roomRef.current = room;
   const host = useRef<{ state: State | null; pending: State | null; writing: boolean }>({
@@ -179,19 +184,6 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
     const id = setInterval(() => setFrame((f) => f + 1), 100);
     return () => clearInterval(id);
   }, []);
-
-  // The target floats up and down a little.
-  useEffect(() => {
-    const native = Platform.OS !== 'web';
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bob, { toValue: -7, duration: 800, useNativeDriver: native }),
-        Animated.timing(bob, { toValue: 7, duration: 800, useNativeDriver: native }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [bob]);
 
   // Racks: all open while memorizing; every time a new target starts, the racks collapse again.
   const openKey = st ? (st.phase === 'memorize' ? 'memorize' : `t${st.targetNo}`) : '';
@@ -304,31 +296,45 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
               : `${name(st.giver)} is sending a card to ${name(st.giveTo)}…`
             : 'Game over';
 
-  const rackTab = (id: string) => {
+  // Other players' racks: one row each, stacked vertically. The name tab sits on the left or the right
+  // edge (alternating) and the cards are in one horizontal line next to it.
+  const TAB_W = 78;
+  const rackRow = (id: string, i: number) => {
     const isOpen = !!open[id];
     const out = st.out.includes(id);
+    const onLeft = i % 2 === 0;
     const flagged = st.phase === 'live' ? st.tried.includes(id) : st.phase === 'waiting' ? st.advanced.includes(id) : false;
+    const cards = st.racks[id];
+    const w = fitWidth(screenW - 12 - TAB_W - 14, cards.length, 3, 34);
     return (
-      <View key={id} style={[styles.rack, isOpen && styles.rackOpen, { borderColor: colorOf(id) }, out && { opacity: 0.4 }]}>
+      <View
+        key={id}
+        style={[
+          styles.rack,
+          { flexDirection: onLeft ? 'row' : 'row-reverse', alignSelf: onLeft ? 'flex-start' : 'flex-end', borderColor: colorOf(id) },
+          isOpen && !out && styles.rackOpen,
+          out && { opacity: 0.4 },
+        ]}
+      >
         <Pressable
           onPress={() => setOpen((o) => ({ ...o, [id]: !o[id] }))}
           accessibilityRole="button"
           accessibilityLabel={`${isOpen ? 'Collapse' : 'Open'} ${name(id)}'s rack`}
-          style={styles.rackHead}
+          style={[styles.rackTab, { width: TAB_W }]}
         >
           <Text style={[styles.rackName, { color: colorOf(id) }]} numberOfLines={1}>
             {flagged ? '✋ ' : ''}
             {name(id)}
           </Text>
-          <Text style={styles.rackCount}>{out ? 'OUT' : st.racks[id].length}</Text>
+          <Text style={styles.rackCount}>{out ? 'OUT' : cards.length}</Text>
         </Pressable>
         {isOpen && !out && (
-          <View style={styles.rackCards}>
-            {st.racks[id].map((c) => (
+          <View style={[styles.rackCards, { justifyContent: onLeft ? 'flex-start' : 'flex-end' }]}>
+            {cards.map((c) => (
               <Card
                 key={c}
                 letter={c}
-                small
+                width={w}
                 onPress={() => grab(id, c)}
                 disabled={!canGrab}
                 marked={myPick?.owner === id && myPick.card === c}
@@ -340,24 +346,9 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
     );
   };
 
-  // Other players alternate between the left and the right edge.
-  const leftIds = others.filter((_, i) => i % 2 === 0);
-  const rightIds = others.filter((_, i) => i % 2 === 1);
-  const column = (ids: string[], side: 'left' | 'right') => {
-    const anyOpen = ids.some((id) => open[id] && !st.out.includes(id));
-    return (
-      <ScrollView
-        style={[styles.column, side === 'left' ? { left: 0 } : { right: 0 }, { width: anyOpen ? 142 : 84 }]}
-        contentContainerStyle={{ gap: 6, alignItems: side === 'left' ? 'flex-start' : 'flex-end' }}
-        showsVerticalScrollIndicator={false}
-      >
-        {ids.map(rackTab)}
-      </ScrollView>
-    );
-  };
-
   const recent = st.events.slice(-2);
   const myCards = st.racks[uid] ?? [];
+  const myW = fitWidth(screenW - 20, myCards.length, 3, 46);
 
   return (
     <View style={styles.root}>
@@ -366,16 +357,33 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
         <Text style={[styles.status, sending && { color: colors.accent }]}>{status}</Text>
       </View>
 
-      {/* The board: side racks, the floating target, the latest events */}
-      <View style={styles.board}>
-        <View style={styles.events} pointerEvents="none">
-          {recent.map((e) => (
-            <Text key={e.n} style={styles.eventLine}>
-              {eventText(e)}
-            </Text>
-          ))}
-        </View>
+      {/* The target card: always in the same place, at the top */}
+      <View style={styles.targetSlot}>
+        {st.phase === 'live' && st.target ? (
+          <View style={styles.target}>
+            <Text style={styles.targetLetter}>{st.target}</Text>
+          </View>
+        ) : (
+          <View style={[styles.target, styles.targetEmpty]}>
+            <Text style={[styles.targetLetter, { color: colors.border }]}>?</Text>
+          </View>
+        )}
+      </View>
 
+      {/* The latest events */}
+      <View style={styles.events}>
+        {recent.map((e) => (
+          <Text key={e.n} style={styles.eventLine} numberOfLines={2}>
+            {eventText(e)}
+          </Text>
+        ))}
+      </View>
+
+      {/* The other players' racks */}
+      <View style={styles.board}>
+        <ScrollView contentContainerStyle={styles.racks} showsVerticalScrollIndicator={false}>
+          {others.map(rackRow)}
+        </ScrollView>
         {st.phase === 'over' && (
           <View style={styles.over} pointerEvents="none">
             <Text style={styles.overText}>
@@ -383,25 +391,13 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
             </Text>
           </View>
         )}
-
-        {column(leftIds, 'left')}
-        {column(rightIds, 'right')}
-
-        {st.phase === 'live' && st.target && st.spot && (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.floating, { left: pct(st.spot.x), top: pct(st.spot.y), transform: [{ translateY: bob }] }]}
-          >
-            <Text style={styles.floatingLetter}>{st.target}</Text>
-          </Animated.View>
-        )}
       </View>
 
-      {/* My rack: always open, at the bottom */}
+      {/* My rack: always open, in one line, at the bottom */}
       <View style={[styles.mine, { borderColor: colorOf(uid) }, sending && { borderColor: colors.accent }]}>
         <View style={styles.mineHead}>
           <Text style={[styles.rackName, { color: colorOf(uid) }]}>You · {inGame ? myCards.length : 'out'}</Text>
-          {inGame && st.phase !== 'over' && (st.phase === 'waiting' || st.phase === 'live') && myGrabUsed && (
+          {inGame && (st.phase === 'waiting' || st.phase === 'live') && myGrabUsed && (
             <Text style={styles.rackCount}>✋ picked</Text>
           )}
         </View>
@@ -411,6 +407,7 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
               <Card
                 key={c}
                 letter={c}
+                width={myW}
                 tint={colorOf(uid)}
                 onPress={sending ? () => give(c) : () => grab(uid, c)}
                 disabled={sending ? false : !canGrab}
@@ -432,12 +429,26 @@ const styles = StyleSheet.create({
   waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
   waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   waitingText: { color: colors.muted, fontSize: 15 },
-  top: { paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' },
+  top: { paddingVertical: 6, paddingHorizontal: 12, alignItems: 'center' },
   status: { color: colors.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  board: { flex: 1, position: 'relative', overflow: 'hidden' },
-  events: { position: 'absolute', top: 6, left: 0, right: 0, alignItems: 'center', gap: 2, paddingHorizontal: 90 },
+  targetSlot: { alignItems: 'center', paddingVertical: 4 },
+  target: {
+    width: 84,
+    height: 112,
+    backgroundColor: colors.text,
+    borderColor: colors.accent,
+    borderWidth: 4,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetEmpty: { backgroundColor: 'transparent', borderColor: colors.border, borderStyle: 'dashed' },
+  targetLetter: { color: colors.bg, fontSize: 56, fontWeight: '900' },
+  events: { minHeight: 34, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 12 },
   eventLine: { color: colors.muted, fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  over: { position: 'absolute', left: 90, right: 90, top: '38%', alignItems: 'center', zIndex: 5 },
+  board: { flex: 1, position: 'relative' },
+  racks: { padding: 6, gap: 6 },
+  over: { position: 'absolute', left: 20, right: 20, top: '30%', alignItems: 'center', zIndex: 5 },
   overText: {
     color: colors.text,
     fontSize: 18,
@@ -450,60 +461,39 @@ const styles = StyleSheet.create({
     padding: 12,
     overflow: 'hidden',
   },
-  column: { position: 'absolute', top: 0, bottom: 0, flexGrow: 0 },
   rack: {
+    alignItems: 'center',
     backgroundColor: colors.card,
     borderWidth: 1,
     borderRadius: radius.sm,
     padding: 4,
-    gap: 4,
-    maxWidth: 140,
+    gap: 6,
   },
   rackOpen: { backgroundColor: colors.cardAlt },
-  rackHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 4, paddingVertical: 4 },
-  rackName: { fontSize: 12, fontWeight: '800', flexShrink: 1 },
+  rackTab: { paddingHorizontal: 4, paddingVertical: 4, gap: 2 },
+  rackName: { fontSize: 12, fontWeight: '800' },
   rackCount: { color: colors.text, fontSize: 12, fontWeight: '800' },
-  rackCards: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, width: 132 },
+  rackCards: { flex: 1, flexDirection: 'row', flexWrap: 'nowrap', gap: 3 },
   card: {
     backgroundColor: colors.text,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 2,
     borderColor: '#D9C9A8',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardSmall: { width: 38, height: 50 },
-  cardBig: { width: 46, height: 62 },
   cardMarked: { borderColor: colors.accent, borderWidth: 3 },
   cardGlow: { borderColor: colors.accent, borderWidth: 3 },
   cardLetter: { color: colors.bg, fontWeight: '900' },
-  floating: {
-    position: 'absolute',
-    width: 84,
-    height: 112,
-    marginLeft: -42,
-    backgroundColor: colors.text,
-    borderColor: colors.accent,
-    borderWidth: 4,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-    elevation: 10,
-  },
-  floatingLetter: { color: colors.bg, fontSize: 56, fontWeight: '900' },
   mine: {
     backgroundColor: colors.card,
     borderTopWidth: 2,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
     paddingHorizontal: 10,
     paddingTop: 6,
     paddingBottom: 10,
     gap: 6,
-    maxHeight: '40%',
   },
   mineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  mineCards: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  mineCards: { flexDirection: 'row', flexWrap: 'nowrap', gap: 3 },
   note: { color: colors.muted, fontSize: 13, textAlign: 'center' },
 });
