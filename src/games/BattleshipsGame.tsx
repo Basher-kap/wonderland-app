@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import {
   apply,
   BULLETS,
@@ -18,7 +19,10 @@ import {
   withShips,
 } from '../game/battleships';
 import * as api from '../lib/api';
-import { colors, radius } from '../theme';
+import { AWNING_H } from '../components/NaumachiaBackground';
+import { Ballista, Mark, Stone, Trireme } from '../components/NaumachiaArt';
+import type { MarkOutcome } from '../components/NaumachiaArt';
+import { displayWeight, FONT_DISPLAY, roma } from '../gameThemes/battleshipsTheme';
 import type { GameProps } from './types';
 
 // Battleships: every player secretly places 7 battleships on a 5x5 grid (15 seconds). Then the
@@ -39,11 +43,15 @@ import type { GameProps } from './types';
 // "the game starts with the empty 5x5 table grid"). true = your own ships are drawn faintly.
 const SHOW_OWN_SHIPS = false;
 
-// The icon left on a shot cell. skull = you sank your own battleship; mushroom = you sacrificed your
-// battleship to sink an enemy's (the nearest emoji to a mushroom-cloud explosion).
-const MARKS: Record<string, string> = { miss: '•', hit: '💥', own: '💀', neutral: '🍄', timeout: '' };
-
-const PLAYER_COLORS = ['#EF9F27', '#5DCAA5', '#AFA9EC', '#F09595', '#7DB8F0', '#E8D44D', '#C792EA', '#8BD17C'];
+// What is left on a shot tile (drawn in components/NaumachiaArt.tsx): a splash = a miss, fire = you
+// hit an enemy ship, a skull = you sank your own ship, a mushroom cloud = you sacrificed your ship
+// to sink an enemy's.
+const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
+const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (VoiceButton): keep clear
+const AXIS = 16; // the width of the row letters
+const GAP = 4;
+const FRAME = 9; // the stone frame round the sea (padding + border)
+const CAPTION_H = 62;
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
@@ -51,6 +59,7 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
   const [st, setSt] = useState<State | null>(null);
   const [sel, setSel] = useState<number[]>([]); // my ships while placing
   const [ready, setReady] = useState(false); // I pressed Ready (my placement was sent)
+  const [area, setArea] = useState({ w: 0, h: 0 }); // the space the sea may take
   const [, setFrame] = useState(0); // re-render a few times per second for the countdowns
   const receivedAt = useRef(Date.now());
   const startedAt = useRef(Date.now());
@@ -198,22 +207,26 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
   if (!room) {
     return (
       <View style={styles.waiting}>
-        <Text style={styles.waitingTitle}>Battleships needs other players</Text>
-        <Text style={styles.waitingText}>Create or join a lobby to play it.</Text>
+        <View style={styles.tablet}>
+          <Text style={styles.title}>Battleships needs other players</Text>
+          <Text style={styles.sub}>Create or join a lobby to play it.</Text>
+        </View>
       </View>
     );
   }
   if (!st) {
     return (
       <View style={styles.waiting}>
-        <Text style={styles.waitingText}>Getting the game ready…</Text>
+        <View style={styles.tablet}>
+          <Text style={styles.title}>Getting the game ready…</Text>
+        </View>
       </View>
     );
   }
 
   const name = (id: string | null) => (id ? room.usernames[id] ?? 'A player' : 'Nobody');
   const who = (id: string) => (id === uid ? 'You' : name(id));
-  const colorOf = (id: string) => PLAYER_COLORS[Math.max(0, st.order.indexOf(id)) % PLAYER_COLORS.length];
+  const colorOf = (id: string) => roma.players[Math.max(0, st.order.indexOf(id)) % roma.players.length];
   const left = remainingNow(st, receivedAt.current, Date.now());
   const inGame = st.shipsLeft[uid] > 0 && !st.out.includes(uid);
   const mine = st.current === uid && st.phase === 'aiming' && inGame;
@@ -265,11 +278,17 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
     return lines.join('\n');
   };
 
-  const markOf = (cell: number) => {
-    const s = shotAt.get(cell);
-    return s ? MARKS[s.outcome] : null;
+  const markOf = (cell: number): MarkOutcome | null => {
+    const sh = shotAt.get(cell);
+    return sh ? (sh.outcome as MarkOutcome) : null;
   };
 
+  const winnerLine =
+    st.winner
+      ? [`${name(st.winner)} wins!`, `with ${st.shipsLeft[st.winner]} battleship${st.shipsLeft[st.winner] === 1 ? '' : 's'} left`]
+      : afloatNone(st)
+        ? ['Nobody wins', 'Nobody has a battleship left.']
+        : ['Nobody wins', 'It is a tie.'];
   const title =
     st.phase === 'placing'
       ? locked
@@ -278,16 +297,64 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
       : st.phase === 'countdown'
         ? 'Battle start!'
         : st.phase === 'over'
-          ? 'Game over'
+          ? winnerLine[0]
           : mine
             ? 'Your turn: pick a cell to shoot'
             : `${name(st.current)} is aiming…`;
+  const timerLine =
+    st.phase === 'placing'
+      ? `${secondsLeft(left)}s · ${sel.length}/${SHIP_COUNT} placed`
+      : st.phase === 'countdown'
+        ? `${Math.max(1, secondsLeft(left))}`
+        : st.phase === 'aiming'
+          ? `${secondsLeft(left)}s of ${secondsLeft(TURN_MS)}s${mine ? ' · too slow loses a bullet' : ''}`
+          : st.phase === 'over'
+            ? winnerLine[1]
+            : '';
+  const urgent = left < 4000 && (st.phase === 'placing' || st.phase === 'aiming');
+  const subLine = !inGame && st.phase !== 'over' && st.phase !== 'placing' ? 'You are out. Watching the game…' : timerLine;
+
+  // ---- sizes: everything is worked out from the space the screen gives us -----------------------
+  const onArea = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setArea((a) => (a.w === width && a.h === height ? a : { w: width, h: height }));
+  };
+  const n = st.order.length;
+  const cols = n <= 2 ? Math.max(1, n) : n <= 4 ? 2 : 4;
+  const chipW = Math.floor((area.w - 24 - 6 * (cols - 1)) / cols);
+  const availW = Math.min(area.w - 24, 400);
+  const cellS = Math.max(
+    26,
+    Math.floor(Math.min((availW - FRAME * 2 - AXIS - GAP * (GRID - 1)) / GRID, (area.h - FRAME * 2 - 18 - GAP * GRID) / GRID, 66))
+  );
+  const frameW = FRAME * 2 + AXIS + cellS * GRID + GAP * (GRID - 1);
+
+  const lastLines = lastShot && st.phase !== 'placing' ? shotLine(lastShot) : '';
+  const notes = [
+    st.out.length > 0 && st.phase !== 'over' ? `${st.out.map(name).join(', ')} left the game.` : '',
+  ].filter(Boolean);
+  const caption = [lastLines, ...notes].filter(Boolean).join('\n');
 
   return (
-    <View style={styles.root}>
-      <Text style={styles.meta}>{title}</Text>
+    <View style={[styles.root, { paddingTop: AWNING_H + 6 }]}>
+      {/* what is happening, and the clock */}
+      <View style={[styles.tablet, styles.statusRow, { marginRight: MIC_SPACE }]}>
+        <View style={{ opacity: mine ? 1 : 0.5 }}>
+          <Ballista size={38} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>
+            {title}
+          </Text>
+          {subLine !== '' && (
+            <Text style={[styles.sub, urgent && { color: roma.blood }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {subLine}
+            </Text>
+          )}
+        </View>
+      </View>
 
-      {/* The players: battleships and bullets left */}
+      {/* the players: ships and stones left */}
       <View style={styles.players}>
         {st.order.map((id) => {
           const out = st.shipsLeft[id] === 0;
@@ -296,10 +363,9 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
               key={id}
               style={[
                 styles.player,
-                { borderLeftColor: colorOf(id), borderLeftWidth: 4 },
+                { width: chipW, borderLeftColor: colorOf(id) },
                 id === st.current && st.phase === 'aiming' && !out && styles.playerOnTheClock,
-                id === uid && styles.playerMe,
-                out && { opacity: 0.4 },
+                out && { opacity: 0.45 },
               ]}
             >
               <Text style={styles.playerName} numberOfLines={1}>
@@ -307,105 +373,105 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
                 {id === uid ? ' (you)' : ''}
               </Text>
               {out ? (
-                <Text style={styles.playerStat}>OUT</Text>
+                <Text style={styles.playerOut}>Out</Text>
               ) : (
-                <Text style={styles.playerStat}>
-                  🚢 {st.shipsLeft[id]}   🔫 {'●'.repeat(st.bullets[id])}
-                  <Text style={{ color: colors.border }}>{'●'.repeat(Math.max(0, BULLETS - st.bullets[id]))}</Text>
-                </Text>
+                <View style={styles.playerStats}>
+                  <Trireme size={18} />
+                  <Text style={styles.playerCount}>{st.shipsLeft[id]}</Text>
+                  <View style={styles.stones}>
+                    {Array.from({ length: BULLETS }, (_, i) => (
+                      <Stone key={i} size={10} spent={i >= st.bullets[id]} />
+                    ))}
+                  </View>
+                </View>
               )}
             </View>
           );
         })}
       </View>
 
-      {/* Timer */}
-      {(st.phase === 'placing' || st.phase === 'aiming' || st.phase === 'countdown') && (
-        <Text style={[styles.timer, left < 4000 && st.phase !== 'countdown' && { color: colors.danger }]}>
-          {st.phase === 'placing'
-            ? `${secondsLeft(left)}s · ${sel.length}/${SHIP_COUNT} placed`
-            : st.phase === 'countdown'
-              ? `${Math.max(1, secondsLeft(left))}`
-              : `${secondsLeft(left)}s of ${secondsLeft(TURN_MS)}s${mine ? ' · too slow loses a bullet' : ''}`}
-        </Text>
-      )}
-
-      {/* The grid */}
-      <View style={styles.gridWrap}>
-        <View style={styles.colHeader}>
-          <View style={styles.rowLabel} />
-          {Array.from({ length: GRID }, (_, c) => (
-            <Text key={c} style={styles.axis}>
-              {c + 1}
-            </Text>
-          ))}
-        </View>
-        {Array.from({ length: GRID }, (_, r) => (
-          <View key={r} style={styles.gridRow}>
-            <Text style={[styles.axis, styles.rowLabel]}>{String.fromCharCode(65 + r)}</Text>
-            {Array.from({ length: GRID }, (_, c) => {
-              const cell = r * GRID + c;
-              const shot = shotAt.get(cell);
-              const placedHere = (placing || (SHOW_OWN_SHIPS && !shot)) && sel.includes(cell);
-              const canShoot = mine && !taken.includes(cell);
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => (placing ? toggle(cell) : canShoot ? send('shoot', { cell }) : undefined)}
-                  disabled={placing ? locked : !canShoot}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Cell ${cellName(cell)}`}
-                  style={({ pressed }) => [
-                    styles.cell,
-                    shot && { backgroundColor: colorOf(shot.by) + '55', borderColor: colorOf(shot.by) },
-                    placedHere && styles.cellShip,
-                    placedHere && !placing && { opacity: 0.45 },
-                    canShoot && styles.cellAim,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  {placedHere ? <Text style={styles.cellMark}>🚢</Text> : null}
-                  {shot ? <Text style={styles.cellMark}>{markOf(cell)}</Text> : null}
-                  {shot ? <Text style={[styles.cellBy, { color: colorOf(shot.by) }]}>{name(shot.by).slice(0, 1).toUpperCase()}</Text> : null}
-                </Pressable>
-              );
-            })}
+      {/* the sea: a mosaic of water tiles in a stone frame */}
+      <View style={styles.seaArea} onLayout={onArea}>
+        {area.w > 0 && (
+          <View style={[styles.frame, { width: frameW }]}>
+            <View style={styles.axisRow}>
+              <View style={{ width: AXIS }} />
+              {ROMAN.map((r) => (
+                <Text key={r} style={[styles.axis, { width: cellS }]}>
+                  {r}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.sea}>
+              {Array.from({ length: GRID }, (_, r) => (
+                <View key={r} style={styles.gridRow}>
+                  <Text style={[styles.axis, { width: AXIS }]}>{String.fromCharCode(65 + r)}</Text>
+                  {Array.from({ length: GRID }, (_, c) => {
+                    const cell = r * GRID + c;
+                    const shot = shotAt.get(cell);
+                    const mark = markOf(cell);
+                    const placedHere = (placing || (SHOW_OWN_SHIPS && !shot)) && sel.includes(cell);
+                    const canShoot = mine && !taken.includes(cell);
+                    return (
+                      <Pressable
+                        key={c}
+                        onPress={() => (placing ? toggle(cell) : canShoot ? send('shoot', { cell }) : undefined)}
+                        disabled={placing ? locked : !canShoot}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Cell ${cellName(cell)}`}
+                        style={({ pressed }) => [
+                          styles.tile,
+                          { width: cellS, height: cellS },
+                          shot && { borderColor: colorOf(shot.by), borderWidth: 2 },
+                          placedHere && styles.tileShip,
+                          placedHere && !placing && { opacity: 0.5 },
+                          canShoot && styles.tileAim,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        {!shot && !placedHere && (
+                          <>
+                            <View style={[styles.wave, { top: cellS * 0.36, left: cellS * 0.2, width: cellS * 0.34 }]} />
+                            <View style={[styles.wave, { top: cellS * 0.58, left: cellS * 0.42, width: cellS * 0.34 }]} />
+                          </>
+                        )}
+                        {placedHere && <Trireme size={cellS * 0.82} />}
+                        {mark && <Mark outcome={mark} size={cellS * 0.74} />}
+                        {shot && (
+                          <View style={[styles.badge, { backgroundColor: colorOf(shot.by) }]}>
+                            <Text style={styles.badgeText}>{name(shot.by).slice(0, 1).toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
           </View>
-        ))}
+        )}
       </View>
 
-      {placing && !locked && (
-        <Pressable
-          onPress={confirm}
-          disabled={sel.length !== SHIP_COUNT}
-          accessibilityRole="button"
-          style={[styles.button, sel.length !== SHIP_COUNT && { opacity: 0.4 }]}
-        >
-          <Text style={styles.buttonText}>{sel.length === SHIP_COUNT ? 'Ready' : `Place ${SHIP_COUNT - sel.length} more`}</Text>
-        </Pressable>
-      )}
-
-      {/* The last shot, for everybody */}
-      {lastShot && st.phase !== 'placing' && (
-        <View style={styles.reveal}>
-          <Text style={styles.revealLine}>{shotLine(lastShot)}</Text>
-        </View>
-      )}
-
-      {st.phase === 'over' && (
-        <View style={styles.over}>
-          <Text style={styles.overText}>
-            {st.winner
-              ? `${name(st.winner)} wins with ${st.shipsLeft[st.winner]} battleship${st.shipsLeft[st.winner] === 1 ? '' : 's'} left!`
-              : afloatNone(st)
-                ? 'Nobody has a battleship left.'
-                : 'Nobody wins: it is a tie.'}
-          </Text>
-        </View>
-      )}
-
-      {st.out.length > 0 && st.phase !== 'over' && <Text style={styles.note}>{st.out.map(name).join(', ')} left the game.</Text>}
-      {!inGame && st.phase !== 'over' && st.phase !== 'placing' && <Text style={styles.note}>You are out. Watching the game…</Text>}
+      {/* below the sea: the Ready button while placing, otherwise the last shot, told for everybody */}
+      <View style={[styles.bottom, { height: CAPTION_H }]}>
+        {placing && !locked ? (
+          <Pressable
+            onPress={confirm}
+            disabled={sel.length !== SHIP_COUNT}
+            accessibilityRole="button"
+            style={[styles.button, sel.length !== SHIP_COUNT && { opacity: 0.45 }]}
+          >
+            <Text style={styles.buttonText}>{sel.length === SHIP_COUNT ? 'Ready' : `Place ${SHIP_COUNT - sel.length} more`}</Text>
+          </Pressable>
+        ) : caption !== '' ? (
+          <View style={styles.reveal}>
+            {lastShot && lastShot.outcome !== 'timeout' && st.phase !== 'placing' && <Mark outcome={lastShot.outcome as MarkOutcome} size={34} />}
+            <Text style={styles.revealLine} numberOfLines={4} adjustsFontSizeToFit minimumFontScale={0.75}>
+              {caption}
+            </Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -413,58 +479,81 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
 const afloatNone = (s: State) => s.order.every((id) => s.shipsLeft[id] === 0);
 
 const styles = StyleSheet.create({
-  root: { gap: 12 },
-  waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
-  waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  waitingText: { color: colors.muted, fontSize: 15 },
-  meta: { color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  players: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  player: {
-    flexBasis: '48%',
-    flexGrow: 1,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: 8,
-    gap: 4,
+  root: { flex: 1, paddingHorizontal: 12, paddingBottom: 8, gap: 6 },
+  waiting: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  tablet: {
+    backgroundColor: roma.parchment,
+    borderWidth: 2,
+    borderColor: roma.parchmentEdge,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  playerOnTheClock: { borderColor: colors.accent, borderWidth: 2 },
-  playerMe: { backgroundColor: colors.cardAlt },
-  playerName: { color: colors.muted, fontSize: 13, fontWeight: '600' },
-  playerStat: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  timer: { color: colors.accent, fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  gridWrap: { alignSelf: 'center', width: '100%', maxWidth: 360, gap: 6 },
-  colHeader: { flexDirection: 'row', gap: 6 },
-  gridRow: { flexDirection: 'row', gap: 6 },
-  rowLabel: { width: 18 },
-  axis: { flex: 1, color: colors.muted, fontSize: 13, fontWeight: '700', textAlign: 'center', alignSelf: 'center' },
-  cell: {
-    flex: 1,
-    aspectRatio: 1,
-    backgroundColor: colors.card,
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 50 },
+  title: { color: roma.ink, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 14 },
+  sub: { color: roma.bronze, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 12.5, marginTop: 1 },
+
+  players: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  player: {
+    minHeight: 44,
+    backgroundColor: roma.plaque,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderColor: roma.plaqueEdge,
+    borderLeftWidth: 4,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  playerOnTheClock: { borderColor: roma.gold, borderWidth: 2 },
+  playerName: { color: roma.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 12 },
+  playerStats: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  playerCount: { color: roma.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 13 },
+  stones: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  playerOut: { color: roma.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 13 },
+
+  seaArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  frame: {
+    padding: FRAME - 3,
+    borderWidth: 3,
+    borderColor: roma.bronze,
+    borderRadius: 10,
+    backgroundColor: roma.parchmentEdge,
+  },
+  axisRow: { flexDirection: 'row', gap: GAP, marginBottom: 2 },
+  axis: { color: roma.ink, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 12, textAlign: 'center' },
+  sea: { gap: GAP, backgroundColor: roma.grout, borderRadius: 6, padding: 0 },
+  gridRow: { flexDirection: 'row', gap: GAP, alignItems: 'center' },
+  tile: {
+    backgroundColor: roma.tile,
+    borderWidth: 1.5,
+    borderColor: roma.tileEdge,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  cellShip: { backgroundColor: colors.cardAlt, borderColor: colors.chance },
-  cellAim: { borderColor: colors.accent, borderWidth: 2 },
-  cellMark: { fontSize: 22, color: colors.text },
-  cellBy: { position: 'absolute', top: 2, right: 4, fontSize: 10, fontWeight: '800' },
-  button: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center' },
-  buttonText: { color: colors.bg, fontSize: 16, fontWeight: '800' },
+  tileShip: { backgroundColor: roma.tile, borderColor: roma.gold, borderWidth: 2 },
+  tileAim: { borderColor: roma.gold, borderWidth: 2, backgroundColor: '#3A8F88' },
+  wave: { position: 'absolute', height: 2, borderRadius: 1, backgroundColor: 'rgba(232,244,242,0.28)' },
+  badge: { position: 'absolute', top: 1, right: 1, width: 15, height: 15, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: roma.ink, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 9 },
+
+  bottom: { justifyContent: 'center' },
+  button: { backgroundColor: roma.gold, borderWidth: 2, borderColor: roma.bronze, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
+  buttonText: { color: roma.ink, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 16 },
   reveal: {
-    backgroundColor: colors.card,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: roma.plaque,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 12,
-    gap: 4,
+    borderColor: roma.plaqueEdge,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  revealLine: { color: colors.text, fontSize: 14, fontWeight: '600' },
-  over: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.chance, borderRadius: radius.md, padding: 14 },
-  overText: { color: colors.text, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  note: { color: colors.muted, fontSize: 13, textAlign: 'center' },
+  revealLine: { flex: 1, color: roma.cream, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 13 },
 });

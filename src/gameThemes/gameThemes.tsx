@@ -10,6 +10,7 @@ import { QuizStageBackground } from '../components/QuizStageBackground';
 import { EsportsArenaBackground } from '../components/EsportsArenaBackground';
 import { OrphanageBackground } from '../components/OrphanageBackground';
 import { WildWestBackground } from '../components/WildWestBackground';
+import { NaumachiaBackground } from '../components/NaumachiaBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { FONT_FORTUNE, fortune as fo } from './fortuneTheme';
 import { cave as cv, FONT_XIBALBA } from './xibalbaTheme';
@@ -17,6 +18,7 @@ import { food as f } from './foodLandTheme';
 import { FONT_DISPLAY, west as h } from './hangmanTheme';
 import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
 import { FONT_DISPLAY as FONT_ESP, esp as e } from './inversionTheme';
+import { FONT_DISPLAY as FONT_ROMA, roma as ro } from './battleshipsTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -34,6 +36,7 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'hangman') return WildWestBackground;
   if (gameId === 'schulte-table') return OrphanageBackground;
   if (gameId === 'inversion') return EsportsArenaBackground;
+  if (gameId === 'battleships') return NaumachiaBackground;
   return null;
 }
 
@@ -267,6 +270,33 @@ const XIBALBA_INTRO: IntroTheme = {
   Decor: GlyphDecor,
 };
 
+// Battleships: the rules are a parchment, with a Greek key border along its bottom edge.
+function GreekKey() {
+  return (
+    <View pointerEvents="none" style={key.row}>
+      {Array.from({ length: 16 }, (_, i) => (
+        <View key={i} style={[key.cell, i % 2 ? { transform: [{ rotate: '180deg' }] } : null]} />
+      ))}
+    </View>
+  );
+}
+
+const key = StyleSheet.create({
+  row: { position: 'absolute', left: 14, right: 14, bottom: 7, flexDirection: 'row', justifyContent: 'space-between' },
+  cell: { width: 9, height: 9, borderTopWidth: 2, borderLeftWidth: 2, borderColor: ro.bronze },
+});
+
+const BATTLESHIPS_INTRO: IntroTheme = {
+  Backdrop: NaumachiaBackground,
+  accent: ro.blood,
+  text: ro.ink,
+  hint: ro.cream,
+  bullet: ro.bronze,
+  fontFamily: FONT_ROMA,
+  dialog: { backgroundColor: ro.parchment, borderColor: ro.bronze, borderWidth: 3, borderRadius: 6, paddingBottom: 30 },
+  Decor: GreekKey,
+};
+
 export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'traps-of-xibalba') return XIBALBA_INTRO;
   if (gameId === 'fortune') return FORTUNE_INTRO;
@@ -276,5 +306,6 @@ export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'hangman') return HANGMAN_INTRO;
   if (gameId === 'schulte-table') return SCHULTE_INTRO;
   if (gameId === 'inversion') return INVERSION_INTRO;
+  if (gameId === 'battleships') return BATTLESHIPS_INTRO;
   return null;
 }

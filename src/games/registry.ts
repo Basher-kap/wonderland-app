@@ -162,6 +162,7 @@ export const GAME_MODULES: Record<string, GameModule> = {
     multiStage: true,
     needsRoom: true,
     endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the sea and the buttons must stay in the frame
   },
   'traps-of-xibalba': {
     Component: XibalbaGame,
