@@ -12,7 +12,8 @@ import {
   withAdvance,
 } from '../game/karuta';
 import * as api from '../lib/api';
-import { colors, radius } from '../theme';
+import { TatamiBackground } from '../components/TatamiBackground';
+import { FONT_KARUTA, washitsu as w } from '../gameThemes/karutaTheme';
 import type { GameProps } from './types';
 
 // Karuta: 26 letter cards are dealt equally; the leftover cards are void. A floating target card
@@ -24,6 +25,11 @@ import type { GameProps } from './types';
 // it applies everybody's moves (saved in lobbies/{code}/karuta) and saves the state (without the
 // secret advance grabs), which every phone shows. If the host forfeits the game the others cannot
 // continue (known limit, same as Battleships and Fortune). The forfeit buttons are GameScreen's.
+//
+// LOOK: a traditional room at the end of a summer day (src/gameThemes/karutaTheme.ts). The open doors, the
+// wind chime, the tatami floor and the rules dialogs are in components/TatamiBackground.tsx and
+// gameThemes/gameThemes.tsx. This screen draws its own background because GameScreen gives a full-screen game
+// the whole screen.
 //
 // Layout (hidden notes, not in the rules window): top to bottom: the status line, the target card
 // slot (FIXED at the top, the target always appears in the same place), the latest events, then the
@@ -222,17 +228,21 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
 
   if (!room) {
     return (
-      <View style={styles.waiting}>
-        <Text style={styles.waitingTitle}>Karuta needs other players</Text>
-        <Text style={styles.waitingText}>Create or join a lobby to play it.</Text>
-      </View>
+      <TatamiBackground>
+        <View style={styles.waiting}>
+          <Text style={styles.waitingTitle}>Karuta needs other players</Text>
+          <Text style={styles.waitingText}>Create or join a lobby to play it.</Text>
+        </View>
+      </TatamiBackground>
     );
   }
   if (!st) {
     return (
-      <View style={styles.waiting}>
-        <Text style={styles.waitingText}>Getting the game ready…</Text>
-      </View>
+      <TatamiBackground>
+        <View style={styles.waiting}>
+          <Text style={styles.waitingText}>Getting the game ready…</Text>
+        </View>
+      </TatamiBackground>
     );
   }
 
@@ -351,10 +361,11 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
   const myW = fitWidth(screenW - 20, myCards.length, 3, 46);
 
   return (
+    <TatamiBackground>
     <View style={styles.root}>
       {/* Status */}
       <View style={styles.top}>
-        <Text style={[styles.status, sending && { color: colors.accent }]}>{status}</Text>
+        <Text style={[styles.status, sending && { color: w.vermilion }]}>{status}</Text>
       </View>
 
       {/* The target card: always in the same place, at the top */}
@@ -365,13 +376,13 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
           </View>
         ) : (
           <View style={[styles.target, styles.targetEmpty]}>
-            <Text style={[styles.targetLetter, { color: colors.border }]}>?</Text>
+            <Text style={[styles.targetLetter, { color: w.paper }]}>?</Text>
           </View>
         )}
       </View>
 
       {/* The latest events */}
-      <View style={styles.events}>
+      <View style={[styles.events, recent.length > 0 && styles.eventsPlate]}>
         {recent.map((e) => (
           <Text key={e.n} style={styles.eventLine} numberOfLines={2}>
             {eventText(e)}
@@ -394,7 +405,7 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
       </View>
 
       {/* My rack: always open, in one line, at the bottom */}
-      <View style={[styles.mine, { borderColor: colorOf(uid) }, sending && { borderColor: colors.accent }]}>
+      <View style={[styles.mine, { borderColor: colorOf(uid) }, sending && { borderColor: w.gold }]}>
         <View style={styles.mineHead}>
           <Text style={[styles.rackName, { color: colorOf(uid) }]}>You · {inGame ? myCards.length : 'out'}</Text>
           {inGame && (st.phase === 'waiting' || st.phase === 'live') && myGrabUsed && (
@@ -421,73 +432,111 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
         )}
       </View>
     </View>
+    </TatamiBackground>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
-  waitingTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  waitingText: { color: colors.muted, fontSize: 15 },
-  top: { paddingVertical: 6, paddingHorizontal: 12, alignItems: 'center' },
-  status: { color: colors.text, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  waiting: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 80,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(246,240,224,0.94)',
+    borderColor: w.wood,
+    borderWidth: 3,
+    borderRadius: 6,
+  },
+  waitingTitle: { color: w.ink, fontFamily: FONT_KARUTA, fontSize: 18, fontWeight: '700' },
+  waitingText: { color: w.ink, fontFamily: FONT_KARUTA, fontSize: 15 },
+  top: { paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center' },
+  status: {
+    color: w.ink,
+    fontFamily: FONT_KARUTA,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+    backgroundColor: 'rgba(246,240,224,0.94)',
+    borderColor: w.wood,
+    borderWidth: 2,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    overflow: 'hidden',
+  },
   targetSlot: { alignItems: 'center', paddingVertical: 4 },
   target: {
     width: 84,
     height: 112,
-    backgroundColor: colors.text,
-    borderColor: colors.accent,
+    backgroundColor: w.paper,
+    borderColor: w.vermilion,
     borderWidth: 4,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  targetEmpty: { backgroundColor: 'transparent', borderColor: colors.border, borderStyle: 'dashed' },
-  targetLetter: { color: colors.bg, fontSize: 56, fontWeight: '900' },
+  targetEmpty: { backgroundColor: 'rgba(246,240,224,0.15)', borderColor: w.paper, borderStyle: 'dashed', shadowOpacity: 0, elevation: 0 },
+  targetLetter: { color: w.indigo, fontFamily: FONT_KARUTA, fontSize: 56, fontWeight: '900' },
   events: { minHeight: 34, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 12 },
-  eventLine: { color: colors.muted, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  eventsPlate: {
+    alignSelf: 'center',
+    marginHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(246,240,224,0.9)',
+  },
+  eventLine: { color: w.ink, fontFamily: FONT_KARUTA, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   board: { flex: 1, position: 'relative' },
   racks: { padding: 6, gap: 6 },
   over: { position: 'absolute', left: 20, right: 20, top: '30%', alignItems: 'center', zIndex: 5 },
   overText: {
-    color: colors.text,
+    color: w.ink,
+    fontFamily: FONT_KARUTA,
     fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
-    backgroundColor: colors.card,
-    borderColor: colors.chance,
-    borderWidth: 1,
-    borderRadius: radius.md,
+    backgroundColor: w.paper,
+    borderColor: w.vermilion,
+    borderWidth: 3,
+    borderRadius: 8,
     padding: 12,
     overflow: 'hidden',
   },
   rack: {
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderRadius: radius.sm,
+    backgroundColor: w.tray,
+    borderWidth: 2,
+    borderRadius: 8,
     padding: 4,
     gap: 6,
   },
-  rackOpen: { backgroundColor: colors.cardAlt },
+  rackOpen: { backgroundColor: w.woodLight },
   rackTab: { paddingHorizontal: 4, paddingVertical: 4, gap: 2 },
-  rackName: { fontSize: 12, fontWeight: '800' },
-  rackCount: { color: colors.text, fontSize: 12, fontWeight: '800' },
+  rackName: { fontFamily: FONT_KARUTA, fontSize: 12, fontWeight: '800' },
+  rackCount: { color: w.paper, fontFamily: FONT_KARUTA, fontSize: 12, fontWeight: '800' },
   rackCards: { flex: 1, flexDirection: 'row', flexWrap: 'nowrap', gap: 3 },
   card: {
-    backgroundColor: colors.text,
-    borderRadius: 5,
+    backgroundColor: w.paper,
+    borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#D9C9A8',
+    borderColor: w.paperEdge,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardMarked: { borderColor: colors.accent, borderWidth: 3 },
-  cardGlow: { borderColor: colors.accent, borderWidth: 3 },
-  cardLetter: { color: colors.bg, fontWeight: '900' },
+  cardMarked: { borderColor: w.vermilion, borderWidth: 3 },
+  cardGlow: { borderColor: w.gold, borderWidth: 3 },
+  cardLetter: { color: w.indigo, fontFamily: FONT_KARUTA, fontWeight: '900' },
   mine: {
-    backgroundColor: colors.card,
-    borderTopWidth: 2,
+    backgroundColor: w.wood,
+    borderTopWidth: 3,
     paddingHorizontal: 10,
     paddingTop: 6,
     paddingBottom: 10,
@@ -495,5 +544,5 @@ const styles = StyleSheet.create({
   },
   mineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   mineCards: { flexDirection: 'row', flexWrap: 'nowrap', gap: 3 },
-  note: { color: colors.muted, fontSize: 13, textAlign: 'center' },
+  note: { color: w.paper, fontFamily: FONT_KARUTA, fontSize: 13, textAlign: 'center' },
 });
