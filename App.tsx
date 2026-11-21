@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme';
+import { space } from './src/spaceTheme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ChatBubble } from './src/components/ChatBubble';
 import SpaceBackground from './src/components/SpaceBackground';
@@ -56,13 +57,14 @@ function MainTabs() {
   );
 }
 
-// Header of the Game screen: same dark colour as the page, no divider line. (The Lobby has no native header:
-// it draws its own, on the sky. Games are not part of the Space theme.)
+// Header of the Game screen: pure black like the night sky, starlight title and back arrow, no divider.
+// The games keep their own look below the header; only this bar and the mic pill follow the Space theme.
+// (The Lobby has no native header: it draws its own, on the sky.)
 const spaceHeader = {
-  headerStyle: { backgroundColor: colors.bg },
+  headerStyle: { backgroundColor: space.void },
   headerShadowVisible: false,
-  headerTintColor: colors.text,
-  headerTitleStyle: { fontWeight: '600' as const },
+  headerTintColor: space.text,
+  headerTitleStyle: { fontWeight: '600' as const, color: space.text },
 };
 
 // Which screens exist depends on whether the player is signed in, so signing

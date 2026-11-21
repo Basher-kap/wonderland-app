@@ -23,11 +23,12 @@ import { voice } from '../voice/voice';
 //   off      -> tap "Join voice" (the phone asks for the microphone)
 //   on       -> tap the mic to mute / unmute, the X to leave the voice chat
 // It floats in the top-right corner; pass `style` to move it. Nothing shows without a lobby.
-// tone: 'default' is the look used inside the games (leave it). 'space' is the look on the night sky (the lobby).
+// tone: 'space' (the default) is the black-glass pill of the night sky, used in the lobby, the round intro and the
+// games. 'default' is the old purple pill, kept only in case a screen still asks for it.
 export function VoiceButton({
   code,
   style,
-  tone = 'default',
+  tone = 'space',
 }: {
   code?: string;
   style?: StyleProp<ViewStyle>;

@@ -16,7 +16,8 @@ import type { GameResult, GameRoom } from '../games/types';
 import * as api from '../lib/api';
 import { getGameBackdrop } from '../gameThemes/gameThemes';
 import { isDemoMode } from '../lib/firebase';
-import { colors, DOMAIN_ORDER, radius } from '../theme';
+import { DOMAIN_ORDER, radius } from '../theme';
+import { panel, space } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 // One round, as every player sees it:
@@ -314,7 +315,7 @@ export function GameScreen() {
                 accessibilityRole="button"
                 style={[styles.headerButton, styles.headerButtonDanger, busy && { opacity: 0.5 }]}
               >
-                <Text style={[styles.headerButtonText, { color: '#FF5252' }]}>Forfeit match</Text>
+                <Text style={[styles.headerButtonText, { color: space.danger }]}>Forfeit match</Text>
               </Pressable>
             </View>
           )
@@ -405,12 +406,12 @@ export function GameScreen() {
                   {readyNow.length}/{lobby!.playerIds.length} ready. The game starts for everyone at the same time.
                 </Text>
                 {isHost && !go && !allReady && (
-                  <Button
+                  <Button tone="space"
                     label="Start now (don't wait)"
                     variant="secondary"
                     disabled={busy}
                     onPress={() => run(() => api.startRound(code!))}
-                    style={{ marginTop: 10 }}
+                    style={{ ...glassButton, marginTop: 10 }}
                   />
                 )}
               </>
@@ -461,21 +462,21 @@ export function GameScreen() {
             })}
 
             {finished && (
-              <Text style={[styles.boxText, { marginTop: 8, color: colors.accent }]}>
+              <Text style={[styles.boxText, { marginTop: 8, color: space.amber }]}>
                 Match over.{winnerName ? ` Winner: ${winnerName}` : ''} Tickets update automatically.
               </Text>
             )}
             {finished && round?.quitBy && (
-              <Text style={[styles.boxText, { color: colors.accent }]}>
+              <Text style={[styles.boxText, { color: space.amber }]}>
                 {`${lobby.players[round.quitBy]?.username ?? 'A player'} forfeited the match.`}
               </Text>
             )}
             {finished && pointsDelta && (
               <View style={{ gap: 6, marginTop: 4 }}>
-                <Text style={[styles.boxText, { color: colors.text }]}>Your points this match:</Text>
+                <Text style={[styles.boxText, { color: space.text }]}>Your points this match:</Text>
                 <View style={{ flexDirection: 'row', gap: 18 }}>
                   {DOMAIN_ORDER.map((d) => (
-                    <DomainStat key={d} domain={d} value={fmt(pointsDelta![d])} size={16} color={colors.text} />
+                    <DomainStat key={d} domain={d} value={fmt(pointsDelta![d])} size={16} color={space.text} />
                   ))}
                 </View>
               </View>
@@ -485,7 +486,7 @@ export function GameScreen() {
             {roundActive && gameModule && mine && !myResult && !mine.sent && (
               <View style={{ gap: 8, marginTop: 8 }}>
                 <Text style={styles.boxText}>Your result was not sent yet.</Text>
-                <Button label="Send my result again" disabled={busy} onPress={() => void sendResult(roundKey, mine.result)} />
+                <Button tone="space" label="Send my result again" disabled={busy} onPress={() => void sendResult(roundKey, mine.result)} />
               </View>
             )}
             {roundActive && gameModule && mine && (myResult || mine.sent) && (
@@ -501,17 +502,19 @@ export function GameScreen() {
                   Temporary host controls (this game board is not built yet): who won this round?
                 </Text>
                 {players.map(([id, p]) => (
-                  <Button
+                  <Button tone="space"
                     key={id}
                     label={p.username}
                     variant="secondary"
+                    style={glassButton}
                     disabled={busy}
                     onPress={() => run(() => api.resolveRound(code!, id))}
                   />
                 ))}
-                <Button
+                <Button tone="space"
                   label="Draw (nobody loses a life)"
                   variant="secondary"
+                  style={glassButton}
                   disabled={busy}
                   onPress={() => run(() => api.resolveRound(code!, null))}
                 />
@@ -522,7 +525,7 @@ export function GameScreen() {
             )}
 
             {roundDone && (
-              <Text style={[styles.boxText, { marginTop: 8, color: colors.accent }]}>
+              <Text style={[styles.boxText, { marginTop: 8, color: space.amber }]}>
                 {round?.winnerId
                   ? `${roundWinnerName ?? 'A player'} won the round. Everyone else lost a life.`
                   : 'Draw: nobody loses a life.'}
@@ -530,12 +533,12 @@ export function GameScreen() {
             )}
             {(roundDone || finished) &&
               forfeiters.map((r) => (
-                <Text key={r.uid} style={[styles.boxText, { color: colors.accent }]}>
+                <Text key={r.uid} style={[styles.boxText, { color: space.amber }]}>
                   {`${lobby.players[r.uid]?.username ?? 'A player'} forfeited this game.`}
                 </Text>
               ))}
             {roundDone && isHost && (
-              <Button
+              <Button tone="space"
                 label="Draw next game"
                 disabled={busy}
                 onPress={() => run(() => api.nextRound(code!))}
@@ -557,7 +560,7 @@ export function GameScreen() {
       <VoiceButton code={code} />
       {!locked && (
         <View style={styles.footer}>
-          <Button label="Back" variant="secondary" onPress={() => navigation.goBack()} />
+          <Button tone="space" label="Back" variant="secondary" style={glassButton} onPress={() => navigation.goBack()} />
         </View>
       )}
     </SafeAreaView>
@@ -565,44 +568,52 @@ export function GameScreen() {
   return Backdrop ? <Backdrop>{page}</Backdrop> : page;
 }
 
+// Dark glass behind a secondary button, so it reads over any game backdrop.
+const glassButton = { backgroundColor: space.panelBg };
+
+// The frame around the game (title, round box, countdown, forfeit buttons, Back) follows the Space theme.
+// What is drawn by the game itself (its board, its backdrop) is not touched.
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: space.void },
   body: { padding: 20, gap: 12 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '700' },
-  desc: { color: colors.muted, fontSize: 15 },
-  box: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  boxTitle: { color: colors.text, fontWeight: '600', marginBottom: 4 },
-  boxText: { color: colors.muted },
+  title: { color: space.text, fontSize: 28, fontWeight: '700' },
+  desc: { color: space.textDim, fontSize: 15 },
+  box: { ...panel, borderRadius: 16, padding: 14, gap: 4 },
+  boxTitle: { color: space.text, fontWeight: '600', marginBottom: 4 },
+  boxText: { color: space.textDim },
   placeholder: {
     height: 200,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.muted,
+    borderColor: space.lineStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholderText: { color: colors.muted },
-  reveal: { borderColor: colors.accent, borderWidth: 2, alignItems: 'center', paddingVertical: 18 },
-  revealTitle: { color: colors.muted, fontSize: 14, fontWeight: '600' },
-  revealText: { color: colors.accent, fontSize: 20, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
+  placeholderText: { color: space.textDim },
+  reveal: { borderColor: space.amberLine, borderTopColor: space.amber, alignItems: 'center', paddingVertical: 18 },
+  revealTitle: { color: space.textDim, fontSize: 14, fontWeight: '600' },
+  revealText: { color: space.amber, fontSize: 20, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
   headerButtons: { flexDirection: 'row', gap: 8 },
   headerButton: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: space.lineStrong,
+    backgroundColor: space.fieldBg,
     borderRadius: radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  headerButtonDanger: { borderColor: '#FF5252' },
-  headerButtonText: { color: colors.text, fontSize: 13, fontWeight: '600' },
-  countdown: { color: colors.text, fontSize: 72, fontWeight: '800', textAlign: 'center', paddingVertical: 24 },
+  headerButtonDanger: { borderColor: space.danger },
+  headerButtonText: { color: space.text, fontSize: 13, fontWeight: '600' },
+  countdown: {
+    color: space.text,
+    fontSize: 72,
+    fontWeight: '800',
+    textAlign: 'center',
+    paddingVertical: 24,
+    textShadowColor: space.amber,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
+  },
   footer: { padding: 20 },
 });
