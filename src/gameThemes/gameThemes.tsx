@@ -3,8 +3,10 @@ import type { ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { FoodLandBackground } from '../components/FoodLandBackground';
 import { CaveBackground } from '../components/CaveBackground';
+import { CourtBackground } from '../components/CourtBackground';
 import { FestivalBackground } from '../components/FestivalBackground';
 import { Furin } from '../components/Furin';
+import { JusticeScales } from '../components/JusticeScales';
 import { MayaGlyph } from '../components/MayaGlyph';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
@@ -17,6 +19,7 @@ import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { FONT_FORTUNE, fortune as fo } from './fortuneTheme';
 import { cave as cv, FONT_XIBALBA } from './xibalbaTheme';
 import { food as f } from './foodLandTheme';
+import { court as ct, FONT_COURT } from './courtTheme';
 import { FONT_DISPLAY, west as h } from './hangmanTheme';
 import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
 import { FONT_DISPLAY as FONT_ESP, esp as e } from './inversionTheme';
@@ -39,6 +42,7 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'hangman') return WildWestBackground;
   if (gameId === 'schulte-table') return OrphanageBackground;
   if (gameId === 'inversion') return EsportsArenaBackground;
+  if (gameId === 'janken-negotiation') return CourtBackground;
   if (gameId === 'battleships') return NaumachiaBackground;
   if (gameId === 'karuta') return TatamiBackground;
   return null;
@@ -321,16 +325,37 @@ const KARUTA_INTRO: IntroTheme = {
   Decor: FurinDecor,
 };
 
+// Janken Negotiation: the rules are a case file under the scales of justice.
+function ScalesDecor() {
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' }}>
+      <JusticeScales size={30} color={ct.steel} />
+    </View>
+  );
+}
+
+const COURT_INTRO: IntroTheme = {
+  Backdrop: CourtBackground,
+  accent: ct.skyPale,
+  text: ct.text,
+  hint: ct.muted,
+  bullet: ct.skyPale,
+  fontFamily: FONT_COURT,
+  dialog: { backgroundColor: ct.panel, borderColor: ct.steelDim, borderWidth: 3, borderRadius: 3, paddingTop: 54 },
+  Decor: ScalesDecor,
+};
+
 export function getIntroTheme(gameId?: string): IntroTheme | null {
-  if (gameId === 'traps-of-xibalba') return XIBALBA_INTRO;
-  if (gameId === 'fortune') return FORTUNE_INTRO;
   if (gameId === 'wordle') return WORDLE_INTRO;
   if (gameId === 'human-calculator') return CALC_INTRO;
   if (gameId === 'magical-banana') return FOOD_INTRO;
+  if (gameId === 'fortune') return FORTUNE_INTRO;
   if (gameId === 'hangman') return HANGMAN_INTRO;
   if (gameId === 'schulte-table') return SCHULTE_INTRO;
   if (gameId === 'inversion') return INVERSION_INTRO;
+  if (gameId === 'janken-negotiation') return COURT_INTRO;
   if (gameId === 'battleships') return BATTLESHIPS_INTRO;
+  if (gameId === 'traps-of-xibalba') return XIBALBA_INTRO;
   if (gameId === 'karuta') return KARUTA_INTRO;
   return null;
 }

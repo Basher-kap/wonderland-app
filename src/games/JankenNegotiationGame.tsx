@@ -27,9 +27,13 @@ import {
   WAIT_REVEAL_MS,
 } from '../game/janken';
 import type { JankenDoc, PromiseKind, SetChoice, Throw } from '../game/janken';
-import { colors, radius } from '../theme';
+import { court as c, FONT_COURT } from '../gameThemes/courtTheme';
 import type { GameProps } from './types';
 
+// LOOK: the Supreme Court in session (src/gameThemes/courtTheme.ts). The hall, the bench, the shaft of light
+// and the rules dialogs are in components/CourtBackground.tsx and gameThemes/gameThemes.tsx; the players stand
+// on a ring inlaid in the floor.
+//
 // Janken Negotiation. Every round (all rules are in src/game/janken.ts):
 //   1. 3-2-1 countdown
 //   2. negotiate (1 minute): pick your INITIAL throw: it is PUBLIC and can be changed any time. Long-press a throw to make a
@@ -471,7 +475,7 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
             style={[styles.notesPill, hasNew && styles.notesPillNew]}
             accessibilityRole="button"
           >
-            <Text style={[styles.notesPillText, hasNew && { color: colors.bg }]}>
+            <Text style={[styles.notesPillText, hasNew && { color: c.dark1 }]}>
               {hasNew ? `● ${oppName} says something · ` : ''}Notes ({noteCount}) {notesOpen ? '▴' : '▾'}
             </Text>
           </Pressable>
@@ -515,6 +519,9 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       )}
 
       <View style={{ width: size, height: size + 10, alignSelf: 'center' }}>
+        {/* the ring inlaid in the floor where the players stand */}
+        <View pointerEvents="none" style={[styles.ring, { left: center - radiusPx, top: center - radiusPx, width: radiusPx * 2, height: radiusPx * 2, borderRadius: radiusPx }]} />
+        <View pointerEvents="none" style={[styles.ringInner, { left: center - radiusPx * 0.62, top: center - radiusPx * 0.62, width: radiusPx * 1.24, height: radiusPx * 1.24, borderRadius: radiusPx }]} />
         <View style={[styles.hub, { left: center - 55, top: center - 45 }]}>
           {phase === 'count' || phase === 'negotiate' || phase === 'final' ? (
             <>
@@ -633,61 +640,63 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
 const styles = StyleSheet.create({
   wrap: { padding: 8, gap: 10 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  small: { color: colors.muted, fontSize: 13, textAlign: 'center' },
-  phase: { color: colors.accent, fontSize: 15, fontWeight: '700' },
+  small: { color: c.muted, fontFamily: FONT_COURT, fontSize: 13, textAlign: 'center' },
+  phase: { color: c.skyPale, fontFamily: FONT_COURT, fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
   notesAnchor: { position: 'absolute', top: 30, right: 8, zIndex: 20, alignItems: 'flex-end' },
   notesPill: {
-    backgroundColor: colors.cardAlt,
-    borderColor: colors.accent,
+    backgroundColor: c.panel,
+    borderColor: c.steelDim,
     borderWidth: 1,
-    borderRadius: radius.lg,
+    borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
-  notesPillNew: { backgroundColor: colors.accent },
-  notesPillText: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  notesPillNew: { backgroundColor: c.skyPale, borderColor: c.skyPale },
+  notesPillText: { color: c.skyPale, fontFamily: FONT_COURT, fontSize: 12, fontWeight: '700' },
   notesPanel: {
     marginTop: 6,
     width: 280,
     maxWidth: '100%',
     maxHeight: 320,
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+    backgroundColor: c.panel,
+    borderColor: c.steelDim,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: 4,
     padding: 10,
   },
-  notesWho: { color: colors.text, fontSize: 12, fontWeight: '800' },
-  notesLine: { color: colors.muted, fontSize: 12 },
-  sect: { gap: 4, backgroundColor: colors.card, borderRadius: radius.md, padding: 8 },
+  notesWho: { color: c.text, fontFamily: FONT_COURT, fontSize: 12, fontWeight: '800' },
+  notesLine: { color: c.muted, fontFamily: FONT_COURT, fontSize: 12 },
+  sect: { gap: 4, backgroundColor: c.skyDeep, borderRadius: 4, padding: 8 },
+  ring: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(138,163,184,0.45)', backgroundColor: 'rgba(156,203,238,0.05)' },
+  ringInner: { position: 'absolute', borderWidth: 1, borderColor: 'rgba(138,163,184,0.25)' },
   hub: { position: 'absolute', width: 110, height: 90, alignItems: 'center', justifyContent: 'center' },
-  timer: { color: colors.text, fontSize: 48, fontWeight: '800' },
-  box: { position: 'absolute', backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 6, gap: 1 },
-  boxMe: { borderColor: colors.accent },
-  boxOpp: { borderColor: colors.danger },
-  boxName: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  tag: { color: colors.muted, fontSize: 8, fontWeight: '700', marginTop: 2 },
-  throwText: { color: colors.text, fontSize: 11, fontWeight: '700' },
-  hidden: { color: colors.muted, fontSize: 11, fontStyle: 'italic' },
-  revealed: { color: colors.accent, fontSize: 12, fontWeight: '800' },
-  result: { color: colors.text, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  timer: { color: c.text, fontFamily: FONT_COURT, fontSize: 48, fontWeight: '800' },
+  box: { position: 'absolute', backgroundColor: c.panel, borderColor: c.panelEdge, borderWidth: 1, borderRadius: 4, padding: 6, gap: 1 },
+  boxMe: { borderColor: c.skyPale },
+  boxOpp: { borderColor: c.blood },
+  boxName: { color: c.text, fontFamily: FONT_COURT, fontSize: 13, fontWeight: '700' },
+  tag: { color: c.muted, fontSize: 8, fontWeight: '700', marginTop: 2, letterSpacing: 0.5 },
+  throwText: { color: c.text, fontSize: 11, fontWeight: '700' },
+  hidden: { color: c.muted, fontSize: 11, fontStyle: 'italic' },
+  revealed: { color: c.skyPale, fontSize: 12, fontWeight: '800' },
+  result: { color: c.text, fontFamily: FONT_COURT, fontSize: 15, fontWeight: '700', textAlign: 'center' },
   rowBtns: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
   flex: { flex: 1 },
-  throwBtn: { flex: 1, backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, paddingVertical: 12, alignItems: 'center' },
-  throwBtnOn: { borderColor: colors.accent, backgroundColor: colors.cardAlt },
+  throwBtn: { flex: 1, backgroundColor: c.panel, borderColor: c.panelEdge, borderWidth: 1, borderRadius: 4, paddingVertical: 12, alignItems: 'center' },
+  throwBtnOn: { borderColor: c.skyPale, backgroundColor: c.skyDark },
   throwIcon: { fontSize: 28 },
-  throwLabel: { color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 2 },
-  errorBox: { backgroundColor: colors.cardAlt, borderColor: colors.danger, borderWidth: 2, borderRadius: radius.md, padding: 10, gap: 6 },
-  errorTitle: { color: colors.danger, fontSize: 13, fontWeight: '800' },
-  errorText: { color: colors.text, fontSize: 12 },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 16 },
-  dialog: { width: '100%', maxWidth: 400, maxHeight: '88%', backgroundColor: colors.cardAlt, borderColor: colors.accent, borderWidth: 1, borderRadius: radius.lg, padding: 14 },
-  menuTitle: { color: colors.accent, fontSize: 15, fontWeight: '800', textAlign: 'center' },
-  kindBtn: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 12, gap: 2 },
-  kindTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  kindBlurb: { color: colors.muted, fontSize: 12 },
-  radio: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: 10 },
-  radioOn: { borderColor: colors.accent },
-  radioMark: { color: colors.accent, fontSize: 16 },
-  radioText: { color: colors.text, fontSize: 13, flex: 1 },
+  throwLabel: { color: c.text, fontFamily: FONT_COURT, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  errorBox: { backgroundColor: c.panel, borderColor: c.bloodBright, borderWidth: 2, borderRadius: 4, padding: 10, gap: 6 },
+  errorTitle: { color: c.bloodBright, fontSize: 13, fontWeight: '800' },
+  errorText: { color: c.text, fontSize: 12 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(2,6,12,0.78)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  dialog: { width: '100%', maxWidth: 400, maxHeight: '88%', backgroundColor: c.panel, borderColor: c.steelDim, borderWidth: 2, borderRadius: 4, padding: 14 },
+  menuTitle: { color: c.skyPale, fontFamily: FONT_COURT, fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  kindBtn: { backgroundColor: c.skyDeep, borderColor: c.panelEdge, borderWidth: 1, borderRadius: 4, padding: 12, gap: 2 },
+  kindTitle: { color: c.text, fontFamily: FONT_COURT, fontSize: 14, fontWeight: '800' },
+  kindBlurb: { color: c.muted, fontSize: 12 },
+  radio: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: c.skyDeep, borderColor: c.panelEdge, borderWidth: 1, borderRadius: 4, padding: 10 },
+  radioOn: { borderColor: c.skyPale },
+  radioMark: { color: c.skyPale, fontSize: 16 },
+  radioText: { color: c.text, fontFamily: FONT_COURT, fontSize: 13, flex: 1 },
 });
