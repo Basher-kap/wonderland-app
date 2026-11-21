@@ -17,7 +17,8 @@ import * as api from '../lib/api';
 import { getGameBackdrop } from '../gameThemes/gameThemes';
 import { isDemoMode } from '../lib/firebase';
 import { DOMAIN_ORDER, radius } from '../theme';
-import { panel, space } from '../spaceTheme';
+import { space } from '../spaceTheme';
+import { GlintTitle, StarGlass, WarpCountdown } from '../components/SpaceGlass';
 import type { RootStackParamList } from '../navigation/types';
 
 // One round, as every player sees it:
@@ -396,9 +397,9 @@ export function GameScreen() {
 
         {/* 2. Waiting until everybody has read the intro, then the countdown */}
         {waitingToStart && (
-          <View style={styles.box}>
+          <StarGlass>
             {count !== null ? (
-              <Text style={styles.countdown}>{count}</Text>
+              <WarpCountdown value={count} />
             ) : (
               <>
                 <Text style={styles.boxTitle}>Waiting for the other players…</Text>
@@ -416,15 +417,15 @@ export function GameScreen() {
                 )}
               </>
             )}
-          </View>
+          </StarGlass>
         )}
 
         {/* The game is over (every player is done): show the answer(s) to EVERYONE */}
         {lobby && !!gameModule?.summary && (over || roundDone || finished) && !round?.quitBy && (
-          <View style={[styles.box, styles.reveal]}>
-            <Text style={styles.revealTitle}>Game over</Text>
+          <StarGlass tone="amber" contentStyle={styles.reveal}>
+            <GlintTitle>Game over</GlintTitle>
             <Text style={styles.revealText}>{gameModule.summary(roundKey, { iWon: !!(myResult?.finished || mine?.result.finished) && !myResult?.forfeited })}</Text>
-          </View>
+          </StarGlass>
         )}
 
         {/* 3. The game board */}
@@ -434,10 +435,10 @@ export function GameScreen() {
 
         {/* Practice run: show the result and let the player leave */}
         {!lobby && mine && gameModule && (
-          <View style={styles.box}>
+          <StarGlass>
             <Text style={styles.boxTitle}>Practice result</Text>
             <Text style={styles.boxText}>{describe({ uid: uid ?? 'practice', ...mine.result })}</Text>
-          </View>
+          </StarGlass>
         )}
         {!lobby && !gameModule && (
           <View style={styles.placeholder}>
@@ -446,7 +447,7 @@ export function GameScreen() {
         )}
 
         {lobby && (
-          <View style={styles.box}>
+          <StarGlass>
             <Text style={styles.boxTitle}>
               Round {round?.no ?? '-'} · Leg {lobby.leg}
             </Text>
@@ -550,7 +551,7 @@ export function GameScreen() {
                 Round finished. Waiting for the host to draw the next game…
               </Text>
             )}
-          </View>
+          </StarGlass>
         )}
 
         {lobby && roundActive && quitSent && (
@@ -578,7 +579,6 @@ const styles = StyleSheet.create({
   body: { padding: 20, gap: 12 },
   title: { color: space.text, fontSize: 28, fontWeight: '700' },
   desc: { color: space.textDim, fontSize: 15 },
-  box: { ...panel, borderRadius: 16, padding: 14, gap: 4 },
   boxTitle: { color: space.text, fontWeight: '600', marginBottom: 4 },
   boxText: { color: space.textDim },
   placeholder: {
@@ -591,29 +591,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { color: space.textDim },
-  reveal: { borderColor: space.amberLine, borderTopColor: space.amber, alignItems: 'center', paddingVertical: 18 },
-  revealTitle: { color: space.textDim, fontSize: 14, fontWeight: '600' },
+  reveal: { alignItems: 'center', paddingVertical: 18 },
   revealText: { color: space.amber, fontSize: 20, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
   headerButtons: { flexDirection: 'row', gap: 8 },
   headerButton: {
     borderWidth: 1,
     borderColor: space.lineStrong,
-    backgroundColor: space.fieldBg,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     borderRadius: radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   headerButtonDanger: { borderColor: space.danger },
   headerButtonText: { color: space.text, fontSize: 13, fontWeight: '600' },
-  countdown: {
-    color: space.text,
-    fontSize: 72,
-    fontWeight: '800',
-    textAlign: 'center',
-    paddingVertical: 24,
-    textShadowColor: space.amber,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
-  },
   footer: { padding: 20 },
 });

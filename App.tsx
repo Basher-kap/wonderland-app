@@ -13,6 +13,7 @@ import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ChatBubble } from './src/components/ChatBubble';
 import SpaceBackground from './src/components/SpaceBackground';
 import { SpaceTabBar } from './src/components/SpaceTabBar';
+import { GameHeader } from './src/components/GameHeader';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LeaderboardScreen } from './src/screens/LeaderboardScreen';
@@ -86,7 +87,11 @@ function RootNavigator() {
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Lobby" component={LobbyScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Game" component={GameScreen} options={{ title: 'Game' }} />
+          <Stack.Screen
+            name="Game"
+            component={GameScreen}
+            options={{ title: 'Game', header: (props) => <GameHeader {...props} /> }}
+          />
         </>
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />

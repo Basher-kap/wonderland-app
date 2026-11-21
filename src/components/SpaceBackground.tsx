@@ -11,14 +11,24 @@ import {
 import type { ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { SPACE_BG_IMAGE, space } from '../spaceTheme';
-import { buildSky, rng } from '../skyData';
-import type { Dot, Hero, Sky } from '../skyData';
+import { buildSky, rng } from './skyData';
+
+let instances = 0; // each sky gets its own gradient ids, so several skies can share a screen (web too)
+import type { Dot, Hero, Sky } from './skyData';
 
 type Props = {
   children?: React.ReactNode;
   style?: ViewStyle;
   /** Stops the twinkle and the shooting star (a tab that is not on screen). */
   paused?: boolean;
+  /**
+   * A small patch of sky (a header, a box) instead of the whole screen: give its size, and a density
+   * (1 = a full screen of stars). `meteor` turns the shooting star on or off.
+   */
+  size?: { width: number; height: number };
+  density?: number;
+  heroes?: number;
+  meteor?: boolean;
 };
 
 function useReduceMotion() {
@@ -62,29 +72,29 @@ function useScintillation(enabled: boolean, seed: number, low: number) {
 }
 
 // The Milky Way, a few dust-dim stars and the field. Drawn once, never animated.
-const StaticSky = React.memo(function StaticSky({ sky, w, h }: { sky: Sky; w: number; h: number }) {
+const StaticSky = React.memo(function StaticSky({ sky, w, h, pid }: { sky: Sky; w: number; h: number; pid: string }) {
   const b = sky.band;
   return (
     <Svg width={w} height={h} style={StyleSheet.absoluteFill}>
       <Defs>
-        <RadialGradient id="wl-mw" cx="50%" cy="50%" r="50%">
+        <RadialGradient id={`${pid}-mw`} cx="50%" cy="50%" r="50%">
           <Stop offset="0" stopColor="#A9BEFF" stopOpacity="0.10" />
           <Stop offset="0.55" stopColor="#8EA6F0" stopOpacity="0.045" />
           <Stop offset="1" stopColor="#8EA6F0" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="wl-bulge" cx="50%" cy="50%" r="50%">
+        <RadialGradient id={`${pid}-bulge`} cx="50%" cy="50%" r="50%">
           <Stop offset="0" stopColor="#F1DEC2" stopOpacity="0.07" />
           <Stop offset="1" stopColor="#F1DEC2" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="wl-lane" cx="50%" cy="50%" r="50%">
+        <RadialGradient id={`${pid}-lane`} cx="50%" cy="50%" r="50%">
           <Stop offset="0" stopColor="#000000" stopOpacity="0.55" />
           <Stop offset="1" stopColor="#000000" stopOpacity="0" />
         </RadialGradient>
       </Defs>
       <G transform={`translate(${b.cx} ${b.cy}) rotate(${b.angleDeg})`}>
-        <Ellipse cx={0} cy={0} rx={b.length * 0.42} ry={b.sigma * 2.2} fill="url(#wl-mw)" />
-        <Ellipse cx={b.length * 0.08} cy={0} rx={b.length * 0.2} ry={b.sigma * 1.2} fill="url(#wl-bulge)" />
-        <Ellipse cx={-b.length * 0.05} cy={b.sigma * 0.25} rx={b.length * 0.3} ry={b.sigma * 0.28} fill="url(#wl-lane)" />
+        <Ellipse cx={0} cy={0} rx={b.length * 0.42} ry={b.sigma * 2.2} fill={`url(#${pid}-mw)`} />
+        <Ellipse cx={b.length * 0.08} cy={0} rx={b.length * 0.2} ry={b.sigma * 1.2} fill={`url(#${pid}-bulge)`} />
+        <Ellipse cx={-b.length * 0.05} cy={b.sigma * 0.25} rx={b.length * 0.3} ry={b.sigma * 0.28} fill={`url(#${pid}-lane)`} />
       </G>
       {sky.milky.map((d, i) => (
         <Circle key={`m${i}`} cx={d.x} cy={d.y} r={d.r} fill={d.c} opacity={d.o} />
@@ -110,10 +120,10 @@ function TwinkleLayer({ dots, w, h, seed, enabled }: { dots: Dot[]; w: number; h
 }
 
 // A bright star: a tight glow, a white core and (for the brightest) thin diffraction spikes that fade out.
-function HeroStar({ s, enabled }: { s: Hero; enabled: boolean }) {
+function HeroStar({ s, enabled, pid }: { s: Hero; enabled: boolean; pid: string }) {
   const v = useScintillation(enabled, s.seed, 0.55);
   const size = s.size * 1.8;
-  const id = `wl-h${s.seed}`;
+  const id = `${pid}-h${s.seed}`;
   const scale = v.interpolate({ inputRange: [0.55, 1], outputRange: [0.9, 1.1], extrapolate: 'clamp' });
   return (
     <Animated.View
@@ -161,7 +171,7 @@ function HeroStar({ s, enabled }: { s: Hero; enabled: boolean }) {
 }
 
 // One shooting star every 11 to 25 seconds, somewhere in the upper part of the sky.
-function Meteor({ enabled, w, h }: { enabled: boolean; w: number; h: number }) {
+function Meteor({ enabled, w, h, pid }: { enabled: boolean; w: number; h: number; pid: string }) {
   const p = useRef(new Animated.Value(0)).current;
   const [m, setM] = useState({ x: 0, y: 0, dx: 0, dy: 0, deg: 0 });
 
@@ -172,7 +182,7 @@ function Meteor({ enabled, w, h }: { enabled: boolean; w: number; h: number }) {
     const fire = () => {
       if (!alive) return;
       const a = ((18 + Math.random() * 22) * Math.PI) / 180;
-      const len = Math.min(w, h) * (0.45 + Math.random() * 0.35);
+      const len = Math.min(w, Math.max(h, 220)) * (0.45 + Math.random() * 0.35);
       setM({
         x: Math.random() * w * 0.55,
         y: Math.random() * h * 0.4,
@@ -210,12 +220,12 @@ function Meteor({ enabled, w, h }: { enabled: boolean; w: number; h: number }) {
       <View style={{ width: 120, height: 6, transform: [{ rotate: `${m.deg}deg` }] }}>
         <Svg width={120} height={6}>
           <Defs>
-            <LinearGradient id="wl-meteor" x1="0" y1="0" x2="1" y2="0">
+            <LinearGradient id={`${pid}-meteor`} x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0" />
               <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.95" />
             </LinearGradient>
           </Defs>
-          <Rect x={0} y={2.4} width={116} height={1.2} fill="url(#wl-meteor)" />
+          <Rect x={0} y={2.4} width={116} height={1.2} fill={`url(#${pid}-meteor)`} />
           <Circle cx={116} cy={3} r={2} fill="#FFFFFF" />
         </Svg>
       </View>
@@ -229,17 +239,18 @@ function Meteor({ enabled, w, h }: { enabled: boolean; w: number; h: number }) {
  * Motion stops when the phone's "reduce motion" is on. Games do not use this: they have their own look.
  * If SPACE_BG_IMAGE is set in spaceTheme.ts, that picture is shown instead.
  */
-export default function SpaceBackground({ children, style, paused }: Props) {
+export default function SpaceBackground({ children, style, paused, size, density, heroes, meteor = true }: Props) {
   const win = useWindowDimensions();
+  const pid = useRef(`sk${instances++}`).current;
   // Never shrink: opening the keyboard must not rebuild (and so move) the stars.
   const tallest = useRef(0);
   if (win.height > tallest.current) tallest.current = win.height;
-  const w = win.width;
-  const h = tallest.current;
+  const w = size ? Math.max(1, Math.round(size.width)) : win.width;
+  const h = size ? Math.max(1, Math.round(size.height)) : tallest.current;
 
   const reduce = useReduceMotion();
   const enabled = !reduce && !paused;
-  const sky = useMemo(() => buildSky(w, h), [w, h]);
+  const sky = useMemo(() => buildSky(w, h, { density, heroes }), [w, h, density, heroes]);
 
   if (SPACE_BG_IMAGE) {
     return (
@@ -253,14 +264,14 @@ export default function SpaceBackground({ children, style, paused }: Props) {
   return (
     <View style={[styles.fill, { backgroundColor: space.void }, style]}>
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <StaticSky sky={sky} w={w} h={h} />
+        <StaticSky sky={sky} w={w} h={h} pid={pid} />
         {sky.twinkle.map((dots, i) => (
           <TwinkleLayer key={i} dots={dots} w={w} h={h} seed={7 + i * 53} enabled={enabled} />
         ))}
         {sky.heroes.map((s) => (
-          <HeroStar key={s.seed} s={s} enabled={enabled} />
+          <HeroStar key={s.seed} s={s} enabled={enabled} pid={pid} />
         ))}
-        <Meteor enabled={enabled} w={w} h={h} />
+        {meteor && <Meteor enabled={enabled} w={w} h={h} pid={pid} />}
       </View>
       {children}
     </View>
