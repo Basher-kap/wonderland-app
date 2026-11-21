@@ -3,7 +3,7 @@ import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { Button, DomainBadge, DomainStat } from '../components/ui';
+import { Button, DomainBadge } from '../components/ui';
 import { KeyboardAwareScroll } from '../components/KeyboardAwareScroll';
 import { RoundIntro } from '../components/RoundIntro';
 import { VoiceButton } from '../components/VoiceButton';
@@ -16,9 +16,10 @@ import type { GameResult, GameRoom } from '../games/types';
 import * as api from '../lib/api';
 import { getGameBackdrop } from '../gameThemes/gameThemes';
 import { isDemoMode } from '../lib/firebase';
-import { DOMAIN_ORDER, radius } from '../theme';
+import { radius } from '../theme';
 import { space } from '../spaceTheme';
 import { GlintTitle, StarGlass, WarpCountdown } from '../components/SpaceGlass';
+import { MatchResult, RoundResult, WaitingPulse } from '../components/SpaceResults';
 import type { RootStackParamList } from '../navigation/types';
 
 // One round, as every player sees it:
@@ -218,7 +219,6 @@ export function GameScreen() {
   }, [isHost, roundActive, gameModule, code, over, roundKey, roundResults]);
 
   // What this finished match did to MY ranking points (saved to my profile automatically).
-  const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : '0');
   let pointsDelta: DomainCount | null = null;
   if (finished && lobby && uid && lobby.players[uid]?.pts) {
     pointsDelta = settlementFor(lobby, uid).pointsDelta;
@@ -446,112 +446,67 @@ export function GameScreen() {
           </View>
         )}
 
-        {lobby && (
+        {/* While a round is played nothing but the game is on screen: no round box, no player list. */}
+        {lobby && finished && (
+          <MatchResult
+            mode={lobby.winnerId && lobby.winnerId === uid ? 'won' : winnerName ? 'lost' : 'none'}
+            winnerName={winnerName}
+            quitName={round?.quitBy ? lobby.players[round.quitBy]?.username ?? 'A player' : undefined}
+            delta={pointsDelta}
+          />
+        )}
+
+        {lobby && roundDone && !finished && (
+          <RoundResult
+            mode={!round?.winnerId ? 'draw' : round.winnerId === uid ? 'won' : 'lost'}
+            winnerName={roundWinnerName}
+            forfeiters={forfeiters.map((r) => lobby.players[r.uid]?.username ?? 'A player')}
+            isHost={isHost}
+            busy={busy}
+            onNext={() => run(() => api.nextRound(code!))}
+          />
+        )}
+
+        {/* Waiting for the others / ending the round */}
+        {lobby && roundActive && gameModule && mine && !myResult && !mine.sent && (
           <StarGlass>
-            <Text style={styles.boxTitle}>
-              Round {round?.no ?? '-'} · Leg {lobby.leg}
-            </Text>
-            {players.map(([id, p]) => {
-              const r = roundResults.find((x) => x.uid === id);
-              return (
-                <Text key={id} style={styles.boxText}>
-                  {p.username}   ♥ {p.lives}
-                  {gameModule && (roundActive || roundDone) && r ? `   ${describe(r)}` : ''}
-                  {gameModule && roundActive && !r ? '   playing…' : ''}
-                </Text>
-              );
-            })}
-
-            {finished && (
-              <Text style={[styles.boxText, { marginTop: 8, color: space.amber }]}>
-                Match over.{winnerName ? ` Winner: ${winnerName}` : ''} Tickets update automatically.
-              </Text>
-            )}
-            {finished && round?.quitBy && (
-              <Text style={[styles.boxText, { color: space.amber }]}>
-                {`${lobby.players[round.quitBy]?.username ?? 'A player'} forfeited the match.`}
-              </Text>
-            )}
-            {finished && pointsDelta && (
-              <View style={{ gap: 6, marginTop: 4 }}>
-                <Text style={[styles.boxText, { color: space.text }]}>Your points this match:</Text>
-                <View style={{ flexDirection: 'row', gap: 18 }}>
-                  {DOMAIN_ORDER.map((d) => (
-                    <DomainStat key={d} domain={d} value={fmt(pointsDelta![d])} size={16} color={space.text} />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* 3. Waiting for the others / ending the round */}
-            {roundActive && gameModule && mine && !myResult && !mine.sent && (
-              <View style={{ gap: 8, marginTop: 8 }}>
-                <Text style={styles.boxText}>Your result was not sent yet.</Text>
-                <Button tone="space" label="Send my result again" disabled={busy} onPress={() => void sendResult(roundKey, mine.result)} />
-              </View>
-            )}
-            {roundActive && gameModule && mine && (myResult || mine.sent) && (
-              <Text style={[styles.boxText, { marginTop: 8 }]}>
-                Result sent. Waiting for the other players… ({roundResults.length}/{lobby.playerIds.length} finished)
-              </Text>
-            )}
-
-            {/* Games that are not built yet: temporary host buttons */}
-            {roundActive && !gameModule && isHost && (
-              <View style={{ gap: 8, marginTop: 10 }}>
-                <Text style={styles.boxText}>
-                  Temporary host controls (this game board is not built yet): who won this round?
-                </Text>
-                {players.map(([id, p]) => (
-                  <Button tone="space"
-                    key={id}
-                    label={p.username}
-                    variant="secondary"
-                    style={glassButton}
-                    disabled={busy}
-                    onPress={() => run(() => api.resolveRound(code!, id))}
-                  />
-                ))}
-                <Button tone="space"
-                  label="Draw (nobody loses a life)"
-                  variant="secondary"
-                  style={glassButton}
-                  disabled={busy}
-                  onPress={() => run(() => api.resolveRound(code!, null))}
-                />
-              </View>
-            )}
-            {roundActive && !gameModule && !isHost && (
-              <Text style={[styles.boxText, { marginTop: 8 }]}>Round in progress…</Text>
-            )}
-
-            {roundDone && (
-              <Text style={[styles.boxText, { marginTop: 8, color: space.amber }]}>
-                {round?.winnerId
-                  ? `${roundWinnerName ?? 'A player'} won the round. Everyone else lost a life.`
-                  : 'Draw: nobody loses a life.'}
-              </Text>
-            )}
-            {(roundDone || finished) &&
-              forfeiters.map((r) => (
-                <Text key={r.uid} style={[styles.boxText, { color: space.amber }]}>
-                  {`${lobby.players[r.uid]?.username ?? 'A player'} forfeited this game.`}
-                </Text>
-              ))}
-            {roundDone && isHost && (
-              <Button tone="space"
-                label="Draw next game"
-                disabled={busy}
-                onPress={() => run(() => api.nextRound(code!))}
-                style={{ marginTop: 10 }}
-              />
-            )}
-            {roundDone && !isHost && (
-              <Text style={[styles.boxText, { marginTop: 8 }]}>
-                Round finished. Waiting for the host to draw the next game…
-              </Text>
-            )}
+            <Text style={styles.boxText}>Your result was not sent yet.</Text>
+            <Button tone="space" label="Send my result again" disabled={busy} onPress={() => void sendResult(roundKey, mine.result)} />
           </StarGlass>
+        )}
+        {lobby && roundActive && gameModule && mine && (myResult || mine.sent) && (
+          <WaitingPulse
+            done={roundResults.length}
+            total={lobby.playerIds.length}
+            label="Result sent. Waiting for the other players…"
+          />
+        )}
+
+        {/* Games that are not built yet: temporary host buttons */}
+        {lobby && roundActive && !gameModule && isHost && (
+          <StarGlass>
+            <Text style={styles.boxText}>Temporary host controls (this game board is not built yet): who won this round?</Text>
+            {players.map(([id, p]) => (
+              <Button tone="space"
+                key={id}
+                label={p.username}
+                variant="secondary"
+                style={glassButton}
+                disabled={busy}
+                onPress={() => run(() => api.resolveRound(code!, id))}
+              />
+            ))}
+            <Button tone="space"
+              label="Draw (nobody loses a life)"
+              variant="secondary"
+              style={glassButton}
+              disabled={busy}
+              onPress={() => run(() => api.resolveRound(code!, null))}
+            />
+          </StarGlass>
+        )}
+        {lobby && roundActive && !gameModule && !isHost && (
+          <Text style={styles.boxText}>Round in progress…</Text>
         )}
 
         {lobby && roundActive && quitSent && (
@@ -559,11 +514,6 @@ export function GameScreen() {
         )}
       </KeyboardAwareScroll>
       <VoiceButton code={code} />
-      {!locked && (
-        <View style={styles.footer}>
-          <Button tone="space" label="Back" variant="secondary" style={glassButton} onPress={() => navigation.goBack()} />
-        </View>
-      )}
     </SafeAreaView>
   );
   return Backdrop ? <Backdrop>{page}</Backdrop> : page;
@@ -604,5 +554,4 @@ const styles = StyleSheet.create({
   },
   headerButtonDanger: { borderColor: space.danger },
   headerButtonText: { color: space.text, fontSize: 13, fontWeight: '600' },
-  footer: { padding: 20 },
 });

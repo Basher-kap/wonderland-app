@@ -162,7 +162,7 @@ export function Glint({ size = 12, color = space.amber }: { size?: number; color
   );
 }
 
-export function GlintTitle({ children }: { children: string }) {
+export function GlintTitle({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.glintRow}>
       <Glint size={10} />
