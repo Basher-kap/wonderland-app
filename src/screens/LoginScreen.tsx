@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Logo } from '../components/Logo';
+import { AppLogo } from '../components/AppLogo';
 import { Button } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { isDemoMode } from '../lib/firebase';
@@ -13,7 +13,7 @@ import { space } from '../spaceTheme';
 
 const isWeb = Platform.OS === 'web';
 
-// The emblem comes out of the dark: it fades and settles in, then a halo of light behind it breathes slowly.
+// The emblem comes out of the dark: it fades and settles in, then a halo of violet light behind it breathes slowly.
 function Emblem({ children }: { children: React.ReactNode }) {
   const reduce = useReduceMotion();
   const enter = useRef(new Animated.Value(reduce ? 1 : 0)).current;
@@ -56,9 +56,9 @@ function Emblem({ children }: { children: React.ReactNode }) {
         <Svg width={halo} height={halo}>
           <Defs>
             <RadialGradient id="login-halo" cx="50%" cy="50%" r="50%">
-              <Stop offset="0.3" stopColor="#8FB8FF" stopOpacity="0.22" />
-              <Stop offset="0.62" stopColor="#8FB8FF" stopOpacity="0.07" />
-              <Stop offset="1" stopColor="#8FB8FF" stopOpacity="0" />
+              <Stop offset="0.3" stopColor="#9B6BFF" stopOpacity="0.28" />
+              <Stop offset="0.62" stopColor="#9B6BFF" stopOpacity="0.08" />
+              <Stop offset="1" stopColor="#9B6BFF" stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Circle cx={halo / 2} cy={halo / 2} r={halo / 2} fill="url(#login-halo)" />
@@ -114,7 +114,7 @@ export function LoginScreen() {
       <SafeAreaView style={styles.root}>
         <View style={styles.center}>
           <Emblem>
-            <Logo size={220} wordmark tagline />
+            <AppLogo size={230} wordmark tagline />
           </Emblem>
         </View>
         <View style={styles.bottom}>

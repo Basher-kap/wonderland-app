@@ -3,7 +3,7 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Logo } from '../components/Logo';
+import { AppLogo } from '../components/AppLogo';
 import { Button, DomainIcon, TicketChip } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
@@ -18,10 +18,10 @@ const randomCode = () =>
 
 // What each domain is about, in the words of the game's own brief.
 const ABOUT: Record<Domain, string> = {
-  logic: 'games of critical thinking and pure analysis, where every challenge can be solved by reasoning it through.',
+  logic: 'Games of critical thinking and pure analysis, where every challenge can be solved by reasoning it through.',
   experience:
-    'games that relies on personal data collection, worldly concerns, especially having great ideas and visual sense.',
-  chance: 'games far from reasoning, ruled by randomness, probability and luck.',
+    'Games that draw on what you have observed and gathered: worldly awareness, great ideas and a keen visual sense.',
+  chance: 'Games far from reasoning, ruled by randomness, probability and luck.',
 };
 
 export function HomeScreen() {
@@ -64,7 +64,7 @@ export function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.brand}>
-            <Logo size={44} />
+            <AppLogo size={46} />
             <View>
               <Text style={styles.hello}>Hi, {username}</Text>
               <Text style={styles.sub}>Ready to play?</Text>
