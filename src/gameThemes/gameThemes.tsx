@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FoodLandBackground } from '../components/FoodLandBackground';
 import { CaveBackground } from '../components/CaveBackground';
 import { FestivalBackground } from '../components/FestivalBackground';
+import { Furin } from '../components/Furin';
 import { MayaGlyph } from '../components/MayaGlyph';
 import { LibraryBackground } from '../components/LibraryBackground';
 import { QuizStageBackground } from '../components/QuizStageBackground';
@@ -11,6 +12,7 @@ import { EsportsArenaBackground } from '../components/EsportsArenaBackground';
 import { OrphanageBackground } from '../components/OrphanageBackground';
 import { WildWestBackground } from '../components/WildWestBackground';
 import { NaumachiaBackground } from '../components/NaumachiaBackground';
+import { TatamiBackground } from '../components/TatamiBackground';
 import { calc as c, FONT_SCREEN } from './humanCalculatorTheme';
 import { FONT_FORTUNE, fortune as fo } from './fortuneTheme';
 import { cave as cv, FONT_XIBALBA } from './xibalbaTheme';
@@ -19,6 +21,7 @@ import { FONT_DISPLAY, west as h } from './hangmanTheme';
 import { FONT_DISPLAY as FONT_KIDS, kids as k } from './schulteTheme';
 import { FONT_DISPLAY as FONT_ESP, esp as e } from './inversionTheme';
 import { FONT_DISPLAY as FONT_ROMA, roma as ro } from './battleshipsTheme';
+import { FONT_KARUTA, washitsu as wa } from './karutaTheme';
 import { FONT_BODY, wordle as w } from './wordleTheme';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -37,6 +40,7 @@ export function getGameBackdrop(gameId?: string): Wrap | null {
   if (gameId === 'schulte-table') return OrphanageBackground;
   if (gameId === 'inversion') return EsportsArenaBackground;
   if (gameId === 'battleships') return NaumachiaBackground;
+  if (gameId === 'karuta') return TatamiBackground;
   return null;
 }
 
@@ -297,6 +301,26 @@ const BATTLESHIPS_INTRO: IntroTheme = {
   Decor: GreekKey,
 };
 
+// Karuta: the rules are a sheet of washi paper in a wooden frame, with a wind chime hanging in it.
+function FurinDecor() {
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, right: 22 }}>
+      <Furin />
+    </View>
+  );
+}
+
+const KARUTA_INTRO: IntroTheme = {
+  Backdrop: TatamiBackground,
+  accent: wa.indigo,
+  text: wa.ink,
+  hint: wa.ink,
+  bullet: wa.vermilion,
+  fontFamily: FONT_KARUTA,
+  dialog: { backgroundColor: wa.paper, borderColor: wa.wood, borderWidth: 5, borderRadius: 4 },
+  Decor: FurinDecor,
+};
+
 export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'traps-of-xibalba') return XIBALBA_INTRO;
   if (gameId === 'fortune') return FORTUNE_INTRO;
@@ -307,5 +331,6 @@ export function getIntroTheme(gameId?: string): IntroTheme | null {
   if (gameId === 'schulte-table') return SCHULTE_INTRO;
   if (gameId === 'inversion') return INVERSION_INTRO;
   if (gameId === 'battleships') return BATTLESHIPS_INTRO;
+  if (gameId === 'karuta') return KARUTA_INTRO;
   return null;
 }
