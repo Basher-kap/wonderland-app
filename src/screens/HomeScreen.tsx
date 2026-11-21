@@ -16,23 +16,12 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const randomCode = () =>
   Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
-// What each domain asks of a player: a short idea of the games, and the skills that win them.
-const SKILLS: Record<Domain, { tagline: string; text: string; skills: string[] }> = {
-  logic: {
-    tagline: 'Think it through.',
-    text: 'Words, numbers and chains of ideas. The cleanest reasoning wins, and a wrong guess costs you.',
-    skills: ['Mental arithmetic', 'Deduction', 'Vocabulary', 'A cool head under the clock'],
-  },
-  experience: {
-    tagline: 'Watch, react, read the room.',
-    text: 'Quick eyes, quick hands and a feel for what the other players will do next.',
-    skills: ['Sharp focus', 'Fast reactions', 'Spotting patterns', 'Reading people'],
-  },
-  chance: {
-    tagline: 'Luck deals. You decide.',
-    text: 'The cards fall as they fall. You win by how well you play them, and by what you remember.',
-    skills: ['Nerve', 'Judging risk', 'Memory', 'Adapting when luck turns'],
-  },
+// What each domain is about, in the words of the game's own brief.
+const ABOUT: Record<Domain, string> = {
+  logic: 'games of critical thinking and pure analysis, where every challenge can be solved by reasoning it through.',
+  experience:
+    'games that relies on personal data collection, worldly concerns, especially having great ideas and visual sense.',
+  chance: 'games far from reasoning, ruled by randomness, probability and luck.',
 };
 
 export function HomeScreen() {
@@ -109,10 +98,10 @@ export function HomeScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Three ways to win</Text>
+        <Text style={styles.sectionTitle}>Domains</Text>
         {DOMAIN_ORDER.map((domain) => {
           const info = domainInfo[domain];
-          const sk = SKILLS[domain];
+          
           return (
             <View key={domain} style={[styles.domain, { borderTopColor: info.color + '99' }]}>
               <View style={styles.domainHeader}>
@@ -121,18 +110,9 @@ export function HomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.domainTitle, { color: info.color }]}>{info.label}</Text>
-                  <Text style={styles.domainBlurb}>{sk.tagline}</Text>
                 </View>
               </View>
-              <Text style={styles.domainText}>{sk.text}</Text>
-              <Text style={styles.skillsLabel}>What it takes to win</Text>
-              <View style={styles.chips}>
-                {sk.skills.map((name) => (
-                  <View key={name} style={[styles.chip, { borderColor: info.color + '66' }]}>
-                    <Text style={styles.chipText}>{name}</Text>
-                  </View>
-                ))}
-              </View>
+              <Text style={styles.domainText}>{ABOUT[domain]}</Text>
             </View>
           );
         })}
@@ -168,16 +148,5 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   domainTitle: { fontSize: 20, fontWeight: '700', letterSpacing: 0.15 },
-  domainBlurb: { ...typo.caption },
   domainText: { ...typo.body, fontSize: 15, lineHeight: 22, color: space.textDim },
-  skillsLabel: { ...typo.caption, color: space.textFaint, marginTop: 2 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: space.fieldBg,
-  },
-  chipText: { color: space.text, fontSize: 13, fontWeight: '500' },
 });
