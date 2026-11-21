@@ -6,9 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { LADDERS, Track, nextTitle, titleFor } from '../data/ranks';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors, DOMAIN_ORDER, domainInfo, radius } from '../theme';
-import SpaceBackground from '../components/SpaceBackground';
-import { space } from '../spaceTheme';
+import { DOMAIN_ORDER, domainInfo } from '../theme';
+import { listPanel, panel, rowDivider, space, typo } from '../spaceTheme';
 
 // Demo mode only. Points: +10 per round won, -5 per round lost, per domain.
 const DEMO: api.LeaderboardRow[] = [
@@ -47,7 +46,6 @@ export function LeaderboardScreen() {
   const me = rows.find((r) => r.uid === uid);
 
   return (
-    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.heading}>Leaderboard</Text>
@@ -76,87 +74,71 @@ export function LeaderboardScreen() {
 
         {rows.length === 0 && <Text style={styles.empty}>No scores yet. Win a round to get on the board.</Text>}
 
-        {rows.map((r, i) => (
-          <View key={r.uid} style={[styles.row, r.uid === uid && styles.rowMe]}>
-            <Text style={styles.rank}>{i + 1}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>
-                {r.username}
-                {r.uid === uid ? '  (you)' : ''}
-              </Text>
-              <View style={styles.scoresRow}>
-                {DOMAIN_ORDER.map((d) => (
-                  <DomainStat key={d} domain={d} value={r[d]} size={13} />
-                ))}
+        {rows.length > 0 && (
+          <View style={styles.table}>
+            {rows.map((r, i) => (
+              <View
+                key={r.uid}
+                style={[styles.row, i < rows.length - 1 && rowDivider, r.uid === uid && styles.rowMe]}
+              >
+                <Text style={[styles.rank, i === 0 && { color: space.amber }]}>{i + 1}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>
+                    {r.username}
+                    {r.uid === uid ? <Text style={styles.you}>  (you)</Text> : null}
+                  </Text>
+                  <View style={styles.scoresRow}>
+                    {DOMAIN_ORDER.map((d) => (
+                      <DomainStat key={d} domain={d} value={r[d]} size={13} color={space.textDim} />
+                    ))}
+                  </View>
+                  <Text style={styles.titles}>{r.titles.length ? r.titles.join(' · ') : 'No title yet'}</Text>
+                </View>
+                <Text style={styles.total}>{r.total}</Text>
               </View>
-              <Text style={styles.titles}>{r.titles.length ? r.titles.join(' · ') : 'No title yet'}</Text>
-            </View>
-            <Text style={styles.total}>{r.total}</Text>
+            ))}
           </View>
-        ))}
+        )}
 
-        <Text style={[styles.heading, { marginTop: 28 }]}>Ranking titles</Text>
-        {TRACKS.map((t) => (
-          <View key={t} style={styles.ladder}>
-            <Text style={styles.ladderLabel}>
-              {LADDERS[t].label}
-              {t === 'all' ? ' (your weakest domain counts)' : ''}
-            </Text>
-            <Text style={styles.ladderTitles}>
-              {LADDERS[t].titles.map((title, i) => `${title} (${LADDERS[t].thresholds[i]})`).join('  →  ')}
-            </Text>
-          </View>
-        ))}
+        <Text style={[styles.heading, { marginTop: 32 }]}>Ranking titles</Text>
+        <View style={styles.table}>
+          {TRACKS.map((t, i) => (
+            <View key={t} style={[styles.ladder, i < TRACKS.length - 1 && rowDivider]}>
+              <Text style={styles.ladderLabel}>
+                {LADDERS[t].label}
+                {t === 'all' ? ' (your weakest domain counts)' : ''}
+              </Text>
+              <Text style={styles.ladderTitles}>
+                {LADDERS[t].titles.map((title, j) => `${title} (${LADDERS[t].thresholds[j]})`).join('  →  ')}
+              </Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
-    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  content: { padding: 20, paddingBottom: 40 },
-  heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 6, ...space.glowText },
-  rule: { color: colors.muted, fontSize: 13, marginBottom: 14 },
-  empty: { color: colors.muted, marginBottom: 12 },
-  meCard: {
-    backgroundColor: space.cardAlt,
-    borderRadius: radius.md,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    gap: 4,
-  },
-  meTitle: { color: colors.accent, fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  meLine: { color: colors.muted, fontSize: 13, flexShrink: 1 },
+  content: { padding: 20, paddingBottom: 24 },
+  heading: { ...typo.title, marginBottom: 6 },
+  rule: { ...typo.caption, marginBottom: 18 },
+  empty: { ...typo.caption, marginBottom: 12 },
+  meCard: { ...panel, borderColor: space.amberLine, borderTopColor: space.amberLine, padding: 16, marginBottom: 20, gap: 6 },
+  meTitle: { color: space.amber, fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  meLine: { ...typo.caption, flexShrink: 1 },
   meRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  table: { ...listPanel },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  rowMe: { backgroundColor: space.amberWash },
+  rank: { color: space.textDim, fontSize: 18, fontWeight: '700', width: 28, textAlign: 'center' },
+  name: { ...typo.body, fontWeight: '600' },
+  you: { color: space.ice, fontWeight: '400', fontSize: 14 },
   scoresRow: { flexDirection: 'row', gap: 16, marginTop: 4 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    ...space.glass,
-    borderRadius: radius.md,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rowMe: { borderColor: colors.accent, borderTopColor: colors.accent },
-  rank: { color: colors.accent, fontSize: 20, fontWeight: '700', width: 24, textAlign: 'center' },
-  name: { color: colors.text, fontSize: 16, fontWeight: '600' },
-  scores: { color: colors.muted, fontSize: 13, marginTop: 2 },
-  titles: { color: colors.accent, fontSize: 12, marginTop: 2 },
-  total: { color: colors.text, fontSize: 20, fontWeight: '700' },
-  ladder: {
-    ...space.glass,
-    borderRadius: radius.md,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  ladderLabel: { color: colors.text, fontWeight: '600', marginBottom: 4 },
-  ladderTitles: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  titles: { color: space.ice, fontSize: 12, marginTop: 3 },
+  total: { color: space.text, fontSize: 20, fontWeight: '700' },
+  ladder: { padding: 14 },
+  ladderLabel: { ...typo.body, fontSize: 15, fontWeight: '600', marginBottom: 4 },
+  ladderTitles: { ...typo.caption, lineHeight: 19 },
 });

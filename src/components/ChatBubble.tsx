@@ -18,7 +18,7 @@ import type { NavigationContainerRefWithCurrent } from '@react-navigation/native
 import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors, radius } from '../theme';
+import { colors } from '../theme';
 import { space } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -187,7 +187,7 @@ export function ChatBubble({ navRef, routeName }: Props) {
           <View style={styles.panelHead}>
             <Text style={styles.panelTitle}>Public chat</Text>
             <Pressable onPress={() => setOpen(false)} hitSlop={10}>
-              <Ionicons name="close" size={22} color={colors.muted} />
+              <Ionicons name="close" size={22} color={space.textDim} />
             </Pressable>
           </View>
           <Text style={styles.hint}>Find players here, then send them your lobby ID.</Text>
@@ -225,14 +225,14 @@ export function ChatBubble({ navRef, routeName }: Props) {
               value={text}
               onChangeText={setText}
               placeholder="Message everyone…"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={space.textFaint}
               maxLength={api.CHAT_MAX}
               style={styles.input}
               onSubmitEditing={send}
               returnKeyType="send"
             />
             <Pressable onPress={send} style={styles.sendBtn} accessibilityRole="button" accessibilityLabel="Send">
-              <Ionicons name="send" size={18} color={colors.bg} />
+              <Ionicons name="send" size={18} color="#000000" />
             </Pressable>
           </View>
         </View>
@@ -244,7 +244,8 @@ export function ChatBubble({ navRef, routeName }: Props) {
         accessibilityRole="button"
         accessibilityLabel="Public chat"
       >
-        <Ionicons name={open ? 'chevron-down' : 'chatbubbles'} size={26} color={colors.bg} />
+        {unread > 0 && <View pointerEvents="none" style={styles.halo} />}
+        <Ionicons name={open ? 'chevron-down' : 'chatbubbles'} size={26} color={space.amber} />
         {unread > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
@@ -256,6 +257,7 @@ export function ChatBubble({ navRef, routeName }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // The floating button: a black disc with an amber rim, like a porthole.
   bubble: {
     position: 'absolute',
     left: 0,
@@ -263,25 +265,37 @@ const styles = StyleSheet.create({
     width: BUBBLE,
     height: BUBBLE,
     borderRadius: BUBBLE / 2,
-    backgroundColor: colors.accent,
+    backgroundColor: '#05060C',
+    borderWidth: 1.5,
+    borderColor: space.amberLine,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 8,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.55,
-    shadowRadius: 14,
+    shadowColor: space.amber,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 0 },
+  },
+  // A faint ring around the button while there are unread messages.
+  halo: {
+    position: 'absolute',
+    width: BUBBLE + 14,
+    height: BUBBLE + 14,
+    borderRadius: (BUBBLE + 14) / 2,
+    borderWidth: 1,
+    borderColor: space.amberLine,
+    opacity: 0.6,
   },
   badge: {
     position: 'absolute',
-    top: -2,
-    right: -2,
+    top: -3,
+    right: -3,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
     backgroundColor: colors.danger,
     borderWidth: 2,
-    borderColor: colors.bg,
+    borderColor: space.void,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
@@ -291,18 +305,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     right: 12,
-    ...space.glass,
+    backgroundColor: 'rgba(3, 4, 9, 0.93)',
     borderRadius: 20,
     borderWidth: 1,
+    borderColor: space.line,
+    borderTopColor: space.rim,
     padding: 12,
     elevation: 6,
   },
   panelHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  panelTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  hint: { color: colors.muted, fontSize: 12, marginBottom: 4 },
-  empty: { color: colors.muted, textAlign: 'center', marginTop: 20, transform: [{ scaleY: -1 }] },
+  panelTitle: { color: space.text, fontSize: 17, fontWeight: '600' },
+  hint: { color: space.textDim, fontSize: 12, marginBottom: 4 },
+  empty: { color: space.textDim, textAlign: 'center', marginTop: 20, transform: [{ scaleY: -1 }] },
   msg: {
-    backgroundColor: space.cardAlt,
+    backgroundColor: space.fieldBg,
+    borderWidth: 1,
+    borderColor: space.line,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
     paddingVertical: 8,
@@ -313,45 +331,50 @@ const styles = StyleSheet.create({
   },
   msgMine: {
     alignSelf: 'flex-end',
-    backgroundColor: '#4B3FB5',
+    backgroundColor: space.iceWash,
+    borderColor: space.iceLine,
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
   },
-  msgName: { color: colors.accent, fontSize: 11, fontWeight: '700' },
-  msgText: { color: colors.text, fontSize: 14 },
+  msgName: { color: space.ice, fontSize: 11, fontWeight: '600' },
+  msgText: { color: space.text, fontSize: 14 },
   joinChip: {
     marginTop: 6,
     alignSelf: 'flex-start',
-    backgroundColor: colors.accent,
+    borderWidth: 1,
+    borderColor: space.amberLine,
+    backgroundColor: space.amberWash,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
   shareChip: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.accent,
+    borderWidth: 1,
+    borderColor: space.amberLine,
+    backgroundColor: space.amberWash,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     marginBottom: 6,
   },
-  joinChipText: { color: colors.bg, fontSize: 12, fontWeight: '700' },
+  joinChipText: { color: space.amber, fontSize: 12, fontWeight: '600' },
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {
     flex: 1,
-    backgroundColor: space.input,
+    backgroundColor: space.fieldBg,
     borderWidth: 1,
-    borderColor: space.border,
+    borderColor: space.line,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    color: colors.text,
+    color: space.text,
   },
   sendBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.accent,
+    backgroundColor: space.amber,
     alignItems: 'center',
     justifyContent: 'center',
   },

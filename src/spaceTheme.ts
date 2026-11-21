@@ -1,49 +1,74 @@
-import type { ImageSourcePropType } from 'react-native';
+import type { ImageSourcePropType, TextStyle, ViewStyle } from 'react-native';
 import { colors } from './theme';
 
 /**
- * Space theme for Home, Leaderboard, Settings and Lobby.
+ * The Space look of the main pages (Home, Leaderboard, Settings, Lobby) and of the parts around them:
+ * tab bar, chat, tickets, buttons with tone="space", and the lobby mic.
  *
- * BACKGROUND IMAGE: when your design is ready, put the file in assets/images/ and replace `null`
- * below with:  require('../assets/images/space-bg.png')
- * While it is null, SpaceBackground draws a built-in placeholder (deep space, nebulae, planet, stars).
+ * Games never import this file. Each game has its own look in src/gameThemes/.
+ *
+ * BACKGROUND IMAGE: to show your own picture instead of the drawn sky, put it in assets/images/ and replace
+ * `null` below with  require('../assets/images/space-bg.png').
  */
 export const SPACE_BG_IMAGE: ImageSourcePropType | null = null;
 
 export const space = {
-  // placeholder background layers (used only while SPACE_BG_IMAGE is null)
-  bgDeep: colors.bg,
-  bgMid: '#1F1B55',
-  bgGlowA: '#6D4AE0', // violet nebula
-  bgGlowB: '#1F6FA8', // blue nebula
-  bgGlowC: '#C2478F', // pink dust
-  star: '#FFFFFF',
-  starWarm: '#FFE3B0',
-  planet: '#6A55D6',
-  planetRing: 'rgba(239, 159, 39, 0.5)', // colors.accent, see-through
+  void: '#000000',
+  imageDim: 0.35, // dark layer over your own image, 0 = none, 1 = black
 
-  // dark layer over YOUR image so text stays readable (0 = none, 1 = black)
-  imageDim: 0.35,
+  // text, all above 4.5:1 on black
+  text: '#EEF2FF',
+  textDim: '#A3ACC8',
+  textFaint: '#7C86A6',
 
-  // panels that sit on top of the background: same purples as theme.ts, a little see-through.
-  // Kept at 0.82+ so muted text stays above 4.5:1 whatever the image behind is.
-  card: 'rgba(38, 33, 92, 0.84)', // colors.card
-  cardAlt: 'rgba(47, 42, 110, 0.88)', // colors.cardAlt
-  input: 'rgba(23, 20, 58, 0.82)', // colors.bg
-  border: 'rgba(130, 120, 230, 0.5)',
-  borderTop: 'rgba(210, 200, 255, 0.4)', // lighter top edge = "light from above" glass look
+  // glass: near-black, see-through, with a hairline. The top edge is a little brighter, like rim light.
+  panelBg: 'rgba(5, 7, 14, 0.82)',
+  fieldBg: 'rgba(255, 255, 255, 0.05)',
+  pressedBg: 'rgba(255, 255, 255, 0.08)',
+  line: 'rgba(196, 210, 255, 0.16)',
+  lineStrong: 'rgba(196, 210, 255, 0.3)',
+  rim: 'rgba(226, 234, 255, 0.34)',
 
-  // glass panel: spread it in a style (`...space.glass`); put your own borderColor after it if needed
-  glass: {
-    backgroundColor: 'rgba(38, 33, 92, 0.84)',
-    borderColor: 'rgba(130, 120, 230, 0.5)',
-    borderTopColor: 'rgba(210, 200, 255, 0.4)',
-  },
+  // amber is the one warm star: actions and tickets only
+  amber: colors.accent,
+  amberLine: 'rgba(239, 159, 39, 0.55)',
+  amberWash: 'rgba(239, 159, 39, 0.12)',
 
-  // glow behind key text (lobby ID, screen titles)
-  glowText: {
-    textShadowColor: 'rgba(239, 159, 39, 0.55)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
+  // ice is for "you" and for information
+  ice: '#8FB8FF',
+  iceLine: 'rgba(143, 184, 255, 0.38)',
+  iceWash: 'rgba(143, 184, 255, 0.14)',
+
+  danger: colors.danger,
 } as const;
+
+// A box on the sky.
+export const panel: ViewStyle = {
+  backgroundColor: space.panelBg,
+  borderWidth: 1,
+  borderColor: space.line,
+  borderTopColor: space.rim,
+  borderRadius: 20,
+};
+
+// One box that holds a list; the rows inside are separated by hairlines, not by more boxes.
+export const listPanel: ViewStyle = { ...panel, borderRadius: 18, overflow: 'hidden' };
+
+// The divider between two rows of a listPanel.
+export const rowDivider: ViewStyle = { borderBottomWidth: 1, borderBottomColor: space.line };
+
+// A text box.
+export const field: ViewStyle & TextStyle = {
+  backgroundColor: space.fieldBg,
+  borderWidth: 1,
+  borderColor: space.line,
+  borderRadius: 14,
+  color: space.text,
+};
+
+export const typo = {
+  title: { color: space.text, fontSize: 26, fontWeight: '600', letterSpacing: 0.2 } as TextStyle,
+  heading: { color: space.text, fontSize: 18, fontWeight: '600', letterSpacing: 0.15 } as TextStyle,
+  body: { color: space.text, fontSize: 16 } as TextStyle,
+  caption: { color: space.textDim, fontSize: 13, lineHeight: 18 } as TextStyle,
+};

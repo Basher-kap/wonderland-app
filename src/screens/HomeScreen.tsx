@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Logo } from '../components/Logo';
@@ -9,9 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { GAMES } from '../data/games';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors, DOMAIN_ORDER, domainInfo, radius } from '../theme';
-import SpaceBackground from '../components/SpaceBackground';
-import { space } from '../spaceTheme';
+import { DOMAIN_ORDER, domainInfo } from '../theme';
+import { field, listPanel, panel, rowDivider, space, typo } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -54,9 +54,8 @@ export function HomeScreen() {
   };
 
   return (
-    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.brand}>
             <Logo size={44} />
@@ -69,19 +68,21 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.panel}>
-          <Button label="Create lobby" onPress={createLobby} disabled={busy} />
+          <Button tone="space" label="Create lobby" onPress={createLobby} disabled={busy} />
           <View style={styles.joinRow}>
             <TextInput
               value={code}
               onChangeText={setCode}
               placeholder="Lobby ID"
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={space.textFaint}
+              accessibilityLabel="Lobby ID"
               autoCapitalize="characters"
               autoCorrect={false}
               maxLength={6}
               style={styles.input}
             />
             <Button
+              tone="space"
               label="Join"
               variant="secondary"
               onPress={joinLobby}
@@ -94,72 +95,59 @@ export function HomeScreen() {
         <Text style={styles.sectionTitle}>Games</Text>
         {DOMAIN_ORDER.map((domain) => {
           const info = domainInfo[domain];
+          const games = GAMES.filter((g) => g.domain === domain);
           return (
-            <View key={domain} style={{ marginBottom: 18 }}>
+            <View key={domain} style={styles.domain}>
               <View style={styles.domainHeader}>
                 <DomainIcon domain={domain} size={22} />
                 <Text style={[styles.domainTitle, { color: info.color }]}>{info.label}</Text>
               </View>
               <Text style={styles.domainBlurb}>{info.blurb}</Text>
-              {GAMES.filter((g) => g.domain === domain).map((g) => (
-                <Pressable
-                  key={g.id}
-                  onPress={() => navigation.navigate('Game', { gameId: g.id })}
-                  style={({ pressed }) => [styles.gameCard, pressed && { opacity: 0.8 }]}
-                >
-                  <Text style={styles.gameName}>{g.name}</Text>
-                  <Text style={styles.gameDesc}>{g.description}</Text>
-                </Pressable>
-              ))}
+              <View style={styles.list}>
+                {games.map((g, i) => (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => navigation.navigate('Game', { gameId: g.id })}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.gameRow,
+                      i < games.length - 1 && rowDivider,
+                      pressed && { backgroundColor: space.pressedBg },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.gameName}>{g.name}</Text>
+                      <Text style={styles.gameDesc}>{g.description}</Text>
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={space.textFaint} />
+                  </Pressable>
+                ))}
+              </View>
             </View>
           );
         })}
       </ScrollView>
     </SafeAreaView>
-    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 24 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  hello: { color: colors.text, fontSize: 17, fontWeight: '600' },
-  sub: { color: colors.muted, fontSize: 13 },
-  panel: {
-    ...space.glass,
-    borderRadius: radius.lg,
-    padding: 16,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 24,
-  },
+  hello: { ...typo.heading },
+  sub: { ...typo.caption },
+  panel: { ...panel, padding: 16, gap: 12, marginBottom: 28 },
   joinRow: { flexDirection: 'row', gap: 10 },
-  input: {
-    flex: 1,
-    backgroundColor: space.input,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    color: colors.text,
-    fontSize: 16,
-    letterSpacing: 2,
-  },
-  sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 12, ...space.glowText },
+  input: { ...field, flex: 1, minHeight: 48, paddingHorizontal: 14, fontSize: 16, letterSpacing: 3 },
+  sectionTitle: { ...typo.title, marginBottom: 14 },
+  domain: { marginBottom: 24 },
   domainHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  domainTitle: { fontSize: 18, fontWeight: '600' },
-  domainBlurb: { color: colors.muted, fontSize: 13, marginBottom: 8 },
-  gameCard: {
-    ...space.glass,
-    borderRadius: radius.md,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  gameName: { color: colors.text, fontSize: 16, fontWeight: '600' },
-  gameDesc: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  domainTitle: { fontSize: 18, fontWeight: '600', letterSpacing: 0.15 },
+  domainBlurb: { ...typo.caption, marginTop: 2, marginBottom: 10 },
+  list: { ...listPanel },
+  gameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16 },
+  gameName: { ...typo.body, fontWeight: '600' },
+  gameDesc: { ...typo.caption, marginTop: 2 },
 });

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { Button } from '../components/ui';
@@ -12,9 +12,10 @@ import { useAuth } from '../context/AuthContext';
 import { GAMES } from '../data/games';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors, radius } from '../theme';
+import { colors } from '../theme';
 import SpaceBackground from '../components/SpaceBackground';
-import { space } from '../spaceTheme';
+import { SpaceHeader } from '../components/SpaceHeader';
+import { listPanel, panel, rowDivider, space, typo } from '../spaceTheme';
 import type { RootStackParamList } from '../navigation/types';
 
 // Demo mode only: fake friends so the screen is not empty.
@@ -26,6 +27,8 @@ export function LobbyScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { params } = useRoute<RouteProp<RootStackParamList, 'Lobby'>>();
   const { uid, username } = useAuth();
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused(); // the sky rests while a game is on top of the lobby
   const [lobby, setLobby] = useState<api.LobbyDoc | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -104,78 +107,88 @@ export function LobbyScreen() {
   };
 
   return (
-    <SpaceBackground>
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <VoiceButton code={params.code} />
-      <View style={styles.codeBox}>
-        <Text style={styles.codeLabel}>Lobby ID</Text>
-        <Text style={styles.code}>{params.code}</Text>
-        <Text style={styles.codeHint}>Share this with your friends so they can join.</Text>
-      </View>
+    <SpaceBackground paused={!focused}>
+      <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+        <SpaceHeader title="Lobby" onBack={() => navigation.goBack()} />
+        <VoiceButton code={params.code} tone="space" style={{ top: insets.top + 6 }} />
 
-      <Text style={styles.heading}>Players ({rows.length})</Text>
-      <FlatList
-        data={rows}
-        keyExtractor={(p) => p.id}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text style={styles.name}>
-              {item.name}
-              {item.isHost ? '  (host)' : ''}
-            </Text>
-            <View style={styles.livesBox} accessible accessibilityLabel={`${item.lives} lives`}>
-              <MaterialCommunityIcons name="heart" size={16} color={colors.chance} />
-              <Text style={styles.lives}>{item.lives}</Text>
-            </View>
-          </View>
-        )}
-      />
+        <View style={styles.codeBox}>
+          <Text style={styles.codeLabel}>Lobby ID</Text>
+          <Text style={styles.code} accessibilityLabel={`Lobby ID ${params.code.split('').join(' ')}`}>
+            {params.code}
+          </Text>
+          <Text style={styles.codeHint}>Share this with your friends so they can join.</Text>
+        </View>
 
-      <View style={styles.footer}>
-        {status === 'finished' ? (
-          <Text style={styles.waiting}>Match finished.{winnerName ? ` Winner: ${winnerName}` : ''}</Text>
-        ) : status === 'playing' ? (
-          <Text style={styles.waiting}>Game in progress…</Text>
-        ) : isHost ? (
-          <Button label="Start game" onPress={start} disabled={busy} />
-        ) : (
-          <Text style={styles.waiting}>Waiting for the host to start…</Text>
-        )}
-        <Button label="Leave lobby" variant="secondary" onPress={leave} />
-      </View>
-    </SafeAreaView>
+        <Text style={styles.heading}>Players ({rows.length})</Text>
+        <View style={styles.table}>
+          <FlatList
+            data={rows}
+            keyExtractor={(p) => p.id}
+            ItemSeparatorComponent={Separator}
+            renderItem={({ item }) => (
+              <View style={styles.row}>
+                <View style={styles.nameBox}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  {item.isHost && (
+                    <View style={styles.hostTag}>
+                      <MaterialCommunityIcons name="crown-outline" size={14} color={space.amber} />
+                      <Text style={styles.hostText}>host</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.livesBox} accessible accessibilityLabel={`${item.lives} lives`}>
+                  <MaterialCommunityIcons name="heart" size={16} color={colors.chance} />
+                  <Text style={styles.lives}>{item.lives}</Text>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+
+        <View style={styles.footer}>
+          {status === 'finished' ? (
+            <Text style={styles.waiting}>Match finished.{winnerName ? ` Winner: ${winnerName}` : ''}</Text>
+          ) : status === 'playing' ? (
+            <Text style={styles.waiting}>Game in progress…</Text>
+          ) : isHost ? (
+            <Button tone="space" label="Start game" onPress={start} disabled={busy} />
+          ) : (
+            <Text style={styles.waiting}>Waiting for the host to start…</Text>
+          )}
+          <Button tone="space" label="Leave lobby" variant="secondary" onPress={leave} />
+        </View>
+      </SafeAreaView>
     </SpaceBackground>
   );
 }
 
+const Separator = () => <View style={rowDivider} />;
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
-  codeBox: {
-    margin: 20,
-    padding: 20,
-    alignItems: 'center',
-    ...space.glass,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+  codeBox: { ...panel, margin: 20, marginTop: 8, padding: 20, alignItems: 'center' },
+  codeLabel: { ...typo.caption },
+  code: {
+    color: space.amber,
+    fontSize: 40,
+    fontWeight: '700',
+    letterSpacing: 8,
+    marginVertical: 6,
+    textShadowColor: 'rgba(239, 159, 39, 0.45)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
-  codeLabel: { color: colors.muted, fontSize: 13 },
-  code: { color: colors.accent, fontSize: 40, fontWeight: '700', letterSpacing: 6, marginVertical: 4, ...space.glowText },
-  codeHint: { color: colors.muted, fontSize: 12 },
-  heading: { color: colors.text, fontSize: 18, fontWeight: '600', marginHorizontal: 20, marginBottom: 10 },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    ...space.glass,
-    padding: 14,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  name: { color: colors.text, fontSize: 16 },
+  codeHint: { ...typo.caption, fontSize: 12 },
+  heading: { ...typo.heading, marginHorizontal: 20, marginBottom: 10 },
+  table: { ...listPanel, marginHorizontal: 20, flexShrink: 1 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
+  nameBox: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  name: { ...typo.body },
+  hostTag: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  hostText: { color: space.amber, fontSize: 12 },
   livesBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   lives: { color: colors.chance, fontSize: 16, fontWeight: '600' },
-  footer: { padding: 20, gap: 10 },
-  waiting: { color: colors.muted, textAlign: 'center' },
+  footer: { padding: 20, gap: 10, marginTop: 'auto' },
+  waiting: { ...typo.caption, textAlign: 'center' },
 });

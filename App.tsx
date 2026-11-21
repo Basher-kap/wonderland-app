@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { DarkTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer, createNavigationContainerRef, useIsFocused } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { colors } from './src/theme';
 import type { RootStackParamList, TabParamList } from './src/navigation/types';
 import { ChatBubble } from './src/components/ChatBubble';
+import SpaceBackground from './src/components/SpaceBackground';
 import { SpaceTabBar } from './src/components/SpaceTabBar';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -35,21 +36,28 @@ const navTheme = {
   },
 };
 
-// The tab icons, labels and the glowing active mark live in SpaceTabBar.tsx.
+// Home, Leaderboard and Settings share ONE night sky, drawn here behind the whole tab navigator. The pages
+// and the tab bar are see-through (sceneStyle), so the stars never jump when you switch tabs and run
+// behind the tab bar too. The tab icons, labels and the active star live in SpaceTabBar.tsx.
+// The sky rests while another screen (Lobby, Game) is on top.
 function MainTabs() {
+  const focused = useIsFocused();
   return (
-    <Tabs.Navigator
-      tabBar={(props) => <SpaceTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} />
-    </Tabs.Navigator>
+    <SpaceBackground paused={!focused}>
+      <Tabs.Navigator
+        tabBar={(props) => <SpaceTabBar {...props} />}
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: 'transparent' } }}
+      >
+        <Tabs.Screen name="Home" component={HomeScreen} />
+        <Tabs.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
+        <Tabs.Screen name="Settings" component={SettingsScreen} />
+      </Tabs.Navigator>
+    </SpaceBackground>
   );
 }
 
-// Header for Lobby and Game: same dark colour as the page, no divider line, so it blends into the space theme.
+// Header of the Game screen: same dark colour as the page, no divider line. (The Lobby has no native header:
+// it draws its own, on the sky. Games are not part of the Space theme.)
 const spaceHeader = {
   headerStyle: { backgroundColor: colors.bg },
   headerShadowVisible: false,
@@ -75,7 +83,7 @@ function RootNavigator() {
       {signedIn ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ title: 'Lobby' }} />
+          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Game" component={GameScreen} options={{ title: 'Game' }} />
         </>
       ) : (

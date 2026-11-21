@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, TicketChip } from '../components/ui';
+import { Button, TicketStub } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../lib/api';
-import { colors, radius } from '../theme';
-import SpaceBackground from '../components/SpaceBackground';
-import { space } from '../spaceTheme';
+import { field, space, typo } from '../spaceTheme';
 
 // Same rule as the server: 3-16 letters, numbers or underscores.
 const USERNAME_RULE = /^[A-Za-z0-9_]{3,16}$/;
@@ -37,7 +35,6 @@ export function SettingsScreen() {
   };
 
   return (
-    <SpaceBackground>
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.content}>
         <Text style={styles.heading}>Settings</Text>
@@ -46,52 +43,29 @@ export function SettingsScreen() {
         <TextInput
           value={draft}
           onChangeText={setDraft}
+          accessibilityLabel="Username"
+          placeholderTextColor={space.textFaint}
           autoCapitalize="none"
           autoCorrect={false}
           maxLength={16}
           style={styles.input}
         />
-        <Button label="Save username" onPress={save} disabled={saving} />
+        <Button tone="space" label="Save username" onPress={save} disabled={saving} />
 
-        <View style={styles.ticketRow}>
-          <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.label}>Tickets</Text>
-            <Text style={styles.hint}>You need 1 to play. Win a match to earn one.</Text>
-          </View>
-          <TicketChip tickets={tickets} />
+        <View style={{ marginTop: 18 }}>
+          <TicketStub tickets={tickets} title="Tickets" hint="You need 1 to play. Win a match to earn one." />
         </View>
 
-        <Button label="Sign out" variant="secondary" onPress={() => signOut()} style={{ marginTop: 24 }} />
+        <Button tone="space" label="Sign out" variant="secondary" onPress={() => signOut()} style={{ marginTop: 28 }} />
       </View>
     </SafeAreaView>
-    </SpaceBackground>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: 20, gap: 10 },
-  heading: { color: colors.text, fontSize: 22, fontWeight: '600', marginBottom: 8, ...space.glowText },
-  label: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  hint: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  input: {
-    backgroundColor: space.input,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 14,
-    color: colors.text,
-    fontSize: 16,
-  },
-  ticketRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    ...space.glass,
-    borderRadius: radius.md,
-    padding: 14,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  heading: { ...typo.title, marginBottom: 10 },
+  label: { ...typo.body, fontSize: 15, fontWeight: '600' },
+  input: { ...field, minHeight: 48, paddingHorizontal: 14, fontSize: 16 },
 });
