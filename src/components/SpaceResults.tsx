@@ -6,6 +6,7 @@ import { Button, DomainIcon } from './ui';
 import { Glint, StarGlass } from './SpaceGlass';
 import { useReduceMotion } from './useReduceMotion';
 import { DOMAIN_ORDER, Domain, domainInfo } from '../theme';
+import { START_LIVES } from '../game/engine';
 import { space } from '../spaceTheme';
 
 // How a round and a match end, on the frame around the games (GameScreen). The games themselves do not use these.
@@ -145,6 +146,7 @@ export function RoundResult({
   mode,
   winnerName,
   forfeiters,
+  crew,
   isHost,
   busy,
   onNext,
@@ -152,6 +154,7 @@ export function RoundResult({
   mode: 'won' | 'lost' | 'draw';
   winnerName?: string;
   forfeiters: string[];
+  crew: Crew[];
   isHost: boolean;
   busy: boolean;
   onNext: () => void;
@@ -174,6 +177,7 @@ export function RoundResult({
           <Text style={styles.chipText}>{`${n} forfeited this game`}</Text>
         </View>
       ))}
+      <CrewRoster players={crew} />
       {isHost ? (
         <Button tone="space" label="Draw next game" disabled={busy} onPress={onNext} style={styles.cta} />
       ) : (
@@ -188,11 +192,13 @@ export function MatchResult({
   mode,
   winnerName,
   quitName,
+  crew,
   delta,
 }: {
   mode: 'won' | 'lost' | 'none';
   winnerName?: string;
   quitName?: string;
+  crew: Crew[];
   delta: Record<Domain, number> | null;
 }) {
   const tone: Tone = mode === 'won' ? 'amber' : 'ice';
@@ -204,6 +210,7 @@ export function MatchResult({
       <Headline tone={tone}>{title}</Headline>
       {quitName ? <Text style={styles.sub}>{`${quitName} forfeited the match.`}</Text> : null}
       <Constellation tone={tone} width={190} />
+      <CrewRoster players={crew} />
       {delta && (
         <View style={styles.orbs}>
           {DOMAIN_ORDER.map((d, i) => (
@@ -213,6 +220,84 @@ export function MatchResult({
       )}
       <Text style={styles.foot}>{delta ? 'Your points this match. Tickets update automatically.' : 'Tickets update automatically.'}</Text>
     </StarGlass>
+  );
+}
+
+export type Crew = { id: string; name: string; lives: number; me: boolean };
+
+/**
+ * Who is still in the fight: one line per player, a ring with their initial, and one small star per life.
+ * The stars light up one after another; with three lives or fewer they turn red. Most lives first.
+ */
+function CrewRoster({ players }: { players: Crew[] }) {
+  const sorted = [...players].sort((a, b) => b.lives - a.lives);
+  return (
+    <View style={styles.roster} accessibilityLabel="Players and remaining lives">
+      {sorted.map((p, i) => (
+        <CrewRow key={p.id} p={p} index={i} />
+      ))}
+    </View>
+  );
+}
+
+function CrewRow({ p, index }: { p: Crew; index: number }) {
+  const reduce = useReduceMotion();
+  const t = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduce) return;
+    const a = Animated.timing(t, { toValue: 1, duration: 1000, delay: 450 + index * 130, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [reduce, t, index]);
+  const out = p.lives <= 0;
+  const low = !out && p.lives <= 3;
+  const glow = out ? space.textFaint : low ? space.danger : space.amber;
+  const ring = out ? space.line : p.me ? space.amber : space.iceLine;
+  const lives = Math.max(0, Math.min(START_LIVES, p.lives));
+  return (
+    <Animated.View
+      accessible
+      accessibilityLabel={`${p.name}, ${p.lives} lives${p.me ? ', you' : ''}`}
+      style={[
+        styles.crewRow,
+        p.me && styles.crewMe,
+        {
+          opacity: t.interpolate({ inputRange: [0, 0.35], outputRange: [0, 1], extrapolate: 'clamp' }),
+          transform: [{ translateY: t.interpolate({ inputRange: [0, 0.35], outputRange: [12, 0], extrapolate: 'clamp' }) }],
+        },
+      ]}
+    >
+      <View style={[styles.crewRing, { borderColor: ring }, !out && p.me && styles.crewRingMe]}>
+        <Text style={[styles.crewInitial, { color: out ? space.textFaint : space.text }]}>{p.name.slice(0, 1).toUpperCase()}</Text>
+      </View>
+      <Text style={[styles.crewName, { color: out ? space.textFaint : p.me ? space.amber : space.text }]} numberOfLines={1}>
+        {p.name}
+      </Text>
+      <View style={styles.pips}>
+        {Array.from({ length: START_LIVES }, (_, k) => {
+          const on = k < lives;
+          if (!on) return <MaterialCommunityIcons key={k} name="star-four-points" size={9} color="rgba(255,255,255,0.12)" />;
+          const start = 0.35 + (k / START_LIVES) * 0.6;
+          return (
+            <Animated.View
+              key={k}
+              style={{
+                opacity: t.interpolate({ inputRange: [start, start + 0.05], outputRange: [0.1, 1], extrapolate: 'clamp' }),
+                transform: [{ scale: t.interpolate({ inputRange: [start, start + 0.03, start + 0.1], outputRange: [0.5, 1.5, 1], extrapolate: 'clamp' }) }],
+              }}
+            >
+              <MaterialCommunityIcons
+                name="star-four-points"
+                size={9}
+                color={glow}
+                style={{ textShadowColor: glow, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 }}
+              />
+            </Animated.View>
+          );
+        })}
+      </View>
+      <Text style={[styles.crewLives, { color: glow }]}>{p.lives}</Text>
+    </Animated.View>
   );
 }
 
@@ -310,6 +395,25 @@ const styles = StyleSheet.create({
   chipText: { color: space.amber, fontSize: 12, fontWeight: '600' },
   cta: { alignSelf: 'stretch', marginTop: 8 },
   waiting: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  roster: { alignSelf: 'stretch', gap: 6, marginTop: 6 },
+  crewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 42,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: space.line,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+  },
+  crewMe: { borderColor: space.amberLine, backgroundColor: space.amberWash },
+  crewRing: { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  crewRingMe: { shadowColor: space.amber, shadowOpacity: 0.8, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
+  crewInitial: { fontSize: 13, fontWeight: '700' },
+  crewName: { flex: 1, fontSize: 14, fontWeight: '600', minWidth: 0 },
+  pips: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  crewLives: { width: 22, textAlign: 'right', fontSize: 15, fontWeight: '800' },
   orbs: { flexDirection: 'row', gap: 22, marginTop: 6 },
   orbWrap: { alignItems: 'center', gap: 6 },
   orb: {

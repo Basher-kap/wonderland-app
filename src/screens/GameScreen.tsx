@@ -20,6 +20,7 @@ import { radius } from '../theme';
 import { space } from '../spaceTheme';
 import { GlintTitle, StarGlass, WarpCountdown } from '../components/SpaceGlass';
 import { MatchResult, RoundResult, WaitingPulse } from '../components/SpaceResults';
+import { TransitionBackdrop, WarpStreaks, useSpaceTransition } from '../components/SpaceTransition';
 import type { RootStackParamList } from '../navigation/types';
 
 // One round, as every player sees it:
@@ -105,6 +106,10 @@ export function GameScreen() {
   const roundKey = lobby && round ? `${lobby.matchId}:${round.no}` : `practice:${practiceSeed}`;
   const difficulty = round?.difficulty ?? (game ? difficultyOf(game) : 'normal');
   const introDone = introDoneFor === roundKey;
+
+  // The game's world fades out into open space when the round or match ends, and the next one arrives out of it.
+  const resultsShown = !!lobby && (roundDone || finished);
+  const transition = useSpaceTransition(resultsShown, introDone && (lobby ? roundActive : true) ? roundKey : null);
 
   // No way out while a round is being played: no Back button, no swipe, no Android back.
   const locked = !!lobby && roundActive;
@@ -372,6 +377,7 @@ export function GameScreen() {
               : undefined,
         }
       : undefined;
+  const crew = players.map(([id, p]) => ({ id, name: p.username, lives: p.lives, me: id === uid }));
   const describe = (r: ResultRow) => (r.forfeited ? 'forfeited' : gameModule ? gameModule.describe(r) : '');
   const forfeiters = roundResults.filter((r) => r.forfeited);
 
@@ -389,7 +395,7 @@ export function GameScreen() {
   // A game with its own look (Magical Banana: Food Land) gets its own background behind everything.
   const Backdrop = getGameBackdrop(game.id);
   const page = (
-    <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.root, { backgroundColor: 'transparent' }]} edges={['bottom']}>
       <KeyboardAwareScroll contentContainerStyle={styles.body}>
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
@@ -449,6 +455,7 @@ export function GameScreen() {
         {/* While a round is played nothing but the game is on screen: no round box, no player list. */}
         {lobby && finished && (
           <MatchResult
+            crew={crew}
             mode={lobby.winnerId && lobby.winnerId === uid ? 'won' : winnerName ? 'lost' : 'none'}
             winnerName={winnerName}
             quitName={round?.quitBy ? lobby.players[round.quitBy]?.username ?? 'A player' : undefined}
@@ -458,6 +465,7 @@ export function GameScreen() {
 
         {lobby && roundDone && !finished && (
           <RoundResult
+            crew={crew}
             mode={!round?.winnerId ? 'draw' : round.winnerId === uid ? 'won' : 'lost'}
             winnerName={roundWinnerName}
             forfeiters={forfeiters.map((r) => lobby.players[r.uid]?.username ?? 'A player')}
@@ -516,7 +524,13 @@ export function GameScreen() {
       <VoiceButton code={code} />
     </SafeAreaView>
   );
-  return Backdrop ? <Backdrop>{page}</Backdrop> : page;
+  return (
+    <View style={{ flex: 1, backgroundColor: space.void }}>
+      <TransitionBackdrop Backdrop={Backdrop} tr={transition} />
+      {page}
+      <WarpStreaks tr={transition} />
+    </View>
+  );
 }
 
 // Dark glass behind a secondary button, so it reads over any game backdrop.
