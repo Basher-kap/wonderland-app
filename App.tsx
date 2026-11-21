@@ -35,16 +35,27 @@ const navTheme = {
   },
 };
 
-// The tab bar itself (icons, colours, glow) lives in components/SpaceTabBar.tsx.
+// The tab icons, labels and the glowing active mark live in SpaceTabBar.tsx.
 function MainTabs() {
   return (
-    <Tabs.Navigator tabBar={(props) => <SpaceTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tabs.Navigator
+      tabBar={(props) => <SpaceTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
       <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="Leaderboard" component={LeaderboardScreen} />
+      <Tabs.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} />
     </Tabs.Navigator>
   );
 }
+
+// Header for Lobby and Game: same dark colour as the page, no divider line, so it blends into the space theme.
+const spaceHeader = {
+  headerStyle: { backgroundColor: colors.bg },
+  headerShadowVisible: false,
+  headerTintColor: colors.text,
+  headerTitleStyle: { fontWeight: '600' as const },
+};
 
 // Which screens exist depends on whether the player is signed in, so signing
 // in or out moves them to the right place automatically.
@@ -60,12 +71,11 @@ function RootNavigator() {
   }
 
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={spaceHeader}>
       {signedIn ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-          {/* The lobby draws its own space background edge to edge, so it has no header bar. */}
-          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Lobby" component={LobbyScreen} options={{ title: 'Lobby' }} />
           <Stack.Screen name="Game" component={GameScreen} options={{ title: 'Game' }} />
         </>
       ) : (
