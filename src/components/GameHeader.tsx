@@ -5,7 +5,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import SpaceBackground from './SpaceBackground';
-import { Glint } from './SpaceGlass';
 import { useReduceMotion } from './useReduceMotion';
 import { space } from '../spaceTheme';
 
@@ -21,7 +20,9 @@ export function GameHeader({ navigation, options, back, route }: NativeStackHead
   const { width } = useWindowDimensions();
   const height = BAR + insets.top;
   const title = typeof options.title === 'string' ? options.title : route.name;
-  const showBack = !!back && options.headerBackVisible !== false;
+  // The game sets its own icon (headerLeft) and name (title). Without them the header falls back to a back arrow.
+  const left = options.headerLeft?.({ canGoBack: !!back, tintColor: space.text });
+  const showBack = !left && !!back && options.headerBackVisible !== false;
   const right = options.headerRight?.({ canGoBack: !!back, tintColor: space.text });
 
   return (
@@ -39,7 +40,7 @@ export function GameHeader({ navigation, options, back, route }: NativeStackHead
               <MaterialCommunityIcons name="chevron-left" size={28} color={space.text} />
             </Pressable>
           )}
-          <Glint size={9} />
+          {left ? <View style={styles.badge}>{left}</View> : null}
           <Text style={styles.title} numberOfLines={1} accessibilityRole="header">
             {title}
           </Text>
@@ -99,6 +100,17 @@ function Thread({ width }: { width: number }) {
 const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 8, paddingRight: 12 },
   back: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  badge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginLeft: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: space.lineStrong,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
   title: { color: space.text, fontSize: 18, fontWeight: '600', letterSpacing: 0.3, flexShrink: 1 },
   right: { flexShrink: 0 },
   thread: {

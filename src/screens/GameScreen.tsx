@@ -3,7 +3,7 @@ import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { Button, DomainBadge } from '../components/ui';
+import { Button, DomainBadge, DomainIcon } from '../components/ui';
 import { KeyboardAwareScroll } from '../components/KeyboardAwareScroll';
 import { RoundIntro } from '../components/RoundIntro';
 import { VoiceButton } from '../components/VoiceButton';
@@ -87,6 +87,18 @@ export function GameScreen() {
   const round = lobby?.currentRound ?? null;
   const game = getGame(round?.gameId ?? params.gameId);
   const gameModule = game ? GAME_MODULES[game.id] : undefined;
+
+  // The header shows the game's name and the icon of its domain (brain, earth or dice), instead of "Game" and a back arrow.
+  const headerGameId = game?.id;
+  const headerGameName = game?.name;
+  const headerGameDomain = game?.domain;
+  useEffect(() => {
+    if (!headerGameName || !headerGameDomain) return;
+    navigation.setOptions({
+      title: headerGameName,
+      headerLeft: () => <DomainIcon domain={headerGameDomain} size={22} />,
+    });
+  }, [navigation, headerGameId, headerGameName, headerGameDomain]);
 
   // Janken Negotiation: everybody's notes, offers and revealed throws.
   useEffect(() => {
@@ -449,6 +461,7 @@ export function GameScreen() {
           <StarGlass>
             <Text style={styles.boxTitle}>Practice result</Text>
             <Text style={styles.boxText}>{describe({ uid: uid ?? 'practice', ...mine.result })}</Text>
+            <Button tone="space" label="Back" variant="secondary" style={glassButton} onPress={() => navigation.goBack()} />
           </StarGlass>
         )}
         {!lobby && !gameModule && (
@@ -465,6 +478,7 @@ export function GameScreen() {
             winnerName={winnerName}
             quitName={round?.quitBy ? lobby.players[round.quitBy]?.username ?? 'A player' : undefined}
             delta={pointsDelta}
+            onLeave={() => navigation.goBack()}
           />
         )}
 

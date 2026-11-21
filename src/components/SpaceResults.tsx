@@ -194,12 +194,14 @@ export function MatchResult({
   quitName,
   crew,
   delta,
+  onLeave,
 }: {
   mode: 'won' | 'lost' | 'none';
   winnerName?: string;
   quitName?: string;
   crew: Crew[];
   delta: Record<Domain, number> | null;
+  onLeave: () => void;
 }) {
   const tone: Tone = mode === 'won' ? 'amber' : 'ice';
   const title = mode === 'won' ? 'You won the match' : winnerName ? `${winnerName} won the match` : 'Match over';
@@ -219,6 +221,7 @@ export function MatchResult({
         </View>
       )}
       <Text style={styles.foot}>{delta ? 'Your points this match. Tickets update automatically.' : 'Tickets update automatically.'}</Text>
+      <Button tone="space" label="Back to lobby" variant="secondary" onPress={onLeave} style={styles.cta} />
     </StarGlass>
   );
 }
