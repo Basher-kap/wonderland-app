@@ -107,10 +107,6 @@ export function GameScreen() {
   const difficulty = round?.difficulty ?? (game ? difficultyOf(game) : 'normal');
   const introDone = introDoneFor === roundKey;
 
-  // The game's world fades out into open space when the round or match ends, and the next one arrives out of it.
-  const resultsShown = !!lobby && (roundDone || finished);
-  const transition = useSpaceTransition(resultsShown, introDone && (lobby ? roundActive : true) ? roundKey : null);
-
   // No way out while a round is being played: no Back button, no swipe, no Android back.
   const locked = !!lobby && roundActive;
   useEffect(() => {
@@ -142,6 +138,10 @@ export function GameScreen() {
   const myResult = roundResults.find((r) => r.uid === uid);
   const everyoneIn = !!lobby && lobby.playerIds.every((id) => roundResults.some((r) => r.uid === id));
   const mine = local?.key === roundKey ? local : null;
+
+  // The game's world fades out into open space when the round or match ends; the next random game appears out of it (over its rules screen).
+  const resultsShown = lobby ? roundDone || finished : !!mine; // a practice run ends with its result too
+  const transition = useSpaceTransition(resultsShown, (lobby ? roundActive : true) ? roundKey : null);
   // The round is over when every player has handed in a result (finished, or forfeited the game).
   // Some games (Hangman) also end for everybody as soon as one player finishes successfully.
   const someoneWon = roundResults.some(
@@ -340,8 +340,13 @@ export function GameScreen() {
   // 1. Intro dialogs, full screen, for an active round (or a practice run).
   const inRound = lobby ? roundActive : !code; // a lobby that is still loading is not a practice run
   if (inRound && !introDone) {
+    // The new game appears out of the night sky: the results' sky fades away over its rules screen.
     return (
-      <RoundIntro key={roundKey} game={game} difficulty={difficulty} code={code} onDone={() => setIntroDoneFor(roundKey)} />
+      <View style={{ flex: 1, backgroundColor: space.void }}>
+        <RoundIntro key={roundKey} game={game} difficulty={difficulty} code={code} onDone={() => setIntroDoneFor(roundKey)} />
+        <TransitionBackdrop Backdrop={null} tr={transition} overlay />
+        <WarpStreaks tr={transition} />
+      </View>
     );
   }
 

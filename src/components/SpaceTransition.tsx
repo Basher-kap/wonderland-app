@@ -9,7 +9,7 @@ import { space as sp } from '../spaceTheme';
  * The jump between a game's world and open space, for the frame around the games (GameScreen).
  *   - when a round or match ends, the game's own background pulls away (it zooms and fades) while
  *     the stars streak past, and the night sky opens up behind the results;
- *   - when the next game's board appears, it comes back the other way: out of the sky, into the new world.
+ *   - when the next random game appears (its rules screen), it comes back the other way: out of the sky, into the new world.
  * `t` is 0 in the game and 1 in space. The games themselves are not touched: only their background layer moves.
  */
 export function useSpaceTransition(showSpace: boolean, arriveKey: string | null) {
@@ -62,14 +62,22 @@ type Transition = ReturnType<typeof useSpaceTransition>;
 export function TransitionBackdrop({
   Backdrop,
   tr,
+  overlay,
 }: {
   Backdrop: React.ComponentType<{ children?: React.ReactNode }> | null;
   tr: Transition;
+  /** On top of another screen (the round intro): see-through once the sky has faded away. */
+  overlay?: boolean;
 }) {
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden', backgroundColor: sp.void }]}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, !overlay && { backgroundColor: sp.void }]}>
       {tr.skyOn && (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: tr.t.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0.2, 1] }) }]}>
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            { opacity: overlay ? tr.t : tr.t.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0.2, 1] }) },
+          ]}
+        >
           <SpaceBackground />
         </Animated.View>
       )}
