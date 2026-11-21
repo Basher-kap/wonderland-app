@@ -301,7 +301,12 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
 
       {myTurn && (
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Your turn: say a word related to “{top.word}”</Text>
+          <Text style={styles.panelTitle}>Your turn: say a word related to</Text>
+          <View style={styles.prevWord}>
+            <Text style={styles.prevWordText} numberOfLines={2}>
+              {top.word}
+            </Text>
+          </View>
           <View style={styles.inputRow}>
             <TextInput
               value={text}
@@ -414,6 +419,17 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   panelTitle: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  prevWord: {
+    alignSelf: 'center',
+    maxWidth: '100%',
+    backgroundColor: f.cream,
+    borderWidth: 2,
+    borderColor: f.creamEdge,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  prevWordText: { color: f.ink, fontFamily: FONT_FOOD, fontSize: 26, fontWeight: '900', textAlign: 'center' },
   inputRow: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,

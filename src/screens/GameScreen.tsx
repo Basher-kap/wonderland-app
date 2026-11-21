@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge, DomainStat } from '../components/ui';
+import { KeyboardAwareScroll } from '../components/KeyboardAwareScroll';
 import { RoundIntro } from '../components/RoundIntro';
 import { VoiceButton } from '../components/VoiceButton';
 import { useAuth } from '../context/AuthContext';
@@ -374,23 +375,20 @@ export function GameScreen() {
 
   // A full-screen game (Karuta) takes the whole screen while it is played: no title, no round box.
   // The forfeit buttons stay in the header.
-  // A game with its own look (Hangman) has its background behind the full screen too, so the strip
-  // under the keys (the home-indicator area) is not the Space colour.
-  const Backdrop = getGameBackdrop(game.id);
   if (playing && gameModule?.fullScreen) {
-    const fullPage = (
-      <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
+    return (
+      <SafeAreaView style={styles.root} edges={['bottom']}>
         <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
         <VoiceButton code={code} />
       </SafeAreaView>
     );
-    return Backdrop ? <Backdrop>{fullPage}</Backdrop> : fullPage;
   }
   
   // A game with its own look (Magical Banana: Food Land) gets its own background behind everything.
+  const Backdrop = getGameBackdrop(game.id);
   const page = (
     <SafeAreaView style={[styles.root, Backdrop && { backgroundColor: 'transparent' }]} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.body}>
+      <KeyboardAwareScroll contentContainerStyle={styles.body}>
         <DomainBadge domain={game.domain} />
         <Text style={styles.title}>{game.name}</Text>
         {!playing && !lobby && <Text style={styles.desc}>{game.description}</Text>}
@@ -555,7 +553,7 @@ export function GameScreen() {
         {lobby && roundActive && quitSent && (
           <Text style={styles.boxText}>You forfeited the match. Ending it now…</Text>
         )}
-      </ScrollView>
+      </KeyboardAwareScroll>
       <VoiceButton code={code} />
       {!locked && (
         <View style={styles.footer}>

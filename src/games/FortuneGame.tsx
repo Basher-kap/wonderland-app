@@ -390,6 +390,14 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
       {st.phase === 'answer' && mine && (
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Your answer (a whole number)</Text>
+          {!!question && !tier?.auto && (
+            <View style={styles.askCard}>
+              <Text style={styles.askText}>{question.q}</Text>
+            </View>
+          )}
+          <Text style={[styles.panelTimer, left < 8000 && { color: p.hot }]}>
+            {secondsLeft(left)}s of {secondsLeft(ANSWER_MS)}s
+          </Text>
           <View style={styles.inputRow}>
             <TextInput
               value={text}
@@ -530,6 +538,16 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   panelTitle: { color: p.paper, fontFamily: FONT_FORTUNE, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  askCard: {
+    backgroundColor: p.paper,
+    borderWidth: 2,
+    borderColor: p.paperEdge,
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  askText: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 17, fontWeight: '700', textAlign: 'center', lineHeight: 24 },
+  panelTimer: { color: p.lantern, fontFamily: FONT_FORTUNE, fontSize: 14, fontWeight: '800', textAlign: 'center' },
   inputRow: { flexDirection: 'row', gap: 10 },
   input: {
     flex: 1,
