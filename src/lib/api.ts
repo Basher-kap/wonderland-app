@@ -509,16 +509,21 @@ export async function submitResult(
 }
 
 // Give up THIS game only: it counts as a loss for this round, and everybody sees "forfeited".
-export async function forfeitGame(rawCode: string, round: { matchId: string; roundNo: number }): Promise<void> {
+// Returns false when there was nothing to forfeit: this player already handed in a result for this round
+// (the rules never allow a second result for the same round, so writing one would be refused).
+export async function forfeitGame(rawCode: string, round: { matchId: string; roundNo: number }): Promise<boolean> {
   const code = normalizeCode(rawCode);
   const uid = myUid();
+  const resultRef = doc(database(), 'lobbies', code, 'results', uid);
+  const existing = await getDoc(resultRef);
+  if (existing.exists() && existing.data().matchId === round.matchId && existing.data().roundNo === round.roundNo) return false;
   // So the others do not keep waiting for a "ready" from somebody who gave up (ignore if already there).
   try {
     await markReady(code, round);
   } catch {
     /* already marked ready for this round */
   }
-  await setDoc(doc(database(), 'lobbies', code, 'results', uid), {
+  await setDoc(resultRef, {
     uid,
     matchId: round.matchId,
     roundNo: round.roundNo,
@@ -526,6 +531,7 @@ export async function forfeitGame(rawCode: string, round: { matchId: string; rou
     totalMs: 0,
     forfeited: true,
   });
+  return true;
 }
 
 export function subscribeResults(

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DomainIcon } from '../ui';
-import { VoiceButton } from '../social';
 import type { Difficulty, Game } from '../../data';
 import { getIntroTheme } from '../../gameThemes';
 import { colors, domainInfo, radius } from '../../theme';
@@ -130,7 +129,6 @@ export function RoundIntro({
 
   const screen = (
     <SafeAreaView style={[styles.root, look && { backgroundColor: 'transparent' }]}>
-      <VoiceButton code={code} />
       <Pressable style={styles.tap} onPress={next} accessibilityRole="button">
         {Awning ? (
           <Animated.View style={{ opacity: fade }}>

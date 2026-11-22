@@ -9,6 +9,8 @@ export const RTC = {
   async getUserMedia(): Promise<any> {
     return (navigator as any).mediaDevices.getUserMedia({ audio: true, video: false });
   },
+  startAudio() {},
+  stopAudio() {},
   playRemote(id: string, stream: any) {
     let a = audios.get(id);
     if (!a) {

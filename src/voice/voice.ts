@@ -32,7 +32,22 @@ export type VoiceState = {
 };
 
 const OFF: VoiceState = { code: null, status: 'off', muted: false, peers: {}, error: null };
-const ICE_SERVERS = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+// STUN alone only works when both phones are on friendly networks. Most phone data plans (and many
+// Wi-Fi networks) need a TURN relay, which passes the audio along. These are the free public relays of
+// the Open Relay project (shared, fine for testing). For a real launch, make your own free key at
+// metered.ca and replace them.
+const ICE_SERVERS = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
 
 type Peer = { uid: string; session: string; pc: any; closed: boolean; unsubs: (() => void)[] };
 
@@ -90,6 +105,7 @@ class VoiceManager {
         (snap) => this.onPresence(code, snap.docs.map((d) => d.data() as { uid: string; session: string })),
         () => this.fail('Voice chat lost its connection to the lobby.')
       );
+      RTC.startAudio();
       this.set({ status: 'on' });
     } catch {
       await this.leave();
@@ -108,6 +124,7 @@ class VoiceManager {
     for (const uid of [...this.peers.keys()]) this.closePeer(uid);
     this.stream?.getTracks?.().forEach((t: any) => t.stop());
     this.stream = null;
+    RTC.stopAudio();
     if (code && db && this.me) {
       try {
         await deleteDoc(doc(db, 'lobbies', code, 'voice', this.me));

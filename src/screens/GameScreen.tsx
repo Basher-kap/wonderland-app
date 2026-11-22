@@ -271,8 +271,9 @@ export function GameScreen() {
         onPress: () =>
           void run(async () => {
             if (!lobby || !round || !code) return;
-            await api.forfeitGame(code, { matchId: lobby.matchId, roundNo: round.no });
-            setLocal({ key: roundKey, result: { finished: false, totalMs: 0 }, sent: true });
+            const forfeited = await api.forfeitGame(code, { matchId: lobby.matchId, roundNo: round.no });
+            // false = my result for this round was already handed in: keep it as it is.
+            if (forfeited) setLocal({ key: roundKey, result: { finished: false, totalMs: 0 }, sent: true });
           }),
       },
     ]);
@@ -301,13 +302,16 @@ export function GameScreen() {
   const forfeitActions = useRef({ game: confirmForfeitGame, match: confirmForfeitMatch });
   forfeitActions.current = { game: confirmForfeitGame, match: confirmForfeitMatch };
   const showForfeitMatch = !!lobby && roundActive && !quitSent;
-  const showForfeitGame = showForfeitMatch && !!gameModule && !mineOut && !myResult && !over;
+  // Not once my own result is in (even in a game whose board stays on screen): a second result for the round is refused.
+  const showForfeitGame = showForfeitMatch && !!gameModule && !mineOut && !mine && !myResult && !over;
   useEffect(() => {
     navigation.setOptions({
-      headerRight: showForfeitMatch
+      // The mic sits first in the row, then the Forfeit buttons (when there are any).
+      headerRight: code
         ? () => (
             <View style={styles.headerButtons}>
-              {showForfeitGame && (
+              <VoiceButton code={code} tone="header" />
+              {showForfeitMatch && showForfeitGame && (
                 <Pressable
                   disabled={busy}
                   onPress={() => forfeitActions.current.game()}
@@ -318,20 +322,22 @@ export function GameScreen() {
                   <Text style={styles.headerButtonText}>Forfeit game</Text>
                 </Pressable>
               )}
-              <Pressable
-                disabled={busy}
-                onPress={() => forfeitActions.current.match()}
-                hitSlop={8}
-                accessibilityRole="button"
-                style={[styles.headerButton, styles.headerButtonDanger, busy && { opacity: 0.5 }]}
-              >
-                <Text style={[styles.headerButtonText, { color: space.danger }]}>Forfeit match</Text>
-              </Pressable>
+              {showForfeitMatch && (
+                <Pressable
+                  disabled={busy}
+                  onPress={() => forfeitActions.current.match()}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  style={[styles.headerButton, styles.headerButtonDanger, busy && { opacity: 0.5 }]}
+                >
+                  <Text style={[styles.headerButtonText, { color: space.danger }]}>Forfeit match</Text>
+                </Pressable>
+              )}
             </View>
           )
         : undefined,
     });
-  }, [navigation, showForfeitMatch, showForfeitGame, busy]);
+  }, [navigation, code, showForfeitMatch, showForfeitGame, busy]);
 
   if (!game) {
     return (
@@ -401,7 +407,6 @@ export function GameScreen() {
         <TransitionBackdrop Backdrop={FullBackdrop} tr={transition} />
         <SafeAreaView style={[styles.root, { backgroundColor: 'transparent' }]} edges={['bottom']}>
           <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
-          <VoiceButton code={code} />
         </SafeAreaView>
         <WarpStreaks tr={transition} />
       </View>
@@ -539,7 +544,6 @@ export function GameScreen() {
           <Text style={styles.boxText}>You forfeited the match. Ending it now…</Text>
         )}
       </KeyboardAwareScroll>
-      <VoiceButton code={code} />
     </SafeAreaView>
   );
   return (
@@ -575,7 +579,7 @@ const styles = StyleSheet.create({
   placeholderText: { color: space.textDim },
   reveal: { alignItems: 'center', paddingVertical: 18 },
   revealText: { color: space.amber, fontSize: 20, fontWeight: '800', textAlign: 'center', lineHeight: 28 },
-  headerButtons: { flexDirection: 'row', gap: 8 },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerButton: {
     borderWidth: 1,
     borderColor: space.lineStrong,

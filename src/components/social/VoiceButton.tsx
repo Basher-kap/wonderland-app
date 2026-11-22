@@ -22,7 +22,8 @@ import { useVoice, voice } from '../../voice';
 //   on       -> tap the mic to mute / unmute, the X to leave the voice chat
 // It floats in the top-right corner; pass `style` to move it. Nothing shows without a lobby.
 // tone: 'space' (the default) is the black-glass pill of the night sky, used in the lobby, the round intro and the
-// games. 'default' is the old purple pill, kept only in case a screen still asks for it.
+// games. 'header' is the compact version that sits inside the Game screen header, beside the Forfeit buttons
+// (not floating: it takes its place in the row). 'default' is the old purple pill, kept only in case a screen still asks for it.
 export function VoiceButton({
   code,
   style,
@@ -30,7 +31,7 @@ export function VoiceButton({
 }: {
   code?: string;
   style?: StyleProp<ViewStyle>;
-  tone?: 'default' | 'space';
+  tone?: 'default' | 'space' | 'header';
 }) {
   const { uid } = useAuth();
   const v = useVoice();
@@ -47,6 +48,47 @@ export function VoiceButton({
     const after = voice.getState();
     if (after.status === 'error' && after.error) Alert.alert('Voice chat', after.error);
   };
+
+  if (tone === 'header') {
+    return status === 'on' ? (
+      <View style={hd.pill}>
+        <View style={hd.micSlot}>
+          {!v.muted && <Pulse size={28} />}
+          <Pressable
+            onPress={voice.toggleMute}
+            hitSlop={6}
+            style={[hd.round, v.muted ? sp.roundMuted : sp.roundLive]}
+            accessibilityRole="button"
+            accessibilityLabel={v.muted ? 'Unmute microphone' : 'Mute microphone'}
+          >
+            <MaterialCommunityIcons
+              name={v.muted ? 'microphone-off' : 'microphone'}
+              size={17}
+              color={v.muted ? space.danger : '#000000'}
+            />
+          </Pressable>
+        </View>
+        <Text style={sp.count} accessibilityLabel={`${connected} of ${peerList.length} connected`}>
+          {connected}/{peerList.length}
+        </Text>
+        <Pressable onPress={() => voice.leave()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Leave voice chat">
+          <MaterialCommunityIcons name="close" size={16} color={space.textDim} />
+        </Pressable>
+      </View>
+    ) : (
+      <Pressable
+        onPress={join}
+        disabled={status === 'starting'}
+        hitSlop={6}
+        style={({ pressed }) => [hd.join, (pressed || status === 'starting') && { backgroundColor: space.pressedBg }]}
+        accessibilityRole="button"
+        accessibilityLabel="Join voice chat"
+      >
+        <MaterialCommunityIcons name="microphone-outline" size={18} color={space.amber} />
+        {status === 'starting' && <Text style={sp.count}>…</Text>}
+      </Pressable>
+    );
+  }
 
   if (tone === 'space') {
     return (
@@ -150,7 +192,7 @@ const styles = StyleSheet.create({
 });
 
 // A ring that spreads out from the mic while it is live. Stays still when the phone has "reduce motion" on.
-function Pulse() {
+function Pulse({ size = 32 }: { size?: number }) {
   const a = useRef(new Animated.Value(0)).current;
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
@@ -172,6 +214,7 @@ function Pulse() {
       pointerEvents="none"
       style={[
         sp.pulse,
+        { width: size, height: size, borderRadius: size / 2 },
         {
           opacity: a.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] }),
           transform: [{ scale: a.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] }) }],
@@ -180,6 +223,36 @@ function Pulse() {
     />
   );
 }
+
+// The compact mic inside the Game header.
+const hd = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    backgroundColor: 'rgba(3, 4, 9, 0.86)',
+    borderColor: space.line,
+    borderWidth: 1,
+    borderRadius: 17,
+    paddingHorizontal: 5,
+  },
+  micSlot: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  round: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  join: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(3, 4, 9, 0.86)',
+    borderColor: space.line,
+    borderWidth: 1,
+  },
+});
 
 const sp = StyleSheet.create({
   pill: {
