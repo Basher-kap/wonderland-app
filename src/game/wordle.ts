@@ -2,8 +2,8 @@
 // Test with test/wordle.test.cjs (same tsc + node flow as the other tests).
 //
 // The game has 3 levels: an easy word, a moderate word and a hard word. Every player has 5 attempts
-// per word. A level ends when ALL players are done with it (guessed, or used 5 attempts); then the
-// answer is shown to everybody, and the next level starts when all players are ready.
+// per word. It is a race: a player who is done with a level (guessed, or used 5 attempts) goes straight
+// on to the next one, nobody waits for the others. The first to guess ALL the words ends the game.
 // Points: every correct word earns points by LEVEL (attempts do not matter).
 
 import { EASY_WORDS, HARD_WORDS, MODERATE_WORDS, VALID_WORDS } from '../data/wordleWords';

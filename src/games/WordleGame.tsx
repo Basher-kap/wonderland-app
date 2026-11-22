@@ -29,10 +29,11 @@ import type { GameProps } from './types';
 // on-screen keyboard. A guess that is not a real word is NOT allowed: it is rejected with a message
 // and does not use up an attempt.
 //
-// Between levels (all in a lobby, see `room`):
-//   1. a player who guessed the word, or used 5 attempts, waits for the others;
-//   2. when EVERYBODY is done with the level, the answer is shown to everyone;
-//   3. each player taps "Ready"; when EVERYBODY is ready a 3-2-1 countdown starts the next word.
+// RACE: nobody waits for anybody. A player who guessed the word, or used 5 attempts, sees the answer for
+// a moment and then goes straight on to the next word. The first player to guess ALL the words ends the
+// game (registry: endsOnResult); if nobody does, the most points wins. In a lobby each player's progress
+// (levels done) is shown under the header, from `room.stages`.
+//
 // After the 3rd level the player's result (points + time) is reported with onFinish. Points are
 // not shown here. All the rules live in src/game/wordle.ts.
 //
@@ -43,6 +44,7 @@ import type { GameProps } from './types';
 
 const GAP = 6;
 const FLIP_MS = 260;
+const REVEAL_MS = 2200; // how long the answer shows before the next word starts
 const KEY_ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
 
 const STATE_STYLE: Record<LetterState, { bg: string; text: string }> = {
@@ -138,56 +140,47 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [badRow, setBadRow] = useState(false); // the current row flashes red after a rejected guess
   const [status, setStatus] = useState<'playing' | 'solved' | 'failed'>('playing');
-  const [readyFor, setReadyFor] = useState(0); // the level I tapped "Ready" after (0 = none yet)
-  const [count, setCount] = useState<number | null>(null); // 3, 2, 1 before the next word
   const [sendFailed, setSendFailed] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
   const startedAt = useRef(Date.now());
   const done = useRef(false); // this level is finished for me
   const outcomes = useRef<Outcome[]>([]);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => flashTimer.current && clearTimeout(flashTimer.current), []);
+  useEffect(
+    () => () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    },
+    []
+  );
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
   }, []);
 
-  // ---- the others (a solo practice run has no room: nobody to wait for)
-  const everyoneDone =
-    !room ||
-    room.playerIds.every((p) => room.out.includes(p) || room.stages.some((s) => s.uid === p && s.stage === level));
-  const doneCount = room
-    ? room.playerIds.filter((p) => room.out.includes(p) || room.stages.some((s) => s.uid === p && s.stage === level)).length
-    : 1;
-  const everyoneReady =
-    !room || room.playerIds.every((p) => room.out.includes(p) || (room.readyStage[p] ?? 1) >= level + 1);
-  const readyCount = room
-    ? room.playerIds.filter((p) => room.out.includes(p) || (room.readyStage[p] ?? 1) >= level + 1).length
-    : 1;
-
   const finished = status !== 'playing';
   const lastLevel = level >= LEVEL_COUNT;
 
-  // ---- starting the next word: everybody is ready -> 3-2-1 -> new board
-  useEffect(() => {
-    if (!finished || !everyoneDone || lastLevel || readyFor !== level || !everyoneReady) return;
-    setCount(3);
-    const timers = [
-      setTimeout(() => setCount(2), 1000),
-      setTimeout(() => setCount(1), 2000),
-      setTimeout(() => {
-        setCount(null);
-        setLevel((l) => l + 1);
-        setGuesses([]);
-        setCurrent('');
-        setMessage(null);
-        setStatus('playing');
-        done.current = false;
-        startedAt.current = Date.now();
-      }, 3000),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [finished, everyoneDone, lastLevel, readyFor, level, everyoneReady]);
+  // ---- the others: how many levels each player has finished (a solo practice run has no room)
+  const progress = room
+    ? room.playerIds.map((p) => ({
+        uid: p,
+        done: room.stages.filter((s) => s.uid === p).length,
+        out: room.out.includes(p),
+      }))
+    : [];
+
+  // The answer stays on screen for a moment, then the next word starts: nobody waits for the others.
+  const goToNextLevel = () => {
+    setLevel((l) => l + 1);
+    setGuesses([]);
+    setCurrent('');
+    setMessage(null);
+    setStatus('playing');
+    done.current = false;
+    startedAt.current = Date.now();
+  };
 
   const reject = (text: string) => {
     setMessage(text);
@@ -220,6 +213,8 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     if (level === LEVEL_COUNT) {
       const { score, totalMs } = tally(outcomes.current);
       onFinish({ finished: true, totalMs, score });
+    } else {
+      advanceTimer.current = setTimeout(goToNextLevel, REVEAL_MS);
     }
   };
 
@@ -242,11 +237,6 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     if (!room || !o) return;
     setSendFailed(false);
     room.reportStage(level, o).catch(() => setSendFailed(true));
-  };
-
-  const tapReady = () => {
-    setReadyFor(level);
-    if (room) room.readyFor(level + 1).catch(() => setReadyFor(0));
   };
 
   // screen padding 20+20, blotter padding 10+10 and border 2+2
@@ -278,6 +268,12 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
           Attempt {attempt} of {MAX_ATTEMPTS}
         </Text>
       </View>
+
+      {progress.length > 1 && (
+        <Text style={styles.progress} accessibilityLabel="Progress of the players">
+          {progress.map((p) => `${nameOf(p.uid)} ${p.out ? 'out' : `${p.done}/${LEVEL_COUNT}`}`).join('  ·  ')}
+        </Text>
+      )}
 
       <View style={styles.blotter}>
         {rows.map((row, r) => (
@@ -334,49 +330,19 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
         </View>
       )}
 
-      {/* Finished this level, others still playing */}
-      {finished && !everyoneDone && (
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>{status === 'solved' ? 'You guessed it!' : 'Out of attempts.'}</Text>
-          <Text style={styles.panelText}>
-            Waiting for the other players to finish… ({doneCount}/{room?.playerIds.length ?? 1} done)
-          </Text>
-          {sendFailed && <Button label="Send again" variant="secondary" onPress={retrySend} />}
-        </View>
-      )}
-
-      {/* Everybody is done with this level: the answer, as a dictionary entry */}
-      {finished && everyoneDone && (
+      {/* Finished this level: the answer as a dictionary entry, then straight on to the next word */}
+      {finished && (
         <View style={styles.entry}>
-          <Text style={styles.entryText}>The {LEVEL_NAMES[level - 1].toLowerCase()} word was</Text>
+          <Text style={styles.entryText}>
+            {status === 'solved' ? 'You guessed it! ' : 'Out of attempts. '}The {LEVEL_NAMES[level - 1].toLowerCase()} word was
+          </Text>
           <Text style={styles.headword}>{answer.toLowerCase()}</Text>
-          <View style={styles.entryRule} />
-          {room &&
-            room.playerIds.map((p) => {
-              const s = room.stages.find((x) => x.uid === p && x.stage === level);
-              return (
-                <Text key={p} style={styles.entryText}>
-                  {s ? (s.solved ? '✓' : '✗') : '–'} {nameOf(p)}
-                </Text>
-              );
-            })}
-
           {lastLevel ? (
-            <Text style={styles.entryText}>That was the last word. Finishing the game…</Text>
-          ) : count !== null ? (
-            <>
-              <Text style={styles.entryText}>Next word in</Text>
-              <Text style={styles.countdown}>{count}</Text>
-            </>
-          ) : readyFor === level ? (
-            <Text style={styles.entryText}>
-              Waiting for the other players to be ready… ({readyCount}/{room?.playerIds.length ?? 1})
-            </Text>
+            <Text style={styles.entryText}>That was the last word. Waiting for the others to finish…</Text>
           ) : (
-            <Pressable onPress={tapReady} accessibilityRole="button" style={({ pressed }) => [styles.readyBtn, pressed && { opacity: 0.85 }]}>
-              <Text style={styles.readyText}>Ready for the {LEVEL_NAMES[level].toLowerCase()} word</Text>
-            </Pressable>
+            <Text style={styles.entryText}>Next word coming up…</Text>
           )}
+          {sendFailed && <Button label="Send again" variant="secondary" onPress={retrySend} />}
         </View>
       )}
     </>
@@ -389,6 +355,7 @@ const styles = StyleSheet.create({
   scene: { gap: 12 },
 
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  progress: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   bookmark: { backgroundColor: w.oxblood, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', borderBottomLeftRadius: 6, borderBottomRightRadius: 6 },
   bookmarkSmall: { color: w.paperMuted, fontFamily: FONT_BODY, fontSize: 12 },
   bookmarkBig: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 16, fontWeight: '800' },
@@ -462,7 +429,4 @@ const styles = StyleSheet.create({
   entryText: { color: w.ink, fontFamily: FONT_BODY, fontSize: 15, textAlign: 'center' },
   headword: { color: w.oxblood, fontFamily: FONT_BODY, fontSize: 38, fontWeight: '800', fontStyle: 'italic' },
   entryRule: { height: 2, width: '60%', backgroundColor: w.pageEdge, marginBottom: 4 },
-  countdown: { color: w.oxblood, fontFamily: FONT_TILE, fontSize: 56, fontWeight: tileWeight, textAlign: 'center' },
-  readyBtn: { backgroundColor: w.blotter, borderRadius: 10, borderWidth: 2, borderColor: w.brass, paddingVertical: 12, paddingHorizontal: 18, marginTop: 6 },
-  readyText: { color: w.paperText, fontFamily: FONT_BODY, fontSize: 16, fontWeight: '800' },
 });
