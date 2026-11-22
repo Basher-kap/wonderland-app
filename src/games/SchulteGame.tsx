@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
-import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, levelDirection, tap, tapOrder } from '../game/schulte';
+import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, levelDirection, SHUFFLE_LEVEL, SHUFFLE_MS, tap, tapOrder } from '../game/schulte';
 import { BUNTING_H, FLOOR_H, displayWeight, FONT_DISPLAY, kids } from '../gameThemes/schulte';
 import type { GameProps } from './types';
 
@@ -16,7 +16,7 @@ import type { GameProps } from './types';
 // rays, floor) is the screen background, drawn by OrphanageBackground; this file draws the clock, the
 // level, and the numbers as toy blocks in a wooden tray. The game is registered as `fullScreen`, so
 // GameScreen gives it the whole screen with no ScrollView. The tray is sized from the space it is
-// given (onLayout), so even the 50 blocks of level 4 stay inside the frame.
+// given (onLayout), so even the 30 blocks of level 4 stay inside the frame.
 
 const GAP = 6;
 const FRAME = 7; // the wooden rim of the tray
@@ -33,10 +33,12 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
   const [wrong, setWrong] = useState<{ value: number; on: boolean } | null>(null); // red blink
   const [tapped, setTapped] = useState(0); // correct taps so far on this level
   const [mistakes, setMistakes] = useState(0);
+  const [shuffleN, setShuffleN] = useState(0); // level 4: how many times the numbers were shuffled
   const [elapsed, setElapsed] = useState(0);
   const [finishedMs, setFinishedMs] = useState<number | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 }); // the space between the clock row and the floor
   const startedAt = useRef(Date.now());
+  const levelStartedAt = useRef(Date.now());
   const done = useRef(false);
   const blinkTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -66,11 +68,20 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
     return () => clearInterval(id);
   }, []);
 
+  // Level 4: the numbers shuffle every 10 seconds. Every level starts with a fresh count.
+  useEffect(() => {
+    levelStartedAt.current = Date.now();
+    setShuffleN(0);
+    if (level !== SHUFFLE_LEVEL) return;
+    const id = setInterval(() => setShuffleN((n) => n + 1), SHUFFLE_MS);
+    return () => clearInterval(id);
+  }, [level]);
+
   const levelSeed = `${seed}:L${level}`;
   const cells = useMemo(() => levelCells(level, levelSeed), [level, levelSeed]);
   const order = useMemo(() => tapOrder(cells, level), [cells, level]); // the order to tap them in
   // The same arrangement for everybody, and it never changes during a level.
-  const grid = useMemo(() => arrange(cells, `${levelSeed}:a0`), [cells, levelSeed]);
+  const grid = useMemo(() => arrange(cells, `${levelSeed}:a${shuffleN}`), [cells, levelSeed, shuffleN]);
 
   const onPressCell = (value: number) => {
     if (done.current) return;
@@ -100,7 +111,7 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
   };
 
   // The tray: 5 blocks across. Its width is whatever the screen gives (up to 520), and the height of
-  // the blocks shrinks, if it must, so that all the rows (10 on level 4) fit between the clock row and
+  // the blocks shrinks, if it must, so that all the rows (6 on level 4) fit between the clock row and
   // the caption. Nothing here ever needs a scroll.
   const cols = GRID_COLUMNS;
   const rows = Math.ceil(grid.length / cols);
@@ -115,10 +126,14 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
     : Math.round(Math.max(13, Math.min(cellH * 0.56, cellW * 0.44)));
   const clearedValues = useMemo(() => new Set(order.slice(0, tapped)), [order, tapped]);
   const descending = levelDirection(level) === 'desc';
+  const shufflesIn =
+    level === SHUFFLE_LEVEL ? Math.max(1, Math.ceil((SHUFFLE_MS - ((Date.now() - levelStartedAt.current) % SHUFFLE_MS)) / 1000)) : 0;
   const hint = descending
     ? 'Descending order: start from the biggest number!'
     : isEquation
     ? 'Work out each sum, then tap the answers in order.'
+    : level === SHUFFLE_LEVEL
+    ? `The numbers shuffle every ${SHUFFLE_MS / 1000}s! Next shuffle in ${shufflesIn}s`
     : '';
 
   return (

@@ -5,6 +5,10 @@ export type Cell = { id: number; label: string; value: number };
 
 export const LEVEL_COUNT = 5;
 
+// Level 4: the numbers are re-arranged every 10 seconds, while the player is still tapping.
+export const SHUFFLE_LEVEL = 4;
+export const SHUFFLE_MS = 10000;
+
 // Small deterministic RNG (mulberry32) so every player gets the SAME first grid
 // for a level when they use the same seed (e.g. `${matchId}:${roundNo}:L${level}`).
 export function makeRng(seed: string): () => number {
@@ -60,9 +64,9 @@ function equationFor(answer: number, rnd: () => number): string {
 //   1: all numbers 1-25 in 25 cells, tapped ascending
 //   2: numbers 1-25 in 25 cells, tapped DESCENDING (25 down to 1)
 //   3: 25 random numbers from 1-99, ascending
-//   4: numbers 1-50 in 50 cells, ascending
+//   4: numbers 1-30 in 30 cells, ascending, and the cells SHUFFLE every SHUFFLE_MS (10 s)
 //   5: 25 equations whose answers are 1-25, tapped in ascending order of their answers
-// Picking 25 different numbers out of 1-25 (level 2) or 50 out of 1-50 (level 4) takes all of
+// Picking 25 different numbers out of 1-25 (level 2) or 30 out of 1-30 (level 4) takes all of
 // them, so those levels differ from level 1 only by their order / size.
 export type Direction = 'asc' | 'desc';
 
@@ -82,7 +86,7 @@ export function levelCells(level: number, seed: string): Cell[] {
     case 3:
       return plain(1, 99, 25);
     case 4:
-      return plain(1, 50, 50);
+      return plain(1, 30, 30);
     case 5: {
       // 25 cells, answers are 1..25 once each, shown as equations.
       const answers = pickDistinct(1, 25, 25, rnd);
@@ -93,12 +97,12 @@ export function levelCells(level: number, seed: string): Cell[] {
   }
 }
 
-// Grid layout: the same cells in a random order. `arrangeSeed` changes on every wrong tap.
+// Grid layout: the same cells in a random order. `arrangeSeed` changes on every shuffle (level 4).
 export function arrange(cells: Cell[], arrangeSeed: string): Cell[] {
   return shuffle(cells, makeRng(`${arrangeSeed}:arrange`));
 }
 
-// 25 and 30 cells fit 5 columns; 50 cells use 5 columns of 10 rows (scroll or shrink cells on small phones).
+// 25 and 30 cells fit 5 columns (5 and 6 rows).
 export const GRID_COLUMNS = 5;
 
 // The values in the order they must be tapped (ascending, or descending on level 2).
