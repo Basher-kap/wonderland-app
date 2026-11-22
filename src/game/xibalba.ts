@@ -2,7 +2,8 @@
 //
 // The floor is COLS tiles wide and ROWS lines long. Everybody starts on the platform at the bottom
 // and steps ONE line at a time, all at once: each player picks one tile of the next line in
-// PICK_MS, nobody sees the others' picks, and when the time is up every step is revealed together.
+// PICK_MS, and when the time is up every step is revealed together. While picking, everybody sees WHICH
+// tiles are picked (`pickedCols`, a dot on the tile) but never WHO picked them.
 // A tile is either TRUE (steppable) or FALSE (the player falls and is out). The further the line,
 // the more FALSE tiles it has (FALSE_PER_ROW). A player who picks nothing in time falls.
 //
@@ -16,12 +17,13 @@
 //
 // Like Fortune, the HOST's phone is the only one that runs the game: players send "moves" (pick a
 // tile) and the host applies them with `apply`, calls `tick` a few times per second for the timers
-// and saves the state, which every phone shows. The picks themselves stay on the host (`picks` is
-// stripped by `publicState` before saving) until the step is revealed. A move carries the `rev`
+// and saves the state, which every phone shows. Who picked what stays on the host (`picks` is
+// stripped by `publicState` before saving) until the step is revealed; only the anonymous list of
+// picked columns (`pickedCols`) is saved. A move carries the `rev`
 // of the step it was made for, and `rev` only goes up, so an old move is ignored.
 //
-// NOT shown to the players on purpose (hidden notes): how many tiles are false on each line, that
-// the picks are hidden until time is up, and that the layout is the same on the way back.
+// NOT shown to the players on purpose (hidden notes): how many tiles are false on each line, who picked
+// which tile before time is up, and that the layout is the same on the way back.
 import { makeRng } from './schulte';
 
 // ----------------------------------------------------------- tuning ----
@@ -101,6 +103,7 @@ export type State = {
   row: number; // the line being stepped on now (0 = next to the start)
   phase: Phase;
   locked: string[]; // players who have picked a tile this step (not WHICH tile)
+  pickedCols: number[]; // the tiles picked so far this step, one entry per pick, sorted, with NO names
   reveal: Reveal | null;
   lastLeft: string | null; // the last player who left (forfeited)
   winner: string | null;
@@ -127,11 +130,15 @@ function edit(s: State): State {
   return c;
 }
 
+// The anonymous list of picked tiles, rebuilt from the host's private picks.
+const columnsOf = (s: State): number[] => Object.values(s.picks).sort((a, b) => a - b);
+
 function startPick(s: State, now: number) {
   s.phase = 'pick';
   s.picks = {};
   s.pickAt = {};
   s.locked = [];
+  s.pickedCols = [];
   s.reveal = null;
   s.endsAt = now + PICK_MS;
   s.rev += 1;
@@ -149,6 +156,7 @@ export function newGame(order: string[], seed: string, now: number): State {
     row: 0,
     phase: 'pick',
     locked: [],
+    pickedCols: [],
     reveal: null,
     lastLeft: null,
     winner: null,
@@ -167,6 +175,7 @@ function endGame(s: State) {
   s.winner = s.alive.length === 1 ? s.alive[0] : null; // nobody alive = a draw
   s.endsAt = 0;
   s.locked = [];
+  s.pickedCols = [];
   s.rev += 1;
 }
 
@@ -182,6 +191,7 @@ export function apply(state: State, move: Move): State {
   s.picks[move.uid] = move.col;
   s.pickAt[move.uid] = move.at;
   if (!s.locked.includes(move.uid)) s.locked.push(move.uid);
+  s.pickedCols = columnsOf(s);
   return s;
 }
 
@@ -201,6 +211,7 @@ function resolve(s: State, now: number) {
   s.picks = {};
   s.pickAt = {};
   s.locked = [];
+  s.pickedCols = [];
   s.phase = 'reveal';
   s.endsAt = now + REVEAL_MS;
   s.rev += 1;
@@ -234,6 +245,7 @@ function dropPlayer(state: State, uid: string): State {
   s.locked = s.locked.filter((id) => id !== uid);
   delete s.picks[uid];
   delete s.pickAt[uid];
+  s.pickedCols = columnsOf(s);
   s.lastLeft = uid;
   // During the reveal the step is already settled: afterReveal decides what happens next.
   if (s.alive.length <= 1 && s.phase !== 'reveal') endGame(s);

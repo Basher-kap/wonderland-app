@@ -286,6 +286,8 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
                 const stepped = here.length > 0;
                 const safe = stepped && here.some((x) => x.safe);
                 const mine = active && choice === c;
+                // Picks so far on this tile, from everybody (no names): one dot each.
+                const pickedHere = picking && active ? (st.pickedCols ?? []).filter((x) => x === c).length : 0;
                 return (
                   <Pressable
                     key={c}
@@ -297,11 +299,19 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
                       styles.tile,
                       { width: tile, height: tile },
                       active && canPick && styles.tileActive,
+                      pickedHere > 0 && styles.tilePicked,
                       mine && styles.tileChosen,
                       stepped && (safe ? styles.tileSafe : styles.tileTrap),
                       pressed && active && canPick && { opacity: 0.7 },
                     ]}
                   >
+                    {pickedHere > 0 && (
+                      <View style={styles.pickedDots} accessible accessibilityLabel={`${pickedHere} picked`}>
+                        {Array.from({ length: pickedHere }, (_, i) => (
+                          <View key={i} style={styles.pickedDot} />
+                        ))}
+                      </View>
+                    )}
                     {stepped && <Text style={styles.tileMark}>{safe ? '✓' : '✕'}</Text>}
                     {stepped && (
                       <View style={styles.chips}>
@@ -420,6 +430,10 @@ const styles = StyleSheet.create({
   },
   tileActive: { backgroundColor: '#2D3C3A', ...flat(c.jadeDim) },
   tileChosen: { backgroundColor: c.torch, ...flat(c.torchSoft) },
+  // Somebody (not named) picked this tile: a lit rim and one dot per pick.
+  tilePicked: { borderColor: c.torch },
+  pickedDots: { position: 'absolute', top: 3, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 2 },
+  pickedDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: c.bone },
   tileSafe: { backgroundColor: c.jadeDeep, ...flat(c.jade) },
   tileTrap: { backgroundColor: c.blood, ...flat(c.bloodBright) },
   tileMark: { color: c.bone, fontSize: 16, fontWeight: '900', lineHeight: 18 },
