@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, BackHandler, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { Button, DomainBadge, DomainIcon, KeyboardAwareScroll, RoundIntro, VoiceButton, GlintTitle, StarGlass, WarpCountdown, MatchResult, RoundResult, WaitingPulse, TransitionBackdrop, WarpStreaks, useSpaceTransition } from '../components';
@@ -306,32 +307,18 @@ export function GameScreen() {
   const showForfeitGame = showForfeitMatch && !!gameModule && !mineOut && !mine && !myResult && !over;
   useEffect(() => {
     navigation.setOptions({
-      // The mic sits first in the row, then the Forfeit buttons (when there are any).
+      // The mic sits first in the row, then the Forfeit dropdown (when there is something to forfeit).
       headerRight: code
         ? () => (
             <View style={styles.headerButtons}>
               <VoiceButton code={code} tone="header" />
-              {showForfeitMatch && showForfeitGame && (
-                <Pressable
-                  disabled={busy}
-                  onPress={() => forfeitActions.current.game()}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  style={[styles.headerButton, busy && { opacity: 0.5 }]}
-                >
-                  <Text style={styles.headerButtonText}>Forfeit game</Text>
-                </Pressable>
-              )}
               {showForfeitMatch && (
-                <Pressable
-                  disabled={busy}
-                  onPress={() => forfeitActions.current.match()}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  style={[styles.headerButton, styles.headerButtonDanger, busy && { opacity: 0.5 }]}
-                >
-                  <Text style={[styles.headerButtonText, { color: space.danger }]}>Forfeit match</Text>
-                </Pressable>
+                <ForfeitMenu
+                  busy={busy}
+                  canForfeitGame={showForfeitGame}
+                  onGame={() => forfeitActions.current.game()}
+                  onMatch={() => forfeitActions.current.match()}
+                />
               )}
             </View>
           )
@@ -560,6 +547,67 @@ const glassButton = { backgroundColor: space.panelBg };
 
 // The frame around the game (title, round box, countdown, forfeit buttons, Back) follows the Space theme.
 // What is drawn by the game itself (its board, its backdrop) is not touched.
+// "Forfeit" in the header: one button that opens a small dropdown with "Forfeit game" and "Forfeit match".
+// "Forfeit game" is listed only while there is a game of mine to give up.
+function ForfeitMenu({
+  busy,
+  canForfeitGame,
+  onGame,
+  onMatch,
+}: {
+  busy: boolean;
+  canForfeitGame: boolean;
+  onGame: () => void;
+  onMatch: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const insets = useSafeAreaInsets();
+  const pick = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <>
+      <Pressable
+        disabled={busy}
+        onPress={() => setOpen(true)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Forfeit options"
+        accessibilityState={{ expanded: open }}
+        style={[styles.headerButton, styles.menuButton, busy && { opacity: 0.5 }]}
+      >
+        <Text style={styles.headerButtonText}>Forfeit</Text>
+        <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={space.text} />
+      </Pressable>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} accessibilityLabel="Close menu">
+          <View style={[styles.menu, { top: insets.top + 52 }]}>
+            {canForfeitGame && (
+              <Pressable
+                onPress={() => pick(onGame)}
+                accessibilityRole="menuitem"
+                style={({ pressed }) => [styles.menuItem, pressed && { backgroundColor: space.pressedBg }]}
+              >
+                <MaterialCommunityIcons name="flag-outline" size={18} color={space.text} />
+                <Text style={styles.headerButtonText}>Forfeit game</Text>
+              </Pressable>
+            )}
+            <Pressable
+              onPress={() => pick(onMatch)}
+              accessibilityRole="menuitem"
+              style={({ pressed }) => [styles.menuItem, pressed && { backgroundColor: space.pressedBg }]}
+            >
+              <MaterialCommunityIcons name="exit-run" size={18} color={space.danger} />
+              <Text style={[styles.headerButtonText, { color: space.danger }]}>Forfeit match</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: space.void },
   body: { padding: 20, gap: 12 },
@@ -589,5 +637,17 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   headerButtonDanger: { borderColor: space.danger },
+  menuButton: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  menu: {
+    position: 'absolute',
+    right: 12,
+    minWidth: 170,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: space.lineStrong,
+    backgroundColor: 'rgba(5, 7, 14, 0.96)',
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
   headerButtonText: { color: space.text, fontSize: 13, fontWeight: '600' },
 });
