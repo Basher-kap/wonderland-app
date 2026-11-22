@@ -41,3 +41,8 @@ google-services.json
 # generated native folders
 /ios
 /android
+
+# per-variant Firebase files and env files (never commit)
+google-services.*.json
+.env.*
+!.env.example
