@@ -38,7 +38,8 @@
         {
           "microphonePermission": "WONDERLAND uses the microphone for voice chat with the players in your lobby."
         }
-      ]
+      ],
+      "./plugins/withWebrtcProguard"
     ],
     "extra": {
       "eas": {
