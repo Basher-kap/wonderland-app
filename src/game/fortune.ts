@@ -1,7 +1,8 @@
 // Fortune: pure rules, no React, no Firebase.
 //
-// Every player starts with GAME_LIVES life (this is NOT the lobby's 10 lives). A small temple
-// picks a player at random; that player draws one of the 100 covered fortune slips, reads the
+// Every player starts with GAME_LIVES (100) life (this is NOT the lobby's 10 lives). A small temple
+// picks a player at random; that player draws one of 20 covered fortune slips (a random 20 of the
+// 100 in the deck, see `offeredSlips`), reads the
 // fortune and answers the numerical question on it. A wrong answer costs life depending on how far
 // off the answer is and on the luck of the slip, and part of that loss splashes on the other
 // players. A right answer recovers a little life on lucky slips. The last player alive wins.
@@ -22,8 +23,9 @@ export { FORTUNE_BANKS };
 export type { FortuneTier };
 
 // ----------------------------------------------------------- tuning ----
-export const GAME_LIVES = 250;
+export const GAME_LIVES = 100;
 export const DECK_SIZE = 100;
+export const OFFER_SIZE = 20; // covered slips on the pane each turn (a random 20 of the slips not drawn yet)
 export const PICK_MS = 10000; // time to pick a slip once the pane is open; too slow = lose 25
 export const PICK_PENALTY = 25;
 export const TEMPLE_MS = 10000; // the chosen player should tap the temple; after this it opens by itself
@@ -41,6 +43,7 @@ export const SPLASH_CAN_KILL = true;
 export type TierRule = {
   label: string;
   kanji: string;
+  english: string; // what the kanji means, shown small under it on the slip
   heal: number; // life recovered by a right answer
   min: number; // life lost when the answer is wrong but (almost) right
   max: number; // life lost when the answer is at least 100% off
@@ -50,12 +53,12 @@ export type TierRule = {
 
 // Repeated by the tier files' own numbers (checked by the tests): change both together.
 export const TIERS: Record<FortuneTier, TierRule> = {
-  daikichi: { label: 'Daikichi', kanji: '大吉', heal: 20, min: 0, max: 0, splash: 0, auto: true },
-  chuukichi: { label: 'Chuukichi', kanji: '中吉', heal: 10, min: 20, max: 35, splash: 0.15, auto: false },
-  shokichi: { label: 'Shokichi', kanji: '小吉', heal: 5, min: 20, max: 45, splash: 0.25, auto: false },
-  kichi: { label: 'Kichi', kanji: '吉', heal: 0, min: 20, max: 55, splash: 0.4, auto: false },
-  kyou: { label: 'Kyou', kanji: '凶', heal: 0, min: 20, max: 70, splash: 0.6, auto: false },
-  daikyou: { label: 'Daikyou', kanji: '大凶', heal: 0, min: 50, max: 90, splash: 0.85, auto: false },
+  daikichi: { label: 'Daikichi', kanji: '大吉', english: 'Great Fortune', heal: 20, min: 0, max: 0, splash: 0, auto: true },
+  chuukichi: { label: 'Chuukichi', kanji: '中吉', english: 'Middle Fortune', heal: 10, min: 20, max: 35, splash: 0.15, auto: false },
+  shokichi: { label: 'Shokichi', kanji: '小吉', english: 'Small Fortune', heal: 5, min: 20, max: 45, splash: 0.25, auto: false },
+  kichi: { label: 'Kichi', kanji: '吉', english: 'Fortune', heal: 0, min: 20, max: 55, splash: 0.4, auto: false },
+  kyou: { label: 'Kyou', kanji: '凶', english: 'Misfortune', heal: 0, min: 20, max: 70, splash: 0.6, auto: false },
+  daikyou: { label: 'Daikyou', kanji: '大凶', english: 'Great Misfortune', heal: 0, min: 50, max: 90, splash: 0.85, auto: false },
 };
 
 export const TIER_ORDER: FortuneTier[] = ['daikichi', 'chuukichi', 'shokichi', 'kichi', 'kyou', 'daikyou'];
@@ -145,6 +148,16 @@ export function deckFor(seed: string): Slip[] {
     deckCache.set(seed, d);
   }
   return d;
+}
+
+// The slips on the pane this turn: OFFER_SIZE of the slips not drawn yet, the same on every phone
+// (they come from the seed and the turn number). The picked slip must be one of them.
+export function offeredSlips(seed: string, turn: number, taken: readonly number[]): number[] {
+  const left: number[] = [];
+  for (let i = 0; i < DECK_SIZE; i++) if (!taken.includes(i)) left.push(i);
+  return shuffled(left, makeRng(`${seed}:offer:${turn}`))
+    .slice(0, OFFER_SIZE)
+    .sort((a, b) => a - b);
 }
 
 export function questionOf(slip: Slip, banks: Partial<Record<FortuneTier, TierBank>> = FORTUNE_BANKS): FortuneQuestion {
@@ -376,6 +389,7 @@ export function apply(state: State, move: Move, now: number): State {
     if (state.phase !== 'pick') return state;
     const n = move.slip;
     if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n >= DECK_SIZE || state.taken.includes(n)) return state;
+    if (!offeredSlips(state.seed, state.turn, state.taken).includes(n)) return state; // not one of the 20 on the pane
     const s = edit(state);
     s.taken.push(n);
     s.slip = n;

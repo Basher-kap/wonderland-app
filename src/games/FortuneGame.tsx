@@ -6,6 +6,7 @@ import {
   cleanGuess,
   DECK_SIZE,
   deckFor,
+  offeredSlips,
   formatNumber,
   GAME_LIVES,
   newGame,
@@ -259,7 +260,7 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
     return lines;
   };
 
-  const covered = Array.from({ length: DECK_SIZE }, (_, i) => i).filter((i) => !st.taken.includes(i));
+  const covered = offeredSlips(st.seed, st.turn, st.taken); // the 20 slips on the pane this turn
   const showSlip = (st.phase === 'answer' || st.phase === 'reveal') && !!slip && !!tier && !!question;
 
   return (
@@ -340,24 +341,24 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
           <View style={styles.paneRow}>
             <Animated.View style={[styles.pane, { transform: [{ translateX: slide }] }]}>
               <ScrollView nestedScrollEnabled style={{ maxHeight: 280 }} contentContainerStyle={styles.paneGrid}>
-                {covered.map((i) => (
+                {covered.map((i, pos) => (
                   <Pressable
                     key={i}
                     onPress={() => send('pick', { slip: i })}
                     disabled={!mine}
                     accessibilityRole="button"
-                    accessibilityLabel={`Fortune slip ${i + 1}`}
+                    accessibilityLabel={`Fortune slip ${pos + 1}`}
                     style={({ pressed }) => [styles.coveredSlip, !mine && { opacity: 0.6 }, pressed && { opacity: 0.7 }]}
                   >
                     <View style={styles.seal} />
-                    <Text style={styles.coveredNo}>{i + 1}</Text>
+                    <Text style={styles.coveredNo}>{pos + 1}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
             </Animated.View>
             <View style={styles.paneSide}>
               <ShrineIcon scale={0.7} />
-              <Text style={styles.stageText}>{covered.length} covered slips</Text>
+              <Text style={styles.stageText}>Pick one of {covered.length} covered slips</Text>
             </View>
           </View>
         </View>
@@ -366,9 +367,10 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
       {/* The slip everybody can read */}
       {showSlip && slip && tier && question && (
         <View style={[styles.slip, { borderColor: TIER_INK[slip.tier] }]}>
-          <Text style={[styles.slipTier, { color: TIER_INK[slip.tier] }]}>
-            {tier.kanji}  {tier.label}
+          <Text style={[styles.slipKanji, { color: TIER_INK[slip.tier] }]} accessibilityLabel={tier.english}>
+            {tier.kanji}
           </Text>
+          <Text style={[styles.slipEnglish, { color: TIER_INK[slip.tier] }]}>{tier.english}</Text>
           <Text style={styles.slipFortune}>“{question.fortune}”</Text>
           <View style={styles.slipRule} />
           {tier.auto ? (
@@ -523,7 +525,8 @@ const styles = StyleSheet.create({
     gap: 10,
     alignItems: 'center',
   },
-  slipTier: { fontFamily: FONT_FORTUNE, fontSize: 26, fontWeight: '900', letterSpacing: 1 },
+  slipKanji: { fontFamily: FONT_FORTUNE, fontSize: 72, fontWeight: '900', lineHeight: 84, textAlign: 'center' },
+  slipEnglish: { fontFamily: FONT_FORTUNE, fontSize: 14, fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: -4 },
   slipFortune: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 16, fontStyle: 'italic', textAlign: 'center', lineHeight: 24 },
   slipRule: { alignSelf: 'stretch', height: 2, backgroundColor: p.paperEdge },
   slipQuestion: { color: p.ink, fontFamily: FONT_FORTUNE, fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
