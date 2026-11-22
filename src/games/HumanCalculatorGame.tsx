@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Button } from '../components/ui';
+import { Button } from '../components';
 import {
   ANSWER_MS,
   buildQuestion,
@@ -21,7 +21,7 @@ import {
   START_CHANCES,
 } from '../game/humanCalculator';
 import type { QuestionDoc, Standings } from '../game/humanCalculator';
-import { calc as c, FONT_LABEL, FONT_SCREEN } from '../gameThemes/humanCalculatorTheme';
+import { calc as c, FONT_LABEL, FONT_SCREEN } from '../gameThemes/humanCalculator';
 import type { GameProps } from './types';
 
 // Human Calculator. A question is a run of terms ("+5", "-2", "x2", "/5") shown one at a time and
@@ -35,8 +35,8 @@ import type { GameProps } from './types';
 // All the rules live in src/game/humanCalculator.ts; every phone replays the same standings from the
 // answers saved in the lobby, so nothing but the answers has to be sent.
 //
-// LOOK: a quiz-show stage (src/gameThemes/humanCalculatorTheme.ts). The curtains, the marquee, the
-// floor and the rules dialogs are in components/QuizStageBackground.tsx and gameThemes/gameThemes.tsx. The terms, the typed answer and
+// LOOK: a quiz-show stage (gameThemes/humanCalculator/theme.ts). The curtains, the marquee, the
+// floor and the rules dialogs are in gameThemes/humanCalculator/QuizStageBackground.tsx and gameThemes/humanCalculator/intro.tsx. The terms, the typed answer and
 // the correct answer appear on the big monitor. Chances are lamps (lit = still in), the 5 seconds
 // are a row of bulbs under the screen that go out one by one and turn red at the end.
 

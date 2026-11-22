@@ -5,18 +5,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { Button } from '../components/ui';
-import { VoiceButton } from '../components/VoiceButton';
-import { voice } from '../voice/voice';
-import { useAuth } from '../context/AuthContext';
-import { GAMES } from '../data/games';
+import { Button, VoiceButton, SpaceBackground, SpaceHeader } from '../components';
+import { voice } from '../voice';
+import { useAuth } from '../context';
+import { GAMES } from '../data';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { colors } from '../theme';
-import SpaceBackground from '../components/SpaceBackground';
-import { SpaceHeader } from '../components/SpaceHeader';
-import { listPanel, panel, rowDivider, space, typo } from '../spaceTheme';
-import type { RootStackParamList } from '../navigation/types';
+import { colors, listPanel, panel, rowDivider, space, typo } from '../theme';
+import type { RootStackParamList } from '../navigation';
 
 // Demo mode only: fake friends so the screen is not empty.
 const DEMO_FRIENDS = ['Mad Hatter', 'Cheshire'];

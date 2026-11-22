@@ -6,20 +6,18 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthProvider, useAuth } from './src/context/AuthContext';
-import { colors } from './src/theme';
-import { space } from './src/spaceTheme';
-import type { RootStackParamList, TabParamList } from './src/navigation/types';
-import { ChatBubble } from './src/components/ChatBubble';
-import SpaceBackground from './src/components/SpaceBackground';
-import { SpaceTabBar } from './src/components/SpaceTabBar';
-import { GameHeader } from './src/components/GameHeader';
-import { LoginScreen } from './src/screens/LoginScreen';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { LeaderboardScreen } from './src/screens/LeaderboardScreen';
-import { SettingsScreen } from './src/screens/SettingsScreen';
-import { LobbyScreen } from './src/screens/LobbyScreen';
-import { GameScreen } from './src/screens/GameScreen';
+import { AuthProvider, useAuth } from './src/context';
+import { colors, space } from './src/theme';
+import type { RootStackParamList, TabParamList } from './src/navigation';
+import { ChatBubble, GameHeader, SpaceBackground, SpaceTabBar } from './src/components';
+import {
+  GameScreen,
+  HomeScreen,
+  LeaderboardScreen,
+  LobbyScreen,
+  LoginScreen,
+  SettingsScreen,
+} from './src/screens';
 
 const navRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -40,7 +38,7 @@ const navTheme = {
 
 // Home, Leaderboard and Settings share ONE night sky, drawn here behind the whole tab navigator. The pages
 // and the tab bar are see-through (sceneStyle), so the stars never jump when you switch tabs and run
-// behind the tab bar too. The tab icons, labels and the active star live in SpaceTabBar.tsx.
+// behind the tab bar too. The tab icons, labels and the active star live in src/components/space/SpaceTabBar.tsx.
 // The sky rests while another screen (Lobby, Game) is on top.
 function MainTabs() {
   const focused = useIsFocused();

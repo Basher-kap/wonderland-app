@@ -3,15 +3,12 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { AppLogo } from '../components/AppLogo';
-import { UsernameTutorialBubble } from '../components/UsernameTutorialBubble';
-import { Button, DomainIcon, TicketChip } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
+import { AppLogo, UsernameTutorialBubble, Button, DomainIcon, TicketChip } from '../components';
+import { useAuth } from '../context';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { DOMAIN_ORDER, Domain, domainInfo } from '../theme';
-import { field, panel, space, typo } from '../spaceTheme';
-import type { RootStackParamList } from '../navigation/types';
+import { DOMAIN_ORDER, Domain, domainInfo, field, panel, space, typo } from '../theme';
+import type { RootStackParamList } from '../navigation';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const randomCode = () =>

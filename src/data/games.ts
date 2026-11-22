@@ -1,4 +1,4 @@
-import { Domain } from '../theme';
+import { Domain } from '../theme/base';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 

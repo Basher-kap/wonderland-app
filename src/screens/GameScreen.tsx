@@ -3,25 +3,17 @@ import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
-import { Button, DomainBadge, DomainIcon } from '../components/ui';
-import { KeyboardAwareScroll } from '../components/KeyboardAwareScroll';
-import { RoundIntro } from '../components/RoundIntro';
-import { VoiceButton } from '../components/VoiceButton';
-import { useAuth } from '../context/AuthContext';
-import { difficultyOf, getGame } from '../data/games';
-import { DomainCount, settlementFor } from '../game/engine';
-import { GAME_MODULES } from '../games/registry';
-import type { ResultRow } from '../games/registry';
-import type { GameResult, GameRoom } from '../games/types';
+import { Button, DomainBadge, DomainIcon, KeyboardAwareScroll, RoundIntro, VoiceButton, GlintTitle, StarGlass, WarpCountdown, MatchResult, RoundResult, WaitingPulse, TransitionBackdrop, WarpStreaks, useSpaceTransition } from '../components';
+import { useAuth } from '../context';
+import { difficultyOf, getGame } from '../data';
+import { DomainCount, settlementFor } from '../game';
+import { GAME_MODULES } from '../games';
+import type { ResultRow, GameResult, GameRoom } from '../games';
 import * as api from '../lib/api';
-import { getGameBackdrop } from '../gameThemes/gameThemes';
+import { getGameBackdrop } from '../gameThemes';
 import { isDemoMode } from '../lib/firebase';
-import { radius } from '../theme';
-import { space } from '../spaceTheme';
-import { GlintTitle, StarGlass, WarpCountdown } from '../components/SpaceGlass';
-import { MatchResult, RoundResult, WaitingPulse } from '../components/SpaceResults';
-import { TransitionBackdrop, WarpStreaks, useSpaceTransition } from '../components/SpaceTransition';
-import type { RootStackParamList } from '../navigation/types';
+import { radius, space } from '../theme';
+import type { RootStackParamList } from '../navigation';
 
 // One round, as every player sees it:
 //   1. the intro dialogs (RoundIntro): domain + difficulty, Japanese name, rule, clear condition

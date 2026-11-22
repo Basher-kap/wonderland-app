@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Button } from '../components/ui';
+import { Button } from '../components';
 import {
   isValidWord,
   keyStates,
@@ -21,7 +21,7 @@ import {
   WORD_LENGTH,
 } from '../game/wordle';
 import type { LetterState, Outcome } from '../game/wordle';
-import { FONT_BODY, FONT_TILE, tileWeight, wordle as w } from '../gameThemes/wordleTheme';
+import { FONT_BODY, FONT_TILE, tileWeight, wordle as w } from '../gameThemes/wordle';
 import type { GameProps } from './types';
 
 // Wordle ("Waadoru"): 3 levels (an easy word, a moderate word, a hard word). Everybody guesses the
@@ -36,8 +36,8 @@ import type { GameProps } from './types';
 // After the 3rd level the player's result (points + time) is reported with onFinish. Points are
 // not shown here. All the rules live in src/game/wordle.ts.
 //
-// LOOK: a reading room after hours (src/gameThemes/wordleTheme.ts). The bookshelves, the lamp and
-// the rules dialogs are in components/LibraryBackground.tsx and gameThemes/gameThemes.tsx. A correct letter hangs a
+// LOOK: a reading room after hours (gameThemes/wordle/theme.ts). The bookshelves, the lamp and
+// the rules dialogs are in gameThemes/wordle/LibraryBackground.tsx and gameThemes/wordle/intro.tsx. A correct letter hangs a
 // bookmark ribbon, a letter in the wrong spot gets a folded corner, a letter that is not in the word
 // is dimmed, so the result never depends on colour alone. A guess turns over one tile at a time.
 

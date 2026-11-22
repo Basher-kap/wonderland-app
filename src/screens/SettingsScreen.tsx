@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, TicketStub } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
+import { Button, TicketStub } from '../components';
+import { useAuth } from '../context';
 import { errorMessage } from '../lib/api';
-import { field, space, typo } from '../spaceTheme';
+import { field, space, typo } from '../theme';
 
 // Same rule as the server: 3-16 letters, numbers or underscores.
 const USERNAME_RULE = /^[A-Za-z0-9_]{3,16}$/;

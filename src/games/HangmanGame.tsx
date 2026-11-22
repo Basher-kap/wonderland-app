@@ -18,8 +18,7 @@ import {
   withClues,
   wrongCount,
 } from '../game/hangman';
-import { Bullets, GallowsScene, GRID_H, GRID_W, Skyline } from '../components/HangmanScene';
-import { displayWeight, FONT_DISPLAY, west } from '../gameThemes/hangmanTheme';
+import { Bullets, GallowsScene, GRID_H, GRID_W, Skyline, displayWeight, FONT_DISPLAY, west } from '../gameThemes/hangman';
 import type { GameProps } from './types';
 
 // Hangman: guess the hidden proper noun one letter at a time. Everybody gets the same word
@@ -31,7 +30,7 @@ import type { GameProps } from './types';
 // GameScreen. The answer is NOT shown to a hanged player (others may still be playing); it is
 // shown to everyone in the round summary once the round is over.
 //
-// THE LOOK (Wild West, see gameThemes/hangmanTheme.ts): the gallows scene on top, the WANTED poster
+// THE LOOK (Wild West, see gameThemes/hangman/theme.ts): the gallows scene on top, the WANTED poster
 // with the hidden name under it, the keys on the plank wall at the bottom. The game is registered as
 // `fullScreen`, so GameScreen gives it the whole screen with no ScrollView. Everything here is sized
 // from the space it is given (onLayout), so the keys are always inside the frame and nothing scrolls.

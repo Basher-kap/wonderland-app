@@ -4,7 +4,7 @@
 
 import { DEFAULT_DIFFICULTY, DIFFICULTY_MULTIPLIER, GAMES, difficultyOf } from '../data/games';
 import type { Difficulty } from '../data/games';
-import type { Domain } from '../theme';
+import type { Domain } from '../theme/base';
 
 export const START_LIVES = 10;
 export const MAX_PLAYERS = 8;

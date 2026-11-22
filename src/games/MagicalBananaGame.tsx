@@ -15,7 +15,7 @@ import {
   tick,
 } from '../game/magicalBanana';
 import * as api from '../lib/api';
-import { FONT_FOOD, food as f } from '../gameThemes/foodLandTheme';
+import { FONT_FOOD, food as f } from '../gameThemes/magicalBanana';
 import type { GameProps } from './types';
 
 // Magical Banana: players sit in a circle and say a word related to the previous word. The start

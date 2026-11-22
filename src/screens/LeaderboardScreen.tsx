@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DomainIcon, DomainStat } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
-import { LADDERS, Track, nextTitle, titleFor } from '../data/ranks';
+import { DomainIcon, DomainStat } from '../components';
+import { useAuth } from '../context';
+import { LADDERS, Track, nextTitle, titleFor } from '../data';
 import * as api from '../lib/api';
 import { isDemoMode } from '../lib/firebase';
-import { DOMAIN_ORDER, domainInfo } from '../theme';
-import { listPanel, panel, rowDivider, space, typo } from '../spaceTheme';
+import { DOMAIN_ORDER, domainInfo, listPanel, panel, rowDivider, space, typo } from '../theme';
 
 // Demo mode only. Points: +10 per round won, -5 per round lost, per domain.
 const DEMO: api.LeaderboardRow[] = [

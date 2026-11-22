@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, levelDirection, tap, tapOrder } from '../game/schulte';
-import { BUNTING_H, FLOOR_H } from '../components/OrphanageBackground';
-import { displayWeight, FONT_DISPLAY, kids } from '../gameThemes/schulteTheme';
+import { BUNTING_H, FLOOR_H, displayWeight, FONT_DISPLAY, kids } from '../gameThemes/schulte';
 import type { GameProps } from './types';
 
 // Schulte Table ("Shurute Hyou"): 5 levels, tap the cells in ascending order.
@@ -13,7 +12,7 @@ import type { GameProps } from './types';
 // until the 5th level is cleared, so wrong taps only cost time. All the rules live in
 // src/game/schulte.ts; this file is only the screen.
 //
-// THE LOOK (children's home, see gameThemes/schulteTheme.ts): the room (striped wall, bunting, sun
+// THE LOOK (children's home, see gameThemes/schulte/theme.ts): the room (striped wall, bunting, sun
 // rays, floor) is the screen background, drawn by OrphanageBackground; this file draws the clock, the
 // level, and the numbers as toy blocks in a wooden tray. The game is registered as `fullScreen`, so
 // GameScreen gives it the whole screen with no ScrollView. The tray is sized from the space it is

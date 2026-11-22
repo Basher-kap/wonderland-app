@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Button } from '../components/ui';
+import { Button } from '../components';
 import {
   allowedFor,
   allowedThrows,
@@ -27,11 +27,11 @@ import {
   WAIT_REVEAL_MS,
 } from '../game/janken';
 import type { JankenDoc, PromiseKind, SetChoice, Throw } from '../game/janken';
-import { court as c, FONT_COURT } from '../gameThemes/courtTheme';
+import { court as c, FONT_COURT } from '../gameThemes/janken';
 import type { GameProps } from './types';
 
-// LOOK: the Supreme Court in session (src/gameThemes/courtTheme.ts). The hall, the bench, the shaft of light
-// and the rules dialogs are in components/CourtBackground.tsx and gameThemes/gameThemes.tsx; the players stand
+// LOOK: the Supreme Court in session (gameThemes/janken/theme.ts). The hall, the bench, the shaft of light
+// and the rules dialogs are in gameThemes/janken/CourtBackground.tsx and gameThemes/janken/intro.tsx; the players stand
 // on a ring inlaid in the floor.
 //
 // Janken Negotiation. Every round (all rules are in src/game/janken.ts):

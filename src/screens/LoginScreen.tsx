@@ -2,14 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppLogo } from '../components/AppLogo';
-import { Button } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
+import { AppLogo, Button, SpaceBackground, useReduceMotion } from '../components';
+import { useAuth } from '../context';
 import { isDemoMode } from '../lib/firebase';
 import { getGoogleIdToken, googleErrorMessage } from '../lib/googleSignIn';
-import SpaceBackground from '../components/SpaceBackground';
-import { useReduceMotion } from '../components/useReduceMotion';
-import { space } from '../spaceTheme';
+import { space } from '../theme';
 
 const isWeb = Platform.OS === 'web';
 

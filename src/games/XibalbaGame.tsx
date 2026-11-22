@@ -12,8 +12,7 @@ import {
   tick,
 } from '../game/xibalba';
 import * as api from '../lib/api';
-import { MayaGlyph } from '../components/MayaGlyph';
-import { cave as c, FONT_XIBALBA } from '../gameThemes/xibalbaTheme';
+import { MayaGlyph, cave as c, FONT_XIBALBA } from '../gameThemes/xibalba';
 import type { GameProps } from './types';
 
 // Traps of Xibalba: everybody steps one line of the trapped floor at a time, all at once. Each
@@ -27,8 +26,8 @@ import type { GameProps } from './types';
 // show the state and send picks. If the host forfeits the game, the others cannot continue (known
 // limit, same as Fortune and Magical Banana). The forfeit buttons are GameScreen's.
 //
-// LOOK: the Maya underworld, inside a cave (src/gameThemes/xibalbaTheme.ts). The cave, the torches and the
-// rules dialogs are in components/CaveBackground.tsx and gameThemes/gameThemes.tsx. Only the row being stepped
+// LOOK: the Maya underworld, inside a cave (gameThemes/xibalba/theme.ts). The cave, the torches and the
+// rules dialogs are in gameThemes/xibalba/CaveBackground.tsx and gameThemes/xibalba/intro.tsx. Only the row being stepped
 // on is fully lit; the rows around it fade into the dark the further they are.
 //
 // Hidden notes kept here on purpose, not on the game screen: how many tiles are false on each line,

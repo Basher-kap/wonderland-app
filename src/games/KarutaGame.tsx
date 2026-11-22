@@ -12,8 +12,7 @@ import {
   withAdvance,
 } from '../game/karuta';
 import * as api from '../lib/api';
-import { TatamiBackground } from '../components/TatamiBackground';
-import { FONT_KARUTA, washitsu as w } from '../gameThemes/karutaTheme';
+import { TatamiBackground, FONT_KARUTA, washitsu as w } from '../gameThemes/karuta';
 import type { GameProps } from './types';
 
 // Karuta: 26 letter cards are dealt equally; the leftover cards are void. A floating target card
@@ -26,9 +25,9 @@ import type { GameProps } from './types';
 // secret advance grabs), which every phone shows. If the host forfeits the game the others cannot
 // continue (known limit, same as Battleships and Fortune). The forfeit buttons are GameScreen's.
 //
-// LOOK: a traditional room at the end of a summer day (src/gameThemes/karutaTheme.ts). The open doors, the
-// wind chime, the tatami floor and the rules dialogs are in components/TatamiBackground.tsx and
-// gameThemes/gameThemes.tsx. This screen draws its own background because GameScreen gives a full-screen game
+// LOOK: a traditional room at the end of a summer day (gameThemes/karuta/theme.ts). The open doors, the
+// wind chime, the tatami floor and the rules dialogs are in gameThemes/karuta/TatamiBackground.tsx and
+// gameThemes/karuta/intro.tsx. This screen draws its own background because GameScreen gives a full-screen game
 // the whole screen.
 //
 // Layout (hidden notes, not in the rules window): top to bottom: the status line, the target card

@@ -19,10 +19,8 @@ import {
   withShips,
 } from '../game/battleships';
 import * as api from '../lib/api';
-import { AWNING_H } from '../components/NaumachiaBackground';
-import { Ballista, Mark, Stone, Trireme } from '../components/NaumachiaArt';
-import type { MarkOutcome } from '../components/NaumachiaArt';
-import { displayWeight, FONT_DISPLAY, roma } from '../gameThemes/battleshipsTheme';
+import { AWNING_H, Ballista, Mark, Stone, Trireme, displayWeight, FONT_DISPLAY, roma } from '../gameThemes/battleships';
+import type { MarkOutcome } from '../gameThemes/battleships';
 import type { GameProps } from './types';
 
 // Battleships: every player secretly places 7 battleships on a 5x5 grid (15 seconds). Then the
@@ -43,7 +41,7 @@ import type { GameProps } from './types';
 // "the game starts with the empty 5x5 table grid"). true = your own ships are drawn faintly.
 const SHOW_OWN_SHIPS = false;
 
-// What is left on a shot tile (drawn in components/NaumachiaArt.tsx): a splash = a miss, fire = you
+// What is left on a shot tile (drawn in gameThemes/battleships/NaumachiaArt.tsx): a splash = a miss, fire = you
 // hit an enemy ship, a skull = you sank your own ship, a mushroom cloud = you sacrificed your ship
 // to sink an enemy's.
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];

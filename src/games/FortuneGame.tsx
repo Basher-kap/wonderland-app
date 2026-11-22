@@ -19,8 +19,7 @@ import {
   TIERS,
 } from '../game/fortune';
 import * as api from '../lib/api';
-import { ShrineIcon } from '../components/ShrineIcon';
-import { FONT_FORTUNE, fortune as p, TIER_INK } from '../gameThemes/fortuneTheme';
+import { ShrineIcon, FONT_FORTUNE, fortune as p, TIER_INK } from '../gameThemes/fortune';
 import type { GameProps } from './types';
 
 // Fortune: a small temple picks a player at random; that player draws one of the covered fortune
@@ -34,9 +33,9 @@ import type { GameProps } from './types';
 // the others cannot continue (known limit, same as Magical Banana). The forfeit buttons are
 // GameScreen's.
 //
-// LOOK: a night festival with a small shrine (src/gameThemes/fortuneTheme.ts). The lanterns, the torii and
-// the rules dialogs are in components/FestivalBackground.tsx and gameThemes/gameThemes.tsx; the shrine is
-// components/ShrineIcon.tsx; a drawn slip is omikuji paper.
+// LOOK: a night festival with a small shrine (gameThemes/fortune/theme.ts). The lanterns, the torii and
+// the rules dialogs are in gameThemes/fortune/FestivalBackground.tsx and gameThemes/fortune/intro.tsx; the shrine is
+// gameThemes/fortune/ShrineIcon.tsx; a drawn slip is omikuji paper.
 //
 // Hidden notes kept here on purpose, not in the rules window: the temple chooses at random until
 // everybody was chosen, then starts over; the pane scrolls with covered slips; the drawn slip is

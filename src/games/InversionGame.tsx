@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { Dir, makeTask, MAX_CHANCES, PAIR, TASK_COUNT } from '../game/inversion';
-import { InversionGamepad } from '../components/InversionGamepad';
-import { displayWeight, esp, FONT_DISPLAY } from '../gameThemes/inversionTheme';
+import { InversionGamepad, displayWeight, esp, FONT_DISPLAY } from '../gameThemes/inversion';
 import type { GameProps } from './types';
 
 // Inversion: follow the instruction about the arrows, but press the OPPOSITE button while the
@@ -13,7 +12,7 @@ import type { GameProps } from './types';
 // endsOnFirstFinish + endsWhenOneLeft). All the rules live in src/game/inversion.ts; this file is
 // only the screen. The back/forfeit buttons are provided by GameScreen.
 //
-// THE LOOK (esports final, see gameThemes/inversionTheme.ts): the arena is the screen background
+// THE LOOK (esports final, see gameThemes/inversion/theme.ts): the arena is the screen background
 // (EsportsArenaBackground). From the top: the chances and the task counter, the time bar, the
 // INVERSED sign, the arrow monitor, the instruction, and the controller (components/InversionGamepad).
 // The game is registered as `fullScreen`, so GameScreen gives it the whole screen with no ScrollView.
