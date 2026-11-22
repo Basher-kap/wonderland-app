@@ -9,6 +9,7 @@ import {
   newGame,
   publicState,
   remainingNow,
+  sanitizePlacement,
   SHIP_COUNT,
   Shot,
   shotCells,
@@ -192,13 +193,16 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
       });
   };
 
-  // Time is up while placing: send what I have (the host fills in the rest at random).
+  // Time is up while placing: the ships I have not placed are placed at random. The top-up is the same
+  // function the host uses (same seed, same player), so the board I see is exactly the one that is played.
   const placingLeft = st && room ? remainingNow(st, receivedAt.current, Date.now()) : 1;
   const timeUp = !!st && st.phase === 'placing' && placingLeft <= 0;
   useEffect(() => {
     if (!timeUp || ready || !st || st.placed.includes(uid)) return;
     setReady(true);
-    send('place', { cells: mineRef.current });
+    const filled = sanitizePlacement(mineRef.current, st.seed, uid);
+    setSel(filled);
+    send('place', { cells: filled });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeUp]);
 
