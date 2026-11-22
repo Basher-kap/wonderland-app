@@ -1,42 +1,39 @@
 # Environments: keep test data away from real users
 
-| Variant     | App name           | Android package                  | Firebase project         |
-|-------------|--------------------|----------------------------------|--------------------------|
-| production  | Wonderland         | com.wonderlandgame.app           | wonderland-b6794 (live)  |
-| preview     | Wonderland Preview | com.wonderlandgame.app.preview   | wonderland-test (new)    |
-| development | Wonderland Dev     | com.wonderlandgame.app.dev       | wonderland-test (new)    |
+There is no Google Play account yet, so the **preview** build (an APK shared directly) is what real users install.
 
-Preview and development share the TEST project, so nothing you try there touches the live leaderboard,
-tickets or chat. Production is unchanged, so existing installs keep working and updating.
+| EAS profile | App name       | Android package              | Firebase project               | Used for                 |
+|-------------|----------------|------------------------------|--------------------------------|--------------------------|
+| preview     | Wonderland     | com.wonderlandgame.app       | Wonderland (live, main account)| real users               |
+| development | Wonderland Dev | com.wonderlandgame.app.dev   | wonderland-test (other account)| testing new games        |
+| production  | Wonderland     | com.wonderlandgame.app       | same as preview                | reserved for Play Store  |
 
-## One-time setup (Firebase console, about 15 minutes)
-1. Create a new Firebase project (e.g. `wonderland-test`, Spark plan).
-2. Authentication -> Google -> enable. Copy its Web client ID.
-3. Firestore -> create in production mode, region `asia-southeast1`; Rules tab -> paste `backend/firestore.rules` -> Publish.
-4. Add a Web app (copy the 6 config values) and TWO Android apps: `com.wonderlandgame.app.preview` and
-   `com.wonderlandgame.app.dev`. Download each `google-services.json`.
-5. After the first build of each variant, add its SHA-1 (`eas credentials -p android`) to that Android app
-   in Firebase, or Google sign-in fails. Re-download google-services.json afterwards.
+The Dev app installs next to the live app and talks only to the test project, so testing never touches the
+real leaderboard, tickets or chat.
 
-## EAS environment variables (they are NOT in git)
-For each of `preview` and `development`, with the TEST project's values:
+## Firebase
+- Live project: unchanged. Package `com.wonderlandgame.app` stays registered there.
+- Test project `wonderland-test`: register ONE Android app, `com.wonderlandgame.app.dev`, plus the Web app and
+  Google sign-in. (A `.preview` app there is not needed; delete it if you created one.)
+- Add the SHA-1 of each build's keystore to the matching Android app (`eas credentials -p android`).
+
+## EAS environment variables (not in git)
+`preview` environment = LIVE values, `development` environment = TEST values:
+EXPO_PUBLIC_FIREBASE_API_KEY, _AUTH_DOMAIN, _PROJECT_ID, _STORAGE_BUCKET, _MESSAGING_SENDER_ID, _APP_ID,
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, and the file variable GOOGLE_SERVICES_JSON.
 ```
-eas env:create --environment preview --name EXPO_PUBLIC_FIREBASE_API_KEY --value <...>
-# repeat: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN, _PROJECT_ID, _STORAGE_BUCKET, _MESSAGING_SENDER_ID,
-#         _APP_ID, EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
-eas env:create --environment preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.preview.json
+eas env:create --environment preview --name EXPO_PUBLIC_FIREBASE_API_KEY --value <live value> --visibility sensitive
+eas env:create --environment preview --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json
+eas env:create --environment development --name GOOGLE_SERVICES_JSON --type file --value ./google-services.development.json
 ```
-Same again with `--environment development` and `./google-services.development.json`. For `production`, use the
-current live values and the current google-services.json. Never set EXPO_PUBLIC_TEST_GAME in preview or production.
+Never set EXPO_PUBLIC_TEST_GAME in preview or production.
 
 ## Building
 ```
-eas build -p android --profile preview       # "Wonderland Preview"
-eas build -p android --profile development   # "Wonderland Dev" (dev client)
-eas build -p android --profile production    # live app (AAB)
+eas build -p android --profile preview       # live app, "Wonderland"
+eas build -p android --profile development   # test app, "Wonderland Dev" (dev client)
 ```
 
 ## Running locally
-`npx expo start --dev-client` reads `.env.development` over `.env`. Put the TEST project's keys in
-`.env.development` and keep `.env` for production only. Start the dev server with `APP_VARIANT=development`
-so the app config matches the "Wonderland Dev" build (otherwise it reports the production package).
+Put the TEST keys in `.env.development` (and keep `.env` for live only), then
+`APP_VARIANT=development npx expo start --dev-client` (PowerShell: `$env:APP_VARIANT="development"; npx expo start --dev-client`).

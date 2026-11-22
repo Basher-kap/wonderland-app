@@ -1,17 +1,17 @@
 // Build variants. APP_VARIANT is set per EAS build profile in eas.json:
-//   production (default) -> "Wonderland",          com.wonderlandgame.app          (live Firebase project)
-//   preview              -> "Wonderland Preview",  com.wonderlandgame.app.preview  (TEST Firebase project)
-//   development          -> "Wonderland Dev",      com.wonderlandgame.app.dev      (TEST Firebase project)
-// Different package ids let all three install side by side on one phone. Each package id must be
-// registered as its own Android app in the Firebase project it talks to (see ENVIRONMENTS.md).
+//   preview     -> "Wonderland",      com.wonderlandgame.app       LIVE Firebase project (the APK real users install)
+//   production  -> "Wonderland",      com.wonderlandgame.app       same as preview (reserved for a future Play Store release)
+//   development -> "Wonderland Dev",  com.wonderlandgame.app.dev   TEST Firebase project (wonderland-test)
+// The dev build has its own package id, so it installs next to the live app and never touches live data.
+// The .dev package id must be registered as an Android app in the test Firebase project (see ENVIRONMENTS.md).
 //
 // The Firebase keys (EXPO_PUBLIC_FIREBASE_*) come from the EAS environment of the same name
 // (eas env:create --environment preview ...) and, for local runs, from .env / .env.development.
 // google-services.json comes from the EAS file variable GOOGLE_SERVICES_JSON of that environment,
-// or locally from ./google-services.json (production) / ./google-services.<variant>.json.
+// or locally from ./google-services.json (live) / ./google-services.development.json (test).
 const VARIANTS = {
   production: { name: 'Wonderland', suffix: '' },
-  preview: { name: 'Wonderland Preview', suffix: '.preview' },
+  preview: { name: 'Wonderland', suffix: '' },
   development: { name: 'Wonderland Dev', suffix: '.dev' },
 };
 
@@ -20,7 +20,7 @@ module.exports = ({ config }) => {
   const variant = VARIANTS[key];
   if (!variant) throw new Error(`Unknown APP_VARIANT "${key}". Use production, preview or development.`);
 
-  const localFile = key === 'production' ? './google-services.json' : `./google-services.${key}.json`;
+  const localFile = variant.suffix === '' ? './google-services.json' : `./google-services.${key}.json`;
 
   return {
     ...config,
