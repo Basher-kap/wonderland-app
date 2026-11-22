@@ -283,6 +283,8 @@ const cleanGameId = (raw: string) =>
     .replace(/[\s_]+/g, '-');
 
 function readTestGames(): string[] {
+  // Never active in a release build (preview/production), even if EXPO_PUBLIC_TEST_GAME was inlined.
+  if (!__DEV__) return [];
   let raw: string = process.env.EXPO_PUBLIC_TEST_GAME ?? '';
   const search = (globalThis as { location?: { search?: string } }).location?.search ?? '';
   const fromUrl = search ? new URLSearchParams(search).get('testGame') : null;

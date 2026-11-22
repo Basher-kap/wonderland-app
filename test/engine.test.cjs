@@ -29,8 +29,7 @@ const lobby = (names) => ({
 const start = (names) => e.startMatch(lobby(names), 'match-1');
 const play = (state, winner) => e.applyRoundResult(state, winner);
 const sum = (c) => c.logic + c.experience + c.chance;
-const ids = ['wordle', 'human-calculator', 'magical-banana', 'fortune', 'hangman', 'schulte-table',
-  'inversion', 'janken-negotiation', 'battleships', 'maze-hopscotch', 'karuta'];
+const ids = GAMES.map((g) => g.id);
 
 test('start needs 2+ players and a waiting lobby', () => {
   assert.throws(() => e.startMatch(lobby(['a']), 'm'), /at least 2/);
@@ -213,7 +212,8 @@ test('points: a round saved without difficulty falls back to the game\'s difficu
   const s0 = start(['a', 'b']);
   const { difficulty, ...round } = s0.currentRound;
   const domain = domainOf(round.gameId);
-  const expected = round.gameId === 'schulte-table' ? 2 : 3;
+  const game = GAMES.find((g) => g.id === round.gameId);
+  const expected = { easy: 2, normal: 3, hard: 5 }[game.difficulty ?? 'normal'];
   const { state } = play({ ...s0, currentRound: round }, 'a');
   assert.equal(state.players.a.pts[domain], 10 * expected);
 });
