@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, TextInput, Vibration, useWindowDimensions, View } from 'react-native';
 import {
   apply,
   cleanWord,
@@ -31,6 +31,31 @@ const BOX_W = 80;
 const BOX_H = 44;
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
+
+// A loud banner for the player whose turn it is: it pulses, and the phone buzzes once (see the effect
+// in MagicalBananaGame), so nobody misses their turn.
+function YourTurnBanner({ seconds, word }: { seconds: number; word: string }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 450, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 450, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
+  return (
+    <Animated.View style={[styles.turnBanner, { transform: [{ scale }] }]} accessible accessibilityLiveRegion="assertive">
+      <Text style={styles.turnTitle}>YOUR TURN!</Text>
+      <Text style={styles.turnSub} numberOfLines={2}>
+        Say a word related to “{word}” · {seconds}s
+      </Text>
+    </Animated.View>
+  );
+}
 
 export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
@@ -141,6 +166,17 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
   // A new step of the game: the box starts empty again.
   useEffect(() => setText(''), [st?.rev]);
 
+  // My turn starts: one short buzz (no-op where the device cannot vibrate).
+  const itIsMyTurn = !!st && st.phase === 'turn' && st.current === uid && st.alive.includes(uid);
+  useEffect(() => {
+    if (!itIsMyTurn) return;
+    try {
+      Vibration.vibrate(300);
+    } catch {
+      /* no vibration on this device */
+    }
+  }, [itIsMyTurn, st?.rev]);
+
   // The game is over: after a moment everybody reports. Only the last player standing "finished".
   useEffect(() => {
     if (st?.phase !== 'over' || finished.current) return;
@@ -224,6 +260,7 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
 
   return (
     <View style={styles.root}>
+      {myTurn && <YourTurnBanner seconds={secondsLeft(left)} word={top.word} />}
       <View style={{ width: S, height: H, alignSelf: 'center' }}>
         {/* the big plate the players sit around */}
         <View pointerEvents="none" style={[styles.plate, { left: S / 2 - rx, top: H / 2 - ry, width: rx * 2, height: ry * 2 }]} />
@@ -382,7 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playerOnTheClock: { borderColor: f.berry, borderWidth: 3 },
+  playerOnTheClock: { borderColor: f.berry, borderWidth: 4 },
   playerMe: { backgroundColor: f.custard },
   playerName: { color: f.inkMuted, fontFamily: FONT_FOOD, fontSize: 11, fontWeight: '700' },
   playerWord: { color: f.ink, fontFamily: FONT_FOOD, fontSize: 14, fontWeight: '800', maxWidth: BOX_W - 8 },
@@ -410,6 +447,19 @@ const styles = StyleSheet.create({
   },
   judgeText: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
   note: { color: f.custard, fontFamily: FONT_FOOD, fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  turnBanner: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: f.berry,
+    borderWidth: 3,
+    borderColor: f.cream,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  turnTitle: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 26, fontWeight: '900', letterSpacing: 2 },
+  turnSub: { color: f.cream, fontFamily: FONT_FOOD, fontSize: 15, fontWeight: '700', textAlign: 'center' },
   panel: {
     gap: 8,
     backgroundColor: f.cocoa,
