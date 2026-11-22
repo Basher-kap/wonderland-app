@@ -139,6 +139,8 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const stqRef = useRef(stq);
   stqRef.current = stq;
   const stAll = standings(players, out, docs);
+  // Out of chances: I keep watching the numbers of every question, but I cannot answer any more.
+  const iAmOut = (stq.chances[uid] ?? START_CHANCES) === 0;
 
   const report = (st: Standings) => {
     if (reported.current) return;
@@ -173,6 +175,10 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const send = (value: number | null) => {
     if (sentFor.current >= q) return;
     sentFor.current = q;
+    if (iAmOut) {
+      setPhase('sent'); // nothing to send: just wait for the others, then watch the reveal
+      return;
+    }
     const solved = value === question.answer;
     const ms = Date.now() - answerStart.current;
     const doc = { stage: q, solved, ms, ...(value !== null ? { answer: value } : {}) };
@@ -232,7 +238,8 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     if (phase !== 'reveal') return;
     const timer = setTimeout(() => {
       const st = stqRef.current;
-      if (st.gameOver || (st.chances[uid] ?? 0) === 0) {
+      if ((st.chances[uid] ?? 0) === 0) report(st); // my result goes in, but I stay and watch
+      if (st.gameOver) {
         report(st);
         setPhase('spectate');
       } else {
@@ -321,7 +328,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     <View style={styles.wrap}>
       <View style={styles.top}>
         <View style={styles.plate}>
-          <Text style={styles.plateText}>Question {q}</Text>
+          <Text style={styles.plateText}>{iAmOut ? `Question ${q} · watching` : `Question ${q}`}</Text>
         </View>
         <Chances n={chancesLeft} />
       </View>
@@ -329,11 +336,18 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
       {phase === 'show' && (
         <Monitor>
           <ScreenText value={shown >= 0 ? labelOf(question.terms[shown]) : ' '} size={88} reduceMotion={reduceMotion} />
-          <Text style={styles.cap}>Watch the numbers...</Text>
+          <Text style={styles.cap}>{iAmOut ? 'You are out: just watch the numbers...' : 'Watch the numbers...'}</Text>
         </Monitor>
       )}
 
-      {phase === 'answer' && (
+      {phase === 'answer' && iAmOut && (
+        <Monitor timerLeft={left}>
+          <Text style={styles.screenTitle}>You are out</Text>
+          <Text style={styles.cap}>You can watch, but you cannot answer. {Math.ceil(left / 1000)}s left</Text>
+        </Monitor>
+      )}
+
+      {phase === 'answer' && !iAmOut && (
         <>
           <Monitor timerLeft={left}>
             <Text style={styles.cap}>{Math.ceil(left / 1000)}s left</Text>
@@ -367,7 +381,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
 
       {phase === 'sent' && (
         <Monitor>
-          <Text style={styles.screenTitle}>Answer sent</Text>
+          <Text style={styles.screenTitle}>{iAmOut ? 'You are out' : 'Answer sent'}</Text>
           <Text style={styles.cap}>
             Waiting for the others ({players.filter((p) => stq.chances[p] > 0 && docs.some((d) => d.uid === p && d.stage === q)).length}/
             {players.filter((p) => stq.chances[p] > 0).length})
