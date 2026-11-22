@@ -13,7 +13,8 @@
       },
       "env": {
         "APP_VARIANT": "development"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -23,7 +24,8 @@
       },
       "env": {
         "APP_VARIANT": "preview"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "environment": "production",
@@ -33,7 +35,8 @@
       },
       "env": {
         "APP_VARIANT": "production"
-      }
+      },
+      "channel": "production"
     }
   }
 }
