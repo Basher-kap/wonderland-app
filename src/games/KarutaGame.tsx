@@ -35,7 +35,7 @@ import type { GameProps } from './types';
 // other players' racks stacked vertically (each rack is a collapsible row that extends from the left
 // or the right edge, alternating; its cards are in ONE horizontal line), and MY rack, the only one
 // that stays open, in one single line fitting the screen width, pinned to the bottom. While
-// memorizing all racks are open; every time a new target starts to count down, the racks that were
+// memorizing all racks are open (to memorize them); after that only ONE rack can be open at a time; every time a new target starts to count down, the racks that were
 // open collapse again (players can open them again).
 
 const PLAYER_COLORS = ['#EF9F27', '#5DCAA5', '#AFA9EC', '#F09595', '#7DB8F0', '#E8D44D', '#C792EA', '#8BD17C'];
@@ -326,7 +326,8 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
         ]}
       >
         <Pressable
-          onPress={() => setOpen((o) => ({ ...o, [id]: !o[id] }))}
+          // Only one rack can be open: opening this one closes every other rack.
+          onPress={() => setOpen((o) => (o[id] ? {} : { [id]: true }))}
           accessibilityRole="button"
           accessibilityLabel={`${isOpen ? 'Collapse' : 'Open'} ${name(id)}'s rack`}
           style={[styles.rackTab, { width: TAB_W }]}
