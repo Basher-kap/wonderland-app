@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppLogo } from '../components/AppLogo';
+import { UsernameTutorialBubble } from '../components/UsernameTutorialBubble';
 import { Button, DomainIcon, TicketChip } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../lib/api';
@@ -72,6 +73,8 @@ export function HomeScreen() {
           </View>
           <TicketChip tickets={tickets} />
         </View>
+
+        <UsernameTutorialBubble username={username} />
 
         <View style={styles.panel}>
           <Button tone="space" label="Create lobby" onPress={createLobby} disabled={busy} />
