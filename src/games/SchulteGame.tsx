@@ -21,7 +21,8 @@ import type { GameProps } from './types';
 const GAP = 6;
 const FRAME = 7; // the wooden rim of the tray
 const MAT = 8; // the felt between the rim and the blocks
-const RIM = (FRAME + MAT) * 2; // rim and felt, both sides: what the tray adds to the grid
+const MAT_BORDER = 2; // the dashed stitching around the felt (styles.mat borderWidth)
+const RIM = (FRAME + MAT + MAT_BORDER) * 2; // rim, felt and stitching, both sides: what the tray adds to the grid
 const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (VoiceButton): keep clear
 const CAPTION_H = 38;
 const pad = (n: number) => String(n).padStart(2, '0');

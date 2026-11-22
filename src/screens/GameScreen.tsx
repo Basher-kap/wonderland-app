@@ -393,11 +393,18 @@ export function GameScreen() {
   // A full-screen game (Karuta) takes the whole screen while it is played: no title, no round box.
   // The forfeit buttons stay in the header.
   if (playing && gameModule?.fullScreen) {
+    // The game's own room goes behind it, like for the other games. Karuta is the exception: it draws
+    // its own background (TatamiBackground) inside the game.
+    const FullBackdrop = game.id === 'karuta' ? null : getGameBackdrop(game.id);
     return (
-      <SafeAreaView style={styles.root} edges={['bottom']}>
-        <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
-        <VoiceButton code={code} />
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: space.void }}>
+        <TransitionBackdrop Backdrop={FullBackdrop} tr={transition} />
+        <SafeAreaView style={[styles.root, { backgroundColor: 'transparent' }]} edges={['bottom']}>
+          <gameModule.Component key={roundKey} seed={roundKey} uid={uid ?? 'practice'} onFinish={onFinish} room={room} />
+          <VoiceButton code={code} />
+        </SafeAreaView>
+        <WarpStreaks tr={transition} />
+      </View>
     );
   }
   
