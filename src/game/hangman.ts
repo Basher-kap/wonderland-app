@@ -62,7 +62,7 @@ export function guess(s: HangmanState, letter: string): HangmanState {
 // A clue reveals one letter of the word to EVERY player in the lobby. Each player may ask for
 // MAX_CLUES_PER_PLAYER clues, and the lobby as a whole for at most half of the word's different
 // letters, so the clues never give the word away.
-export const MAX_CLUES_PER_PLAYER = 2;
+export const MAX_CLUES_PER_PLAYER = 1; // one clue each (was 2)
 
 export const uniqueLetters = (word: string): string[] =>
   Array.from(new Set(normalize(word).split('').filter(isLetter)));
