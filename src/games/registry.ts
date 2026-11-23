@@ -24,6 +24,7 @@ import { WordleGame } from './WordleGame';
 import { XibalbaGame } from './XibalbaGame';
 import { BattleshipsGame } from './BattleshipsGame';
 import { KarutaGame } from './KarutaGame';
+import { LightBulbGame } from './LightBulbGame';
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -184,5 +185,13 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
     endsOnFirstFinish: true,
     fullScreen: true,
+  },
+  'light-bulb': {
+    Component: LightBulbGame,
+    // Only a player who switched the light on reports finished: true; the fastest one wins.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? `switched on the light in ${formatSeconds(r.totalMs)}` : 'was blown up'),
+    endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the fuse box and the terminals must stay in the frame
   },
 };

@@ -8,6 +8,7 @@ export * as humanCalculator from './humanCalculator';
 export * as inversion from './inversion';
 export * as janken from './janken';
 export * as karuta from './karuta';
+export * as lightBulb from './lightBulb';
 export * as magicalBanana from './magicalBanana';
 export * as schulte from './schulte';
 export * as wordle from './wordle';

@@ -10,6 +10,7 @@ import { CourtBackground, jankenIntro } from './janken';
 import { NaumachiaBackground, battleshipsIntro } from './battleships';
 import { TatamiBackground, karutaIntro } from './karuta';
 import { CaveBackground, xibalbaIntro } from './xibalba';
+import { RuinsBackground, lightBulbIntro } from './lightBulb';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
 // Space look. To give a new game a look: add a folder next to the others (theme.ts, a background,
@@ -26,6 +27,7 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   battleships: { Backdrop: NaumachiaBackground, intro: battleshipsIntro },
   karuta: { Backdrop: TatamiBackground, intro: karutaIntro },
   'traps-of-xibalba': { Backdrop: CaveBackground, intro: xibalbaIntro },
+  'light-bulb': { Backdrop: RuinsBackground, intro: lightBulbIntro },
 };
 
 // The background of the whole game screen (GameScreen) and of the rules dialogs (RoundIntro).

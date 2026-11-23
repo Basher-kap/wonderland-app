@@ -1,4 +1,4 @@
-import { Domain } from '../theme/base';
+import { Domain } from '../theme';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -123,6 +123,17 @@ export const GAMES: Game[] = [
     clearConditions: ['The player must survive at the end of the game.'],
   },
 
+  {
+    id: 'light-bulb',
+    name: 'Light Bulb',
+    domain: 'logic',
+    description: 'Trace the tangled wires to find the one switch that turns on the light.',
+    difficulty: 'easy',
+    rules: ['Which switch turns on the light?', 'You have only one attempt to switch the light.'],
+    // The 8 switches, the all-grey tangled wires, the TNT at the end of every wrong wire, the 1-minute
+    // fuse and the way the wires keep swapping places are hidden notes (game/lightBulb.ts): NOT listed here on purpose.
+    clearConditions: ['The fastest player to switch on the light clears the game.'],
+  },
   {
     id: 'hangman',
     name: 'Hangman',
