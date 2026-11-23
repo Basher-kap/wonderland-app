@@ -135,6 +135,18 @@ export const GAMES: Game[] = [
     clearConditions: ['The fastest player to switch on the light clears the game.'],
   },
   {
+    id: 'color-territory',
+    name: 'Color Territory',
+    domain: 'logic',
+    description: 'Tap the white circles to claim them in your color. Own the most when time runs out.',
+    difficulty: 'easy',
+    rules: ['Players must click or tap the white circles to claim them by changing their colors to their assigned colors.'],
+    // The ~50 circles, the random colors (kingdoms) handed out at the start, the 2-minute time limit,
+    // circles that are already claimed being taken over by whoever tapped them last (the newest tap wins),
+    // and a tie for the most circles being a draw are hidden notes (game/territory.ts): NOT listed here on purpose.
+    clearConditions: ['The player who owns the most circles when the time limit expires wins the game.'],
+  },
+  {
     id: 'hangman',
     name: 'Hangman',
     domain: 'experience',

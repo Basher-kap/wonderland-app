@@ -11,5 +11,6 @@ export * as karuta from './karuta';
 export * as lightBulb from './lightBulb';
 export * as magicalBanana from './magicalBanana';
 export * as schulte from './schulte';
+export * as territory from './territory';
 export * as wordle from './wordle';
 export * as xibalba from './xibalba';

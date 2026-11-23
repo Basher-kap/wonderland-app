@@ -1041,6 +1041,96 @@ export function subscribeXibalba(
   );
 }
 
+// ------------------------------------------------------- Color Territory ----
+// Players write TAPS (one circle each) as their own documents; the HOST's phone folds them into the
+// board with game/territory.ts and saves the resulting state as the single document "state". Only the
+// host listens to the taps; everybody else listens to the state alone (hundreds of taps a game would
+// otherwise be read by every phone).
+export type TerritoryMove = {
+  id: string; // the document id, "<uid>_<digits>": it orders two taps made in the same millisecond
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  cell: number;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type TerritorySnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: TerritoryMove[]; // always empty for a phone that is not the host
+};
+
+export async function sendTerritoryMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; cell: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'territory', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    cell: move.cell,
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeTerritoryState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'territory', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeTerritory(
+  rawCode: string,
+  isHost: boolean,
+  onData: (snap: TerritorySnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  if (!isHost) {
+    return onSnapshot(
+      doc(db, 'lobbies', rawCode, 'territory', 'state'),
+      (snap) => {
+        onData({ state: snap.exists() ? (snap.data() as TerritorySnapshot['state']) : null, moves: [] });
+      },
+      onError
+    );
+  }
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'territory'),
+    (snap) => {
+      let state: TerritorySnapshot['state'] = null;
+      const moves: TerritoryMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as TerritorySnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as TerritoryMove), id: d.id, at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 // -------------------------------------------------------- Battleships ----
 export type BattleshipsMove = {
   uid: string;

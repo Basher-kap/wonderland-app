@@ -25,6 +25,7 @@ import { XibalbaGame } from './XibalbaGame';
 import { BattleshipsGame } from './BattleshipsGame';
 import { KarutaGame } from './KarutaGame';
 import { LightBulbGame } from './LightBulbGame';
+import { ColorTerritoryGame } from './ColorTerritoryGame';
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -193,5 +194,17 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: (r) => (r.finished ? `switched on the light in ${formatSeconds(r.totalMs)}` : 'was blown up'),
     endsOnFirstFinish: true,
     fullScreen: true, // the whole screen, no scrolling: the fuse box and the terminals must stay in the frame
+  },
+  'color-territory': {
+    Component: ColorTerritoryGame,
+    // Only the player who owns the most circles when the time is up reports finished: true (a tie
+    // for the top = nobody finished = a draw).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'owned the most circles' : 'did not win'),
+    // Like Xibalba: the board stays on screen until the host's clock ends the game for everybody.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the glade must stay in the frame
   },
 };
