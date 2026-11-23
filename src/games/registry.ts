@@ -26,6 +26,9 @@ import { BattleshipsGame } from './BattleshipsGame';
 import { KarutaGame } from './KarutaGame';
 import { LightBulbGame } from './LightBulbGame';
 import { ColorTerritoryGame } from './ColorTerritoryGame';
+import { pickWinner as pickSugorokuWinner } from '../game/futureSugoroku';
+import { FutureSugorokuGame } from './FutureSugorokuGame';
+
 import type { GameProps } from './types';
 
 // One entry per finished mini-game. GameScreen looks the current game up here; a game with
@@ -206,5 +209,16 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
     endsOnFirstFinish: true,
     fullScreen: true, // the whole screen, no scrolling: the glade must stay in the frame
+  },
+  'future-sugoroku': {
+    Component: FutureSugorokuGame,
+    // Only players who escaped report finished: true. One escapee wins; a shared victory or nobody = a draw.
+    pickWinner: pickSugorokuWinner,
+    describe: (r) => (r.finished ? 'escaped through the portal' : 'did not escape'),
+    // Like Fortune: the board stays for players who are out, so they can watch the game go on.
+    // No endsOnFirstFinish on purpose: the round ends once everybody has reported, so players who
+    // escape in the same turn are all counted before the winner is picked.
+    multiStage: true,
+    needsRoom: true,
   },
 };

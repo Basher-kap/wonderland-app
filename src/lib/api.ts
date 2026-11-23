@@ -1040,6 +1040,80 @@ export function subscribeXibalba(
     onError
   );
 }
+// ------------------------------------------------------ Future Sugoroku ----
+export type SugorokuMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  to: number; // the room the player walks into (their own room = stay)
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type SugorokuSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: SugorokuMove[];
+};
+
+export async function sendSugorokuMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; to: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'sugoroku', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    to: move.to,
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeSugorokuState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'sugoroku', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeSugoroku(
+  rawCode: string,
+  onData: (snap: SugorokuSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'sugoroku'),
+    (snap) => {
+      let state: SugorokuSnapshot['state'] = null;
+      const moves: SugorokuMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as SugorokuSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as SugorokuMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
 
 // ------------------------------------------------------- Color Territory ----
 // Players write TAPS (one circle each) as their own documents; the HOST's phone folds them into the

@@ -14,3 +14,4 @@ export * as schulte from './schulte';
 export * as territory from './territory';
 export * as wordle from './wordle';
 export * as xibalba from './xibalba';
+export * as futureSugoroku from './futureSugoroku';
