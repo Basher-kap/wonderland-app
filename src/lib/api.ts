@@ -1115,6 +1115,81 @@ export function subscribeSugoroku(
   );
 }
 
+// --------------------------------------------------------- Beauty Contest ----
+export type BeautyMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  value: number; // the number locked in, 0-100
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type BeautySnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: BeautyMove[];
+};
+
+export async function sendBeautyMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; value: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'beauty', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    value: move.value,
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writeBeautyState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'beauty', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeBeauty(
+  rawCode: string,
+  onData: (snap: BeautySnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'beauty'),
+    (snap) => {
+      let state: BeautySnapshot['state'] = null;
+      const moves: BeautyMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as BeautySnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as BeautyMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 // ------------------------------------------------------- Color Territory ----
 // Players write TAPS (one circle each) as their own documents; the HOST's phone folds them into the
 // board with game/territory.ts and saves the resulting state as the single document "state". Only the

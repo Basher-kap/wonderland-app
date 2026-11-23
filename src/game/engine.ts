@@ -84,7 +84,15 @@ export function shuffle<T>(items: readonly T[], rand: () => number = Math.random
   return out;
 }
 
-const allGameIds = () => GAMES.map((g) => g.id);
+// Beauty Contest is the only game a lobby of BEAUTY_ONLY_FROM or more players plays; smaller lobbies
+// never draw it (its special rules wait for 4 players left, so it needs a big start).
+export const BEAUTY_CONTEST_ID = 'beauty-contest';
+export const BEAUTY_ONLY_FROM = 5;
+const gamePool = (players: number) =>
+  players >= BEAUTY_ONLY_FROM
+    ? [BEAUTY_CONTEST_ID]
+    : GAMES.map((g) => g.id).filter((id) => id !== BEAUTY_CONTEST_ID);
+
 
 // Host starts the match: everyone gets 10 lives and a clean tally, the first
 // leg is shuffled, and the first game is drawn.
@@ -115,7 +123,7 @@ export function startMatch(
       status: 'playing',
       matchId,
       leg: 1,
-      gameQueue: shuffle(allGameIds(), rand),
+      gameQueue: shuffle(gamePool(Object.keys(state.players).length), rand),
       players,
       currentRound: null,
       winnerId: null,
@@ -134,8 +142,7 @@ export function drawNextGame(state: MatchState, rand: () => number = Math.random
   let queue = [...state.gameQueue];
   if (queue.length === 0) {
     leg += 1;
-    queue = shuffle(allGameIds(), rand);
-  }
+    queue = shuffle(gamePool(Object.keys(state.players).length), rand);  }
   const [gameId, ...rest] = queue;
   const game = GAMES.find((g) => g.id === gameId);
 

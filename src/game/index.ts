@@ -16,3 +16,4 @@ export * as territory from './territory';
 export * as wordle from './wordle';
 export * as xibalba from './xibalba';
 export * as futureSugoroku from './futureSugoroku';
+export * as beautyContest from './beautyContest';

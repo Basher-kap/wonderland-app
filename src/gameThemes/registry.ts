@@ -12,6 +12,7 @@ import { TatamiBackground, karutaIntro } from './karuta';
 import { CaveBackground, xibalbaIntro } from './xibalba';
 import { RuinsBackground, lightBulbIntro } from './lightBulb';
 import { SeanceBackground, memoryCardIntro } from './memoryCard';
+import { RoyalCourtBackground, beautyContestIntro } from './beautyContest';
 import { EnchantedBackground, colorTerritoryIntro } from './colorTerritory';
 import { CosmosBackground, futureSugorokuIntro } from './futureSugoroku';
 
@@ -33,6 +34,7 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   'light-bulb': { Backdrop: RuinsBackground, intro: lightBulbIntro },
   'color-territory': { Backdrop: EnchantedBackground, intro: colorTerritoryIntro },
   'memory-card': { Backdrop: SeanceBackground, intro: memoryCardIntro },
+  'beauty-contest': { Backdrop: RoyalCourtBackground, intro: beautyContestIntro },
   'future-sugoroku': { Backdrop: CosmosBackground, intro: futureSugorokuIntro },
 };
 

@@ -136,6 +136,21 @@ export const GAMES: Game[] = [
     clearConditions: ['The player who completed all the matching identical cards clears the game.'],
   },
     {
+    id: 'beauty-contest',
+    name: 'Beauty Contest',
+    domain: 'logic',
+    description: 'Pick a number from 0 to 100. The closest to the average × 0.8 wins; everyone else loses a point.',
+    difficulty: 'hard',
+    rules: [
+      'All players must choose a number between 0 and 100.',
+      'Then the average of the numbers everyone selected is multiplied by 0.8.',
+      'The person whose number is the closest to that result is the winner. The remaining players each lose a point.',
+      'A new rule is introduced for every player eliminated when 4 remaining players are left.',
+      'It is GAME OVER for the player who reaches -10 points.',
+    ],
+    clearConditions: ['A remaining player wins the game.'],
+  },
+    {
     id: 'future-sugoroku',
     name: 'Future Sugoroku',
     domain: 'logic',

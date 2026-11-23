@@ -27,6 +27,7 @@ import { KarutaGame } from './KarutaGame';
 import { LightBulbGame } from './LightBulbGame';
 import { ColorTerritoryGame } from './ColorTerritoryGame';
 import { MemoryCardGame } from './MemoryCardGame';
+import { BeautyContestGame } from './BeautyContestGame';
 import { pickWinner as pickSugorokuWinner } from '../game/futureSugoroku';
 import { FutureSugorokuGame } from './FutureSugorokuGame';
 
@@ -218,6 +219,16 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
     endsOnFirstFinish: true,
     fullScreen: true, // the whole screen, no scrolling: the glade must stay in the frame
+  },
+    'beauty-contest': {
+    Component: BeautyContestGame,
+    // Only the last player left reports finished: true (nobody left, or a tie for the most points at the round cap = a draw).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'last player standing' : 'game over'),
+    // Like Fortune: the board stays for players who are out, so they can watch the game go on.
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
   },
   'future-sugoroku': {
     Component: FutureSugorokuGame,
