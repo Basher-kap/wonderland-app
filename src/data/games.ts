@@ -62,8 +62,6 @@ export const GAMES: Game[] = [
       'Players must calculate the answer and enter it within the given time limit.',
       'Players who fail to submit an answer within the time limit receive no points and lose a chance.',
     ],
-    // The way the questions grow longer and harder is a hidden note (game/humanCalculator.ts):
-    // it is NOT listed here on purpose.
     clearConditions: [
       'Each player has only 3 chances to make a mistake.',
       'The last remaining player wins the game.',
@@ -80,7 +78,6 @@ export const GAMES: Game[] = [
       'The next player must immediately say another word related to the previous player’s answer before the rhythm ends.',
       'The game continues in the same order, with each player providing a related word.',
     ],
-    // Its own "Example" dialog in the round intro, right after the Rule.
     example: [
       'If the previous player says “Banana”, the next player may respond with “Yellow” or “Fruit”.',
       'If the next player says “Yellow”, the following player may respond with “Sun” or “Gold”.',
@@ -97,8 +94,6 @@ export const GAMES: Game[] = [
       'NO results mean that the player is disqualified.',
       'Disqualified players can still also partake in voting.',
     ],
-    // The screen layout (players in a circle, the starting box with the JUDGE button in the
-    // center) is a hidden note: NOT listed here on purpose.
     clearConditions: ['The last remaining player wins the game.'],
   },
   {
@@ -112,14 +107,10 @@ export const GAMES: Game[] = [
       'Players must draw a fortune-telling paper out of 100 available slips.',
       'Each slip contains a question and the player must answer the question drawn.',
     ],
-    // Your "Hidden Rules" block. Shown as the "Additional Rule" dialog (like Magical Banana); if
-    // they should not be shown at all, delete this list.
     additionalRules: [
       'The lives deducted from you and from the other players for an incorrect answer depend on the margin of error and on the luck drawn.',
       'Answering correctly will recover a bit of lives.',
     ],
-    // The temple, the luck tiers, the numbers (how much life each tier costs, heals and splashes)
-    // and the slip counts are hidden notes (game/fortune.ts, data/fortune/): NOT listed here on purpose.
     clearConditions: ['The player must survive at the end of the game.'],
   },
 
@@ -130,9 +121,32 @@ export const GAMES: Game[] = [
     description: 'Trace the tangled wires to find the one switch that turns on the light.',
     difficulty: 'easy',
     rules: ['Which switch turns on the light?', 'You have only one attempt to switch the light.'],
-    // The 8 switches, the all-grey tangled wires, the TNT at the end of every wrong wire, the 1-minute
-    // fuse and the way the wires keep swapping places are hidden notes (game/lightBulb.ts): NOT listed here on purpose.
     clearConditions: ['The fastest player to switch on the light clears the game.'],
+  },
+    {
+    id: 'future-sugoroku',
+    name: 'Future Sugoroku',
+    domain: 'logic',
+    description: 'Explore a maze of rooms with one shared die and reach the exit before your Survival Points run out.',
+    difficulty: 'hard',
+    rules: [
+      'The game consists of a 5×5 grid containing 25 interconnected rooms. All players begin in the designated starting room.',
+      'Each player starts with 15 Survival Points, and the game has a maximum of 15 turns.',
+      'At the beginning of each turn, one shared six-sided die is rolled. Its result applies to all players.',
+      'Each exit connecting neighboring rooms is assigned a number from 1 to 6. Players can only enter rooms through exits matching the shared dice result.',
+      'Players independently choose their routes. If no exit matches the dice result, they must remain in their current room.',
+      'Players can occupy the same room without any occupancy restrictions.',
+      'Only the current room and its adjacent rooms are visible. Other rooms are revealed as players explore.',
+      'Special rooms are placed using a combination of predetermined and randomized locations. These may grant bonus points, deduct points, or trigger special effects.',
+      'Every turn, each active player loses 1 Survival Point, regardless of whether they move or stay.',
+      'Players who reach zero Survival Points are eliminated.',
+    ],
+    clearConditions: [
+      'The first player to reach the designated exit successfully wins the game.',
+      'Players must reach the exit within the 15-turn limit and before their Survival Points reach zero.',
+      'Players who fail to reach the exit within the turn limit or run out of Survival Points are eliminated.',
+      'If multiple players reach the exit during the same turn, they share the victory.',
+    ],
   },
   {
     id: 'color-territory',
@@ -141,9 +155,6 @@ export const GAMES: Game[] = [
     description: 'Tap the white circles to claim them in your color. Own the most when time runs out.',
     difficulty: 'easy',
     rules: ['Players must click or tap the white circles to claim them by changing their colors to their assigned colors.'],
-    // The ~50 circles, the random colors (kingdoms) handed out at the start, the 2-minute time limit,
-    // circles that are already claimed being taken over by whoever tapped them last (the newest tap wins),
-    // and a tie for the most circles being a draw are hidden notes (game/territory.ts): NOT listed here on purpose.
     clearConditions: ['The player who owns the most circles when the time limit expires wins the game.'],
   },
   {
@@ -159,8 +170,6 @@ export const GAMES: Game[] = [
       'Incorrect guesses will add a part to the Hangman drawing.',
       'A player can get a clue; however, all other players will also receive it.',
     ],
-    // The kinds of words (brands, NBA teams, celebrities, events, proper nouns) are a hidden
-    // note (data/hangmanWords.ts): NOT listed here on purpose.
     clearConditions: [
       'Players must correctly guess the hidden word before the Hangman drawing is completed.',
       'The first player to correctly guess the hidden word clears the game.',
@@ -188,8 +197,6 @@ export const GAMES: Game[] = [
       'Follow the instructions given unless there’s an INVERSION sign.',
       'Make sure to click the correct button.',
     ],
-    // How the screen looks and how the instructions get trickier is a hidden note
-    // (game/inversion.ts): NOT listed here on purpose.
     clearConditions: [
       'Survive all the tasks given until you remain the last player.',
       'You have 5 chances to make a mistake.',
@@ -227,13 +234,10 @@ export const GAMES: Game[] = [
         'Missing a target loses a bullet.',
         'Be careful not to hit your own battleship.',
       ],
-      // The screen layout (5x5 grid, 15 seconds to place, the empty grid, random turn order, marks seen
-      // by everybody) and the own-ship exception (an enemy ship on the same cell cancels the loss) are
-      // hidden notes (game/battleships.ts): NOT listed here on purpose.
       clearConditions: ['Players remaining with their battleship clear the game.'],
     },
     {
-    id: 'traps-of-xibalba', // was 'maze-hopscotch'
+    id: 'traps-of-xibalba',
     name: 'Traps of Xibalba',
     domain: 'chance',
     description: 'Cross the trapped floor one line at a time. One wrong tile and you fall.',
@@ -247,9 +251,6 @@ export const GAMES: Game[] = [
     additionalRules: [
       'If two or more players were able to reach the end, they will have to go back once more until there is only one player left.',
     ],
-    // The 6 x 6 floor, the 10-second picks, how many tiles are false on each line, the picks being
-    // secret until the time is up, and the way back being over the same tiles (with a new floor once
-    // everybody is back) are hidden notes (game/xibalba.ts): NOT listed here on purpose.
     clearConditions: ['Only the last player to survive clears the game.'],
   },
     {
@@ -263,17 +264,11 @@ export const GAMES: Game[] = [
       'A floating target card appears on the screen. Players must quickly identify and get that card from any rack before their opponents do.',
       'Once a card on your rack is taken away, the player who took it sends one of their own cards to your rack as a penalty to you.',
     ],
-    // The second intro box (the "Additional Rule" dialog), shown right after the Rule.
     additionalRules: [
       'However, if you take the wrong card, you are penalized by receiving that card.',
       'Players may take a card in advance, before the floating target card appears.',
       'Everyone is given 45 seconds to memorize the cards on the other players’ racks.',
     ],
-    // The 26 letter cards, the void cards (the remainder of the deal), the collapsible side racks, your
-    // own rack pinned at the bottom, the random 3-15 s before the target appears (time stops while a
-    // card is being sent), advance picks being judged only when the target appears, racks collapsing
-    // at every new target and the target never floating over your own rack are hidden notes
-    // (game/karuta.ts, games/KarutaGame.tsx): NOT listed here on purpose.
     clearConditions: ['Players who have emptied their cards clear the game.'],
   },
 ];
