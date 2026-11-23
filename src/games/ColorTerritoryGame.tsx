@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   runeRing: { position: 'absolute', borderWidth: 1, borderColor: 'rgba(242, 203, 107, 0.14)' },
 
   readyVeil: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 24,
     backgroundColor: 'rgba(14, 8, 36, 0.72)',
     alignItems: 'center',

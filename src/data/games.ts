@@ -137,7 +137,7 @@ export const GAMES: Game[] = [
   {
     id: 'color-territory',
     name: 'Color Territory',
-    domain: 'logic',
+    domain: 'experience',
     description: 'Tap the white circles to claim them in your color. Own the most when time runs out.',
     difficulty: 'easy',
     rules: ['Players must click or tap the white circles to claim them by changing their colors to their assigned colors.'],
