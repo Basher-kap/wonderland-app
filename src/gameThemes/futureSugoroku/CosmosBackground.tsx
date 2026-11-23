@@ -91,8 +91,6 @@ export function CosmosBackground({ children }: Props) {
       <View pointerEvents="none" style={{ position: 'absolute', top: '52%', right: -110, width: 320, height: 320, borderRadius: 320, backgroundColor: c.nebulaCyan, opacity: 0.06 }} />
       <View pointerEvents="none" style={{ position: 'absolute', bottom: -80, left: '10%', width: 260, height: 200, borderRadius: 200, backgroundColor: c.nebulaViolet, opacity: 0.08 }} />
 
-      <DistantPortal />
-
       {/* stars */}
       {stars.map((s, i) => {
         const dot = (

@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   apply,
-  EXIT,
   exitsFor,
   mapFor,
   MAX_TURNS,
@@ -38,8 +37,8 @@ import type { GameProps } from './types';
 //
 // LOOK: the Ancient Cosmic Labyrinth (src/gameThemes/futureSugoroku/). Only the chambers you stand
 // in and the ones next to them are visible; the others appear as you explore, and you remember
-// them. Doorways show their number only for the chambers you have stood in. The portal is always
-// visible.
+// them. Doorways show their number only for the chambers you have stood in. The portal is HIDDEN: it
+// is on the outer ring and shows up only when it is in a chamber you can see.
 //
 // Hidden notes kept here on purpose, not on the game screen: the special rooms and what they do,
 // that each effect works once per player, that a locked room opens for everybody after one try,
@@ -49,6 +48,9 @@ const PLAYER_COLORS = ['#F4C95D', '#7DF3E4', '#B58CFF', '#FF8FA3', '#7FB8FF', '#
 const GAP = 6;
 const DOOR = 22; // the space between two chambers: it holds the doorway
 const PAD = 10;
+const ROLL_MS = 1100; // the die tumbles this long before it shows its face
+const MOVE_MS = 750; // a marker glides from one chamber to the next in this time
+const TOKEN = 18;
 
 const PIPS: Record<number, number[]> = {
   1: [4],
@@ -82,16 +84,40 @@ const TINT: Record<RoomKind, string> = {
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
-function Die({ value }: { value: number }) {
+// The die. While it rolls it tumbles (spins, hops, grows a little) and flickers through random faces;
+// `spin` runs from 0 to 1 over the roll.
+function Die({ value, rolling, spin }: { value: number; rolling: boolean; spin: Animated.Value }) {
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] });
+  const hop = spin.interpolate({ inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1], outputRange: [0, -18, 0, -10, 0, 0] });
+  const grow = spin.interpolate({ inputRange: [0, 0.2, 0.4, 0.6, 1], outputRange: [1, 1.2, 1, 1.1, 1] });
   return (
-    <View style={styles.die}>
+    <Animated.View
+      style={[
+        styles.die,
+        rolling && styles.dieRolling,
+        { transform: [{ translateY: hop }, { rotate }, { scale: grow }] },
+      ]}
+    >
       {Array.from({ length: 9 }, (_, i) => (
         <View key={i} style={styles.pipCell}>
           {PIPS[value]?.includes(i) && <View style={styles.pip} />}
         </View>
       ))}
-    </View>
+    </Animated.View>
   );
+}
+
+// Where a marker sits on the grid (pixels from the top-left of the grid): the middle of its chamber,
+// shifted a little when several players share the chamber.
+const cellCenter = (id: number, cell: number) => ({
+  x: (id % SIZE) * (cell + DOOR) + cell / 2,
+  y: Math.floor(id / SIZE) * (cell + DOOR) + cell / 2,
+});
+function markerSpot(s: State, p: string, cell: number) {
+  const base = cellCenter(s.pos[p], cell);
+  const mates = s.order.filter((q) => s.alive.includes(q) && s.pos[q] === s.pos[p]);
+  const i = Math.max(0, mates.indexOf(p));
+  return { x: base.x + (i - (mates.length - 1) / 2) * (TOKEN - 2), y: base.y + cell * 0.18 };
 }
 
 export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
@@ -103,6 +129,17 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   const startedAt = useRef(Date.now());
   const sent = useRef(''); // the pick already sent for this turn
   const finished = useRef(false);
+  // The die rolling.
+  const [rolling, setRolling] = useState(false);
+  const [rollFace, setRollFace] = useState(1);
+  const spin = useRef(new Animated.Value(1)).current;
+  const lastRolled = useRef(0); // the turn the die last rolled for
+  const reduceMotion = useRef(false);
+  // The markers gliding between chambers: one animated position per player, in grid pixels.
+  const tokens = useRef<Record<string, Animated.ValueXY>>({});
+  const tokenAt = useRef<Record<string, string>>({}); // where each marker was last sent, "x,y"
+  const wasSeen = useRef<Record<string, boolean>>({}); // whether the marker was in my sight last time
+  const bumped = useRef(-1); // the rev whose locked door / illusion bumps were already played
   const roomRef = useRef(room);
   roomRef.current = room;
   const host = useRef<{ state: State | null; pending: State | null; writing: boolean }>({
@@ -209,6 +246,35 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     sent.current = '';
   }, [st?.rev]);
 
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion.current = v)).catch(() => {});
+  }, []);
+
+  // A new turn begins: the shared die rolls. The doorways light up only when it has landed.
+  useEffect(() => {
+    if (!st || st.phase !== 'pick' || lastRolled.current === st.turn) return;
+    if (reduceMotion.current) {
+      lastRolled.current = st.turn;
+      return;
+    }
+    const turn = st.turn;
+    setRolling(true);
+    spin.setValue(0);
+    Animated.timing(spin, { toValue: 1, duration: ROLL_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    const flicker = setInterval(() => setRollFace(1 + Math.floor(Math.random() * 6)), 90);
+    const done = setTimeout(() => {
+      lastRolled.current = turn;
+      clearInterval(flicker);
+      setRolling(false);
+    }, ROLL_MS);
+    return () => {
+      clearInterval(flicker);
+      clearTimeout(done);
+      setRolling(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.turn, st?.phase]);
+
   // The game is over: after a moment everybody reports. Only those who escaped "finished".
   useEffect(() => {
     if (st?.phase !== 'over' || finished.current) return;
@@ -220,6 +286,58 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.phase, st?.winners]);
+
+  const cellPx = Math.max(36, Math.min(62, Math.floor((boardW - PAD * 2 - DOOR * (SIZE - 1)) / SIZE)));
+
+  // The markers glide from chamber to chamber when a turn is resolved (a marker I cannot see
+  // just jumps, so nothing is given away), and bump against a locked door or an illusion.
+  useEffect(() => {
+    if (!st) return;
+    const myCell = st.pos[uid] ?? START;
+    const iSee = (cellId: number) => !st.alive.includes(uid) || cellId === myCell || neighbors(myCell).includes(cellId);
+    const anims: Animated.CompositeAnimation[] = [];
+    for (const p of st.order) {
+      if (!st.alive.includes(p)) continue;
+      const to = markerSpot(st, p, cellPx);
+      const key = `${to.x},${to.y}`;
+      const sees = iSee(st.pos[p]);
+      const tv = tokens.current[p];
+      if (!tv) {
+        tokens.current[p] = new Animated.ValueXY(to);
+        tokenAt.current[p] = key;
+      } else if (tokenAt.current[p] !== key) {
+        tokenAt.current[p] = key;
+        if (sees && wasSeen.current[p] && !reduceMotion.current) {
+          anims.push(Animated.timing(tv, { toValue: to, duration: MOVE_MS, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }));
+        } else {
+          tv.setValue(to);
+        }
+      }
+      wasSeen.current[p] = sees;
+    }
+    // A locked door shoves the marker back; an illusion lets it walk in and throws it out again.
+    if (st.phase === 'reveal' && st.reveal && bumped.current !== st.rev && !reduceMotion.current) {
+      bumped.current = st.rev;
+      for (const step of st.reveal.steps) {
+        const tv = tokens.current[step.uid];
+        if (!tv || step.tried === null || !iSee(step.from) || !st.alive.includes(step.uid)) continue;
+        const home = markerSpot(st, step.uid, cellPx);
+        const a = cellCenter(step.from, cellPx);
+        const b = cellCenter(step.tried, cellPx);
+        const k = step.outcome === 'illusion' ? 1 : 0.4;
+        const far = { x: home.x + (b.x - a.x) * k, y: home.y + (b.y - a.y) * k };
+        const t = step.outcome === 'illusion' ? 450 : 260;
+        anims.push(
+          Animated.sequence([
+            Animated.timing(tv, { toValue: far, duration: t, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            Animated.timing(tv, { toValue: home, duration: t, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ])
+        );
+      }
+    }
+    if (anims.length) Animated.parallel(anims).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev, cellPx]);
 
   if (!room) {
     return (
@@ -244,16 +362,15 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   const left = remainingNow(st, receivedAt.current, Date.now());
   const alive = st.alive.includes(uid);
   const picking = st.phase === 'pick';
-  const canPick = picking && alive;
+  const canPick = picking && alive && !rolling; // the doorways light up once the die has landed
   const rev = st.reveal;
   const myPos = st.pos[uid] ?? START;
   const dests = canPick ? exitsFor(map, myPos, st.dice) : [];
   const seen = seenBy(st, uid);
   const stood = new Set(st.stood[uid] ?? []);
-  // Others show up only in the chambers I can see (me and the ones next to me); a player who is
-  // out sees everybody, since there is nothing left to spoil.
-  const sight = new Set<number>([myPos, ...neighbors(myPos)]);
-  const cell = Math.max(36, Math.min(62, Math.floor((boardW - PAD * 2 - DOOR * (SIZE - 1)) / SIZE)));
+  const cell = cellPx;
+  const gridW = SIZE * cell + (SIZE - 1) * DOOR;
+  const gridH = gridW;
 
   const pick = (to: number) => {
     if (!canPick) return;
@@ -315,14 +432,13 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   };
 
   const renderRoom = (id: number) => {
-    const visible = id === EXIT || seen.has(id) || !alive;
+    const visible = seen.has(id) || !alive; // the portal is hidden like any other chamber
     const here = id === myPos;
     const target = dests.includes(id);
     const chosen = choice === id;
     const kind = visible ? shownKind(map, st, id) : 'plain';
     const opened = kind === 'locked' && st.unlocked.includes(id);
     const tint = TINT[kind];
-    const guests = st.alive.filter((p) => st.pos[p] === id && (p === uid || !alive || sight.has(id)));
     return (
       <Pressable
         onPress={() => pick(id)}
@@ -334,7 +450,7 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
           { width: cell, height: cell },
           !visible && styles.roomFog,
           visible && { borderColor: tint },
-          id === EXIT && styles.roomPortal,
+          kind === 'exit' && styles.roomPortal,
           here && styles.roomHere,
           target && styles.roomTarget,
           chosen && styles.roomChosen,
@@ -342,20 +458,11 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
         ]}
       >
         {visible && (
-          <Text style={[styles.glyph, { color: tint, fontSize: id === EXIT ? cell * 0.62 : cell * 0.42 }]}>
+          <Text style={[styles.glyph, { color: tint, fontSize: kind === 'exit' ? cell * 0.62 : cell * 0.42 }]}>
             {opened ? '▢' : GLYPH[kind]}
           </Text>
         )}
         {!visible && <Text style={styles.fogMark}>·</Text>}
-        {guests.length > 0 && (
-          <View style={styles.chips}>
-            {guests.map((p) => (
-              <View key={p} style={[styles.chip, { backgroundColor: colorOf(p) }, p === uid && styles.chipMe]}>
-                <Text style={styles.chipText}>{name(p).charAt(0).toUpperCase()}</Text>
-              </View>
-            ))}
-          </View>
-        )}
       </Pressable>
     );
   };
@@ -365,7 +472,9 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     ? null
     : !picking
       ? null
-      : dests.length > 0
+      : rolling
+        ? 'The die is rolling…'
+        : dests.length > 0
         ? `Doorways marked ${st.dice} are open. Choose a chamber.`
         : `No doorway answers to ${st.dice}. You stay here.`;
 
@@ -373,7 +482,7 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     <View style={styles.root}>
       {/* The die, the turn and the clock */}
       <View style={styles.top}>
-        <Die value={st.dice} />
+        <Die value={rolling ? rollFace : st.dice} rolling={rolling} spin={spin} />
         <View style={styles.topText}>
           <Text style={styles.turn}>
             Turn {st.turn} of {MAX_TURNS}
@@ -415,6 +524,7 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
 
       {/* The labyrinth */}
       <View style={styles.board} onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}>
+        <View style={{ width: gridW, height: gridH }}>
         {Array.from({ length: SIZE }, (_, r) => (
           <React.Fragment key={r}>
             <View style={styles.line}>
@@ -449,9 +559,32 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
             )}
           </React.Fragment>
         ))}
+        {/* the markers, gliding over the chambers */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {st.order.map((p) => {
+            const tv = tokens.current[p];
+            const there = st.pos[p];
+            if (!tv || !st.alive.includes(p)) return null;
+            if (alive && p !== uid && there !== myPos && !neighbors(myPos).includes(there)) return null; // out of sight
+            return (
+              <Animated.View
+                key={p}
+                style={[
+                  styles.token,
+                  { backgroundColor: colorOf(p) },
+                  p === uid && styles.tokenMe,
+                  { transform: tv.getTranslateTransform() },
+                ]}
+              >
+                <Text style={styles.tokenText}>{name(p).charAt(0).toUpperCase()}</Text>
+              </Animated.View>
+            );
+          })}
+        </View>
+        </View>
       </View>
 
-      {canPick && hint && <Text style={styles.hint}>{hint}</Text>}
+      {alive && picking && hint && <Text style={styles.hint}>{hint}</Text>}
       {canPick && dests.length > 0 && (
         <Pressable
           onPress={() => pick(myPos)}
@@ -514,6 +647,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     padding: 5,
   },
+  dieRolling: { borderColor: c.gold },
   pipCell: { width: '33.33%', height: '33.33%', alignItems: 'center', justifyContent: 'center' },
   pip: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.portal },
   spBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -563,10 +697,9 @@ const styles = StyleSheet.create({
   roomChosen: { backgroundColor: c.gold, ...flat(c.goldSoft) },
   glyph: { fontWeight: '900' },
   fogMark: { color: c.rune, fontSize: 18, opacity: 0.5 },
-  chips: { position: 'absolute', bottom: 2, left: 2, right: 2, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 2 },
-  chip: { width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  chipMe: { borderWidth: 1.5, borderColor: c.bone },
-  chipText: { color: c.void1, fontSize: 9, fontWeight: '900' },
+  token: { position: 'absolute', left: -TOKEN / 2, top: -TOKEN / 2, width: TOKEN, height: TOKEN, borderRadius: TOKEN / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.void1 },
+  tokenMe: { borderWidth: 2, borderColor: c.bone },
+  tokenText: { color: c.void1, fontSize: 10, fontWeight: '900' },
   door: {
     width: 18,
     height: 18,

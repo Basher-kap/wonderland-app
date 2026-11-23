@@ -1,8 +1,10 @@
 // Future Sugoroku: pure rules, no React, no Firebase.
 //
 // A SIZE x SIZE labyrinth of chambers (5 x 5 = 25 rooms, numbered 0..24 row by row, so 0 is the
-// top-left and 24 the bottom-right). Everybody starts in START (bottom-left) with START_POINTS
-// Survival Points, and the portal (EXIT, top-right) is the way out. The game lasts MAX_TURNS turns.
+// top-left and 24 the bottom-right). Everybody starts in START (the middle room) with
+// START_POINTS Survival Points. The portal is the way out: it is in a room on the OUTER ring (the
+// seed picks which one) and it is HIDDEN, nobody sees it until it is in a room they can see. The
+// game lasts MAX_TURNS turns.
 //
 // Every turn ONE six-sided die is rolled for everybody. Every doorway between two neighbouring
 // rooms carries a number 1-6, and you may only walk through a doorway whose number is the die. Each
@@ -40,8 +42,7 @@ import { makeRng } from './schulte';
 // ----------------------------------------------------------- tuning ----
 export const SIZE = 5;
 export const CELLS = SIZE * SIZE;
-export const START = 20;
-export const EXIT = 4;
+export const START = 12; // the middle room
 export const START_POINTS = 15;
 export const MAX_TURNS = 15;
 export const PICK_MS = 20000; // time to choose a doorway; choosing nothing = staying
@@ -54,15 +55,22 @@ export const RECOVERY_POINTS = 6;
 export type RoomKind = 'plain' | 'start' | 'exit' | 'bonus' | 'danger' | 'recovery' | 'locked' | 'illusion';
 
 // Rooms placed by hand, always the same.
-const FIXED: Record<number, RoomKind> = { 12: 'recovery', 3: 'danger', 6: 'bonus' };
+const FIXED: Record<number, RoomKind> = { 16: 'recovery', 8: 'danger', 6: 'bonus' };
 // Rooms placed at random places (the places depend on the seed).
 const RANDOM_KINDS: RoomKind[] = ['bonus', 'danger', 'danger', 'recovery', 'locked', 'locked', 'illusion', 'illusion'];
 const HAZARDS: RoomKind[] = ['danger', 'locked', 'illusion'];
 
 // ------------------------------------------------------------- map ----
 export type SugorokuMap = {
+  exit: number; // the room with the portal (on the outer ring)
   kinds: RoomKind[]; // the TRUE kind of every room
   door: Record<string, number>; // "a-b" (a < b) -> the doorway number 1..6
+};
+
+export const isOuter = (cell: number) => {
+  const r = Math.floor(cell / SIZE);
+  const c = cell % SIZE;
+  return r === 0 || r === SIZE - 1 || c === 0 || c === SIZE - 1;
 };
 
 export const neighbors = (cell: number): number[] => {
@@ -83,14 +91,14 @@ export function diceFor(seed: string, turn: number): number {
   return 1 + Math.floor(makeRng(`${seed}:sugoroku:dice:${turn}`)() * 6);
 }
 
-function shortestSafePath(kinds: RoomKind[]): number[] | null {
+function shortestSafePath(kinds: RoomKind[], exit: number): number[] | null {
   const prev = new Map<number, number>([[START, -1]]);
   const queue = [START];
   while (queue.length) {
     const cur = queue.shift()!;
-    if (cur === EXIT) {
+    if (cur === exit) {
       const path: number[] = [];
-      for (let n = EXIT; n !== -1; n = prev.get(n)!) path.unshift(n);
+      for (let n = exit; n !== -1; n = prev.get(n)!) path.unshift(n);
       return path;
     }
     for (const n of neighbors(cur)) {
@@ -107,7 +115,9 @@ export function buildMap(seed: string): SugorokuMap {
     const rnd = makeRng(`${seed}:sugoroku:map:${salt}`);
     const kinds: RoomKind[] = Array.from({ length: CELLS }, () => 'plain');
     kinds[START] = 'start';
-    kinds[EXIT] = 'exit';
+    const outer = Array.from({ length: CELLS }, (_, i) => i).filter(isOuter);
+    const exit = outer[Math.floor(rnd() * outer.length)];
+    kinds[exit] = 'exit';
     for (const [cell, kind] of Object.entries(FIXED)) kinds[Number(cell)] = kind;
     if (salt < 100) {
       // after 100 failed tries (practically never) the random rooms are left out
@@ -118,7 +128,7 @@ export function buildMap(seed: string): SugorokuMap {
       }
       RANDOM_KINDS.forEach((kind, i) => (kinds[free[i]] = kind));
     }
-    const path = shortestSafePath(kinds);
+    const path = shortestSafePath(kinds, exit);
     if (!path || path.length - 1 > 11) continue;
 
     // Every doorway gets a random number, then the safe route is made walkable with the dice.
@@ -133,7 +143,7 @@ export function buildMap(seed: string): SugorokuMap {
     }
     if (turns[steps - 1] > 11) for (let i = 0; i < steps; i++) turns[i] = i; // no waiting at all
     for (let i = 0; i < steps; i++) door[doorKey(path[i], path[i + 1])] = diceFor(seed, turns[i] + 1);
-    return { kinds, door };
+    return { exit, kinds, door };
   }
 }
 
@@ -165,6 +175,7 @@ export type StepResult = {
   from: number;
   to: number; // where the player is after the step (a thrown-back player is back in `from`)
   outcome: Outcome;
+  tried: number | null; // the room a player tried to enter but could not (locked door, illusion)
   effect: Effect | null;
   delta: number; // the points the room gave (+) or took (-)
 };
@@ -325,14 +336,16 @@ function resolve(s: State, now: number) {
   for (const uid of s.alive) {
     const from = s.pos[uid];
     const want = s.picks[uid] ?? from;
-    const step: StepResult = { uid, from, to: from, outcome: 'stayed', effect: null, delta: 0 };
+    const step: StepResult = { uid, from, to: from, outcome: 'stayed', tried: null, effect: null, delta: 0 };
     if (want !== from) {
       const kind = map.kinds[want];
       if (kind === 'locked' && !s.unlocked.includes(want)) {
         step.outcome = 'locked';
+        step.tried = want;
         tried.push(want);
       } else if (kind === 'illusion') {
         step.outcome = 'illusion';
+        step.tried = want;
         if (!s.exposed.includes(want)) s.exposed.push(want);
       } else {
         step.outcome = 'moved';
