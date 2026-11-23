@@ -124,6 +124,18 @@ export const GAMES: Game[] = [
     clearConditions: ['The fastest player to switch on the light clears the game.'],
   },
     {
+    id: 'memory-card',
+    name: 'Memory Card',
+    domain: 'logic',
+    description: 'Flip two cards at the same time as everyone else and match the identical icons.',
+    difficulty: 'easy',
+    rules: [
+      'Each player will flip 2 cards at the same time to match its identical icons.',
+      'All of the players are only allowed to flip 2 cards within 3 seconds.',
+    ],
+    clearConditions: ['The player who completed all the matching identical cards clears the game.'],
+  },
+    {
     id: 'future-sugoroku',
     name: 'Future Sugoroku',
     domain: 'logic',

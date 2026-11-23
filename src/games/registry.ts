@@ -26,6 +26,7 @@ import { BattleshipsGame } from './BattleshipsGame';
 import { KarutaGame } from './KarutaGame';
 import { LightBulbGame } from './LightBulbGame';
 import { ColorTerritoryGame } from './ColorTerritoryGame';
+import { MemoryCardGame } from './MemoryCardGame';
 import { pickWinner as pickSugorokuWinner } from '../game/futureSugoroku';
 import { FutureSugorokuGame } from './FutureSugorokuGame';
 
@@ -197,6 +198,14 @@ export const GAME_MODULES: Record<string, GameModule> = {
     describe: (r) => (r.finished ? `switched on the light in ${formatSeconds(r.totalMs)}` : 'was blown up'),
     endsOnFirstFinish: true,
     fullScreen: true, // the whole screen, no scrolling: the fuse box and the terminals must stay in the frame
+  },
+    'memory-card': {
+    Component: MemoryCardGame,
+    // Only a player who turned over every pair reports finished: true; the fastest one wins.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? `matched every pair in ${formatSeconds(r.totalMs)}` : 'did not clear'),
+    endsOnFirstFinish: true,
+    fullScreen: true, // the whole screen, no scrolling: the cards must stay in the frame
   },
   'color-territory': {
     Component: ColorTerritoryGame,

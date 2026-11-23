@@ -11,6 +11,7 @@ import { NaumachiaBackground, battleshipsIntro } from './battleships';
 import { TatamiBackground, karutaIntro } from './karuta';
 import { CaveBackground, xibalbaIntro } from './xibalba';
 import { RuinsBackground, lightBulbIntro } from './lightBulb';
+import { SeanceBackground, memoryCardIntro } from './memoryCard';
 import { EnchantedBackground, colorTerritoryIntro } from './colorTerritory';
 import { CosmosBackground, futureSugorokuIntro } from './futureSugoroku';
 
@@ -31,7 +32,8 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   'traps-of-xibalba': { Backdrop: CaveBackground, intro: xibalbaIntro },
   'light-bulb': { Backdrop: RuinsBackground, intro: lightBulbIntro },
   'color-territory': { Backdrop: EnchantedBackground, intro: colorTerritoryIntro },
-    'future-sugoroku': { Backdrop: CosmosBackground, intro: futureSugorokuIntro },
+  'memory-card': { Backdrop: SeanceBackground, intro: memoryCardIntro },
+  'future-sugoroku': { Backdrop: CosmosBackground, intro: futureSugorokuIntro },
 };
 
 // The background of the whole game screen (GameScreen) and of the rules dialogs (RoundIntro).
