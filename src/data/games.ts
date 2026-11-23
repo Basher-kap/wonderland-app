@@ -36,7 +36,6 @@ export const GAMES: Game[] = [
     name: 'Wordle',
     domain: 'logic',
     description: 'Guess a 5-letter word within 5 tries.',
-    japaneseName: 'Waadoru',
     difficulty: 'normal',
     rules: [
       'Each player must guess the same hidden word displayed on the screen.',
@@ -48,7 +47,7 @@ export const GAMES: Game[] = [
     // The points (game/wordle.ts) are NOT listed here on purpose: they are not shown to the players.
     clearConditions: [
       'Each player has only 5 attempts to guess the hidden word.',
-      'The game ends as soon as the first player correctly guesses all the words.',
+      'The first player correctly guesses all the words clears the game.',
     ],
   },
   {
@@ -109,7 +108,7 @@ export const GAMES: Game[] = [
     description: 'Draw a random fortune-telling paper with a logical question on it.',
     difficulty: 'hard',
     rules: [
-      'Each player starts the game with 250 lives.',
+      'Each player starts the game with 100 lives.',
       'Players must draw a fortune-telling paper out of 100 available slips.',
       'Each slip contains a question and the player must answer the question drawn.',
     ],
@@ -149,7 +148,6 @@ export const GAMES: Game[] = [
     name: 'Schulte Table',
     domain: 'experience',
     description: 'Tap the grid cells in numeric order as quickly as possible.',
-    japaneseName: 'Shurute Hyou',
     difficulty: 'easy',
     rules: [
       'Each player gets the same randomly arranged numbered grid for each level.',
@@ -179,7 +177,6 @@ export const GAMES: Game[] = [
     name: 'Janken Negotiation',
     domain: 'experience',
     description: 'Rock-paper-scissors, with negotiating what to pick.',
-    japaneseName: 'Janken Kōshō',
     difficulty: 'hard',
     rules: [
       'All players must compete against their opponents in a series of Rock-Paper-Scissors rounds.',
@@ -242,6 +239,9 @@ export const GAMES: Game[] = [
       'Each player receives an equal number of cards, placed on their own card rack. All players’ cards remain visible to everyone.',
       'A floating target card appears on the screen. Players must quickly identify and get that card from any rack before their opponents do.',
       'Once a card on your rack is taken away, the player who took it sends one of their own cards to your rack as a penalty to you.',
+    ],
+    // The second intro box (the "Additional Rule" dialog), shown right after the Rule.
+    additionalRules: [
       'However, if you take the wrong card, you are penalized by receiving that card.',
       'Players may take a card in advance, before the floating target card appears.',
       'Everyone is given 45 seconds to memorize the cards on the other players’ racks.',
