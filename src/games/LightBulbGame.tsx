@@ -140,7 +140,9 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
       for (let k = 0; k <= steps; k++) {
         const u = (BANDS * k) / steps;
         const x = BW / 2 + (laneAt(board, w, u) - (SWITCH_COUNT - 1) / 2) * laneW * pitchAt(u);
-        d += `${k === 0 ? 'M' : 'L'}${x.toFixed(1)} ${levelY(u).toFixed(1)} `;
+        const y = levelY(u);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue; // never hand a NaN to the SVG parser (Android throws)
+        d += `${d === '' ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)} `;
       }
       return d;
     });

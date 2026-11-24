@@ -159,7 +159,7 @@ const smooth = (t: number) => {
 // The lane distance factor at level u: 1 at the switches and the terminals (so each wire lands exactly
 // under its switch / on its terminal) and PITCH_MIN in the middle (the bundle is squeezed together).
 export const pitchAt = (u: number) => {
-  const s = Math.sin((Math.PI * Math.max(0, Math.min(BANDS, u))) / BANDS);
+  const s = Math.max(0, Math.sin((Math.PI * Math.max(0, Math.min(BANDS, u))) / BANDS)); // rounding can make it a hair below 0
   return 1 - (1 - PITCH_MIN) * Math.min(1, s * 1.25);
 };
 
@@ -186,7 +186,8 @@ export function laneAt(board: Board, w: number, u: number): number {
   const d = board.drift[w];
   // A flat-topped envelope (zero at both ends) so the wires wander right from the switches, and two
   // waves of different speed so no wire follows a path you could guess.
-  const env = Math.pow(Math.sin((Math.PI * c) / BANDS), 0.6);
+  // (sin of the very last level can come out a hair below 0, and a negative number to a fractional power is NaN)
+  const env = Math.pow(Math.max(0, Math.sin((Math.PI * c) / BANDS)), 0.6);
   const x = c / BANDS;
   const wave = 0.7 * Math.sin(2 * Math.PI * (d.turns * x + d.phase)) + 0.3 * Math.sin(2 * Math.PI * (d.turns * 2.3 * x + d.phase * 3));
   return lane + d.amp * env * wave;
