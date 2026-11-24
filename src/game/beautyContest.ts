@@ -27,6 +27,7 @@
 // (`picks` is stripped by `publicState`) until the reveal. A move carries the `rev` of the round it
 // was made for, and `rev` only goes up, so an old move is ignored.
 import { makeRng } from './schulte';
+import { revealMs } from './beautyReveal';
 
 // ----------------------------------------------------------- tuning ----
 export const MIN_NUMBER = 0;
@@ -69,6 +70,8 @@ export type Row = {
   value: number | null; // null: handed in nothing
   away: number | null; // how far from the target (null: not compared)
   status: RowStatus;
+  before: number; // the player's points before this round
+  after: number; // ... and after it (the reveal shows what was lost)
 };
 
 export type Reveal = {
@@ -203,6 +206,8 @@ function resolve(s: State, now: number) {
     value: s.picks[id] ?? null,
     away: null,
     status: s.picks[id] === undefined ? 'none' : 'lost',
+    before: s.pts[id],
+    after: s.pts[id],
   }));
   const row = (id: string) => rows.find((r) => r.uid === id)!;
 
@@ -242,6 +247,7 @@ function resolve(s: State, now: number) {
   for (const id of winners) row(id).status = 'won';
   const penalty = reason === 'exact' && rules.includes('exact') ? 2 : 1;
   for (const r of rows) if (r.status !== 'won') s.pts[r.uid] = Math.max(LOSE_AT, s.pts[r.uid] - penalty);
+  for (const r of rows) r.after = s.pts[r.uid];
   const out = s.alive.filter((id) => s.pts[id] <= LOSE_AT);
   s.alive = s.alive.filter((id) => !out.includes(id));
   const newRules = s.alive.length > 1 ? rulesFor(s.alive.length).filter((r) => !rules.includes(r)) : [];
@@ -251,7 +257,7 @@ function resolve(s: State, now: number) {
   s.pickAt = {};
   s.locked = [];
   s.phase = 'reveal';
-  s.endsAt = now + REVEAL_MS;
+  s.endsAt = now + revealMs(s.reveal); // long enough to show the numbers, the calculation and the scores
   s.rev += 1;
 }
 
