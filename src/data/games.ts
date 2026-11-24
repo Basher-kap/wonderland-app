@@ -150,30 +150,23 @@ export const GAMES: Game[] = [
     ],
     clearConditions: ['A remaining player wins the game.'],
   },
-    {
+      {
     id: 'future-sugoroku',
     name: 'Future Sugoroku',
     domain: 'logic',
-    description: 'Explore a maze of rooms with one shared die and reach the exit before your Survival Points run out.',
+    description: 'Choose your next room from clues about the future and find the hidden exit before your Survival Points run out.',
     difficulty: 'hard',
     rules: [
-      'The game consists of a 5×5 grid containing 25 interconnected rooms. All players begin in the designated starting room.',
+      'All players begin in the center of the table, and the exit lies somewhere around the outer edge.',
       'Each player starts with 15 Survival Points, and the game has a maximum of 15 turns.',
-      'At the beginning of each turn, one shared six-sided die is rolled. Its result applies to all players.',
-      'Each exit connecting neighboring rooms is assigned a number from 1 to 6. Players can only enter rooms through exits matching the shared dice result.',
-      'Players independently choose their routes. If no exit matches the dice result, they must remain in their current room.',
+      'When a player chooses a room to move to, they cannot go back to their previous room.',
       'Players can occupy the same room without any occupancy restrictions.',
-      'Only the current room and its adjacent rooms are visible. Other rooms are revealed as players explore.',
-      'Special rooms are placed using a combination of predetermined and randomized locations. These may grant bonus points, deduct points, or trigger special effects.',
-      'Every turn, each active player loses 1 Survival Point, regardless of whether they move or stay.',
-      'Players who reach zero Survival Points are eliminated.',
     ],
-    clearConditions: [
-      'The first player to reach the designated exit successfully wins the game.',
-      'Players must reach the exit within the 15-turn limit and before their Survival Points reach zero.',
-      'Players who fail to reach the exit within the turn limit or run out of Survival Points are eliminated.',
-      'If multiple players reach the exit during the same turn, they share the victory.',
+    additionalRules: [
+      'Every player who chooses a next room loses 1 point. You lose more points when your chosen room is aligned horizontally, vertically or diagonally with other players’ chosen rooms, depending on how many players are aligned.',
+      'The room you are about to choose shows a glimpse of the future that waits in the rooms after it.',
     ],
+    clearConditions: ['The player who finds the exit of the maze clears the game.'],
   },
   {
     id: 'hangman',

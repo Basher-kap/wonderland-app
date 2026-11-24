@@ -1,27 +1,31 @@
 // Future Sugoroku: pure rules, no React, no Firebase.
 //
-// A SIZE x SIZE labyrinth of chambers (5 x 5 = 25 rooms, numbered 0..24 row by row, so 0 is the
-// top-left and 24 the bottom-right). Everybody starts in START (the middle room) with
-// START_POINTS Survival Points. The portal is the way out: it is in a room on the OUTER ring (the
-// seed picks which one) and it is HIDDEN, nobody sees it until it is in a room they can see. The
-// game lasts MAX_TURNS turns.
+// A SIZE x SIZE labyrinth of rooms (5 x 5 = 25 rooms, numbered 0..24 row by row, so 0 is the
+// top-left and 24 the bottom-right; rows are named A-E and columns 1-5, the middle room is C3).
+// Everybody starts in START (the middle room) with START_POINTS Survival Points. The exit is in a
+// room on the OUTER ring (the seed picks which one) and it is HIDDEN. The game lasts MAX_TURNS turns.
 //
-// Every turn ONE six-sided die is rolled for everybody. Every doorway between two neighbouring
-// rooms carries a number 1-6, and you may only walk through a doorway whose number is the die. Each
-// player secretly picks the room to walk into (or to stay); when everybody has picked (or PICK_MS
-// is over) all the steps are resolved at once. A player with no doorway for the die stays put.
-// Every turn each player who has not escaped loses 1 Survival Point, moving or not; at 0 they are out.
+// Every turn each player chooses, within PICK_MS, one of the rooms next to theirs (up, down, left,
+// right), but never the room they just came from. Everybody's choice is secret until the time is up
+// (or everybody has locked in); then all the moves are made at once.
 //
-// Special rooms (a few at fixed places, the rest at random places of the seed):
-//   bonus    +BONUS_POINTS the first time you walk in
-//   danger   -DANGER_POINTS the first time you walk in
-//   recovery +RECOVERY_POINTS (never above START_POINTS) the first time you walk in
-//   locked   the door resists: whoever tries it first stays where they were, and from the next turn
-//            on it is open for everybody
-//   illusion looks like a bonus room until somebody walks in: then it is exposed for everybody, it
-//            gives nothing and the player is thrown back to the room they came from
+// POINTS. Every player loses MOVE_COST point(s) a turn, moving or not. A player who moved loses more
+// when other players' chosen rooms are ALIGNED with theirs (same row, same column or same diagonal;
+// the same room counts too): +1 for every aligned player. The more players are aligned, the more all
+// of them lose.
 //
-// Whoever walks into the portal escapes. The game ends at the end of the turn in which somebody
+// SPECIAL ROOMS are hidden: a player only learns what a room is by stepping into it (and only that
+// player does). Each effect works once per player:
+//   bonus    +BONUS_POINTS
+//   danger   -DANGER_POINTS (a large deduction)
+//   recovery +RECOVERY_POINTS (never above START_POINTS)
+//
+// NOTES (the "future"). Every room a player can choose carries a note about the future: a line of
+// somebody's life. The note says how the rooms that come AFTER it look: a good note when none of the
+// rooms the player could choose next (the room's neighbours except the one they come from) is a
+// danger room, a bad note when one of them is. The note of a room depends on the room you come from.
+//
+// Whoever walks into the exit escapes. The game ends at the end of the turn in which somebody
 // escaped (everybody who escaped in that same turn shares the victory), when nobody is left, or
 // when MAX_TURNS is over (everybody still inside is out).
 //
@@ -31,40 +35,39 @@
 // the host (`picks` is stripped by `publicState`) until the turn is resolved. A move carries the
 // `rev` of the turn it was made for, and `rev` only goes up, so an old move is ignored.
 //
-// FAIRNESS (hidden note): the map is built so a safe route (no danger, locked or illusion room)
-// exists that can be walked with the dice of the game and ends by turn 12 at the latest.
+// FAIRNESS (hidden note): the map is built so a route that avoids every danger room exists from the
+// middle to the exit and is at most 10 steps long.
 //
-// NOT shown to the players on purpose (hidden notes): the special rooms and their numbers, that
-// the dice are made from the seed, that each effect works only once per player, that a locked room
-// opens for everybody after one try, and that the route is guaranteed.
+// NOT shown to the players on purpose (hidden notes): the special rooms and their numbers, that each
+// effect works once per player, how the notes are made, and that a safe route is guaranteed.
 import { makeRng } from './schulte';
 
 // ----------------------------------------------------------- tuning ----
 export const SIZE = 5;
 export const CELLS = SIZE * SIZE;
-export const START = 12; // the middle room
+export const START = 12; // C3, the middle room
 export const START_POINTS = 15;
 export const MAX_TURNS = 15;
-export const PICK_MS = 20000; // time to choose a doorway; choosing nothing = staying
-export const MIN_PICK_MS = 2500; // even if everybody has picked, the die stays on screen this long
-export const REVEAL_MS = 3500; // the result of the turn stays on screen
+export const PICK_MS = 45000; // time to choose a room; choosing nothing = staying
+export const MIN_PICK_MS = 3000; // even if everybody has locked in, the turn lasts at least this long
+export const REVEAL_MS = 6000; // the result of the turn stays on screen
+export const MOVE_COST = 1; // what every player loses every turn
+export const ALIGN_CAP = 99; // most extra points one player can lose to alignment (99 = no limit)
 export const BONUS_POINTS = 3;
-export const DANGER_POINTS = 4;
+export const DANGER_POINTS = 5;
 export const RECOVERY_POINTS = 6;
 
-export type RoomKind = 'plain' | 'start' | 'exit' | 'bonus' | 'danger' | 'recovery' | 'locked' | 'illusion';
+export type RoomKind = 'plain' | 'start' | 'exit' | 'bonus' | 'danger' | 'recovery';
 
 // Rooms placed by hand, always the same.
-const FIXED: Record<number, RoomKind> = { 16: 'recovery', 8: 'danger', 6: 'bonus' };
+const FIXED: Record<number, RoomKind> = { 6: 'bonus', 8: 'danger', 16: 'recovery', 18: 'danger' };
 // Rooms placed at random places (the places depend on the seed).
-const RANDOM_KINDS: RoomKind[] = ['bonus', 'danger', 'danger', 'recovery', 'locked', 'locked', 'illusion', 'illusion'];
-const HAZARDS: RoomKind[] = ['danger', 'locked', 'illusion'];
+const RANDOM_KINDS: RoomKind[] = ['danger', 'danger', 'danger', 'bonus', 'recovery'];
 
 // ------------------------------------------------------------- map ----
 export type SugorokuMap = {
-  exit: number; // the room with the portal (on the outer ring)
+  exit: number; // the room with the exit (on the outer ring)
   kinds: RoomKind[]; // the TRUE kind of every room
-  door: Record<string, number>; // "a-b" (a < b) -> the doorway number 1..6
 };
 
 export const isOuter = (cell: number) => {
@@ -84,11 +87,17 @@ export const neighbors = (cell: number): number[] => {
   return out;
 };
 
-export const doorKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+export const isValidCell = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < CELLS;
 
-// The shared die of a turn (1-based). Same seed + same turn = same die on every phone.
-export function diceFor(seed: string, turn: number): number {
-  return 1 + Math.floor(makeRng(`${seed}:sugoroku:dice:${turn}`)() * 6);
+// "C3": the row letter and the column number.
+export const cellName = (cell: number) => `${String.fromCharCode(65 + Math.floor(cell / SIZE))}${(cell % SIZE) + 1}`;
+
+// Same row, same column or same diagonal (the same room is aligned too).
+export function aligned(a: number, b: number): boolean {
+  const dr = Math.abs(Math.floor(a / SIZE) - Math.floor(b / SIZE));
+  const dc = Math.abs((a % SIZE) - (b % SIZE));
+  return dr === 0 || dc === 0 || dr === dc;
 }
 
 function shortestSafePath(kinds: RoomKind[], exit: number): number[] | null {
@@ -102,7 +111,7 @@ function shortestSafePath(kinds: RoomKind[], exit: number): number[] | null {
       return path;
     }
     for (const n of neighbors(cur)) {
-      if (prev.has(n) || HAZARDS.includes(kinds[n])) continue;
+      if (prev.has(n) || kinds[n] === 'danger') continue;
       prev.set(n, cur);
       queue.push(n);
     }
@@ -129,21 +138,8 @@ export function buildMap(seed: string): SugorokuMap {
       RANDOM_KINDS.forEach((kind, i) => (kinds[free[i]] = kind));
     }
     const path = shortestSafePath(kinds, exit);
-    if (!path || path.length - 1 > 11) continue;
-
-    // Every doorway gets a random number, then the safe route is made walkable with the dice.
-    const door: Record<string, number> = {};
-    for (let a = 0; a < CELLS; a++) for (const b of neighbors(a)) if (a < b) door[doorKey(a, b)] = 1 + Math.floor(rnd() * 6);
-    let t = Math.floor(rnd() * 2); // 0-based index of the turn of the first step
-    const steps = path.length - 1;
-    const turns: number[] = [];
-    for (let i = 0; i < steps; i++) {
-      turns.push(t);
-      t += 1 + (rnd() < 0.4 ? 1 : 0);
-    }
-    if (turns[steps - 1] > 11) for (let i = 0; i < steps; i++) turns[i] = i; // no waiting at all
-    for (let i = 0; i < steps; i++) door[doorKey(path[i], path[i + 1])] = diceFor(seed, turns[i] + 1);
-    return { exit, kinds, door };
+    if (!path || path.length - 1 > 10) continue;
+    return { exit, kinds };
   }
 }
 
@@ -158,34 +154,88 @@ export function mapFor(seed: string): SugorokuMap {
   return m;
 }
 
-// The rooms you may walk into from `cell` with this die.
-export const exitsFor = (map: SugorokuMap, cell: number, dice: number): number[] =>
-  neighbors(cell).filter((n) => map.door[doorKey(cell, n)] === dice);
+// ------------------------------------------------------------ notes ----
+export type Omen = 'good' | 'bad';
 
-export const isValidCell = (n: unknown): n is number =>
-  typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < CELLS;
+const GOOD_NOTES = [
+  'You are having a good time studying.',
+  'Your sister calls with wonderful news.',
+  'You are laughing over dinner with old friends.',
+  'You finally get the job offer you wanted.',
+  'You are walking home under a warm evening sky.',
+  'Your garden is blooming after a long winter.',
+  'You wake up rested on the first day of a holiday.',
+  'A stranger returns the wallet you thought was lost.',
+  'You are teaching your little cousin to ride a bike.',
+  'Your small shop is full of cheerful customers.',
+  'Your favorite song comes on the radio, loud and clear.',
+  'You are signing the lease on a bright new apartment.',
+  'Your team celebrates a hard-won victory.',
+  'You are baking bread while rain taps the window.',
+  'You finish a long project and feel proud of it.',
+  'Your grandmother’s recipe turns out perfectly.',
+  'You board a train to a place you always wanted to see.',
+  'Your exam results arrive, and they are great.',
+  'You sleep peacefully after a day well spent.',
+  'A neighbor brings you soup just when you need it.',
+];
+
+const BAD_NOTES = [
+  'You are stuck in traffic and already late.',
+  'Your phone slips from your hand and the screen cracks.',
+  'You are arguing with your best friend over something small.',
+  'You lose a job you thought was safe.',
+  'You miss the last train home in the pouring rain.',
+  'Your savings melt away after one bad decision.',
+  'You oversleep on the day of a big exam.',
+  'You forget an important promise and someone is waiting.',
+  'Your landlord knocks, and the rent is overdue.',
+  'You are lost in a strange city with a dead phone.',
+  'A rumor about you spreads through the office.',
+  'You burn the dinner just as the guests arrive.',
+  'The bridge is closed and there is no way around.',
+  'Your umbrella breaks just as the storm begins.',
+  'You lose your keys and the door is locked.',
+  'The meeting runs three hours and nothing is decided.',
+  'You find an empty chair where a friend should be.',
+  'Your project is deleted a minute before the deadline.',
+  'You wait for a call that never comes.',
+  'A heavy cloud hangs over a long, lonely evening.',
+];
+
+// What the rooms AFTER `to` look like for a player coming from `from`: bad when one of the rooms
+// they could choose next (the neighbours of `to`, except `from`) is a danger room.
+export function omenOf(map: SugorokuMap, from: number, to: number): Omen {
+  return neighbors(to).some((n) => n !== from && map.kinds[n] === 'danger') ? 'bad' : 'good';
+}
+
+// The note on room `cell` for that omen. The same room and omen always give the same note.
+export function noteFor(seed: string, omen: Omen, cell: number): string {
+  const pool = omen === 'good' ? GOOD_NOTES : BAD_NOTES;
+  return pool[Math.floor(makeRng(`${seed}:sugoroku:note:${omen}:${cell}`)() * pool.length)];
+}
 
 // ------------------------------------------------------------ state ----
 export type Phase = 'pick' | 'reveal' | 'over';
-export type Outcome = 'stayed' | 'moved' | 'locked' | 'illusion' | 'exit';
 export type Effect = 'bonus' | 'danger' | 'recovery';
 
 export type StepResult = {
   uid: string;
   from: number;
-  to: number; // where the player is after the step (a thrown-back player is back in `from`)
-  outcome: Outcome;
-  tried: number | null; // the room a player tried to enter but could not (locked door, illusion)
-  effect: Effect | null;
+  to: number; // where the player is after the turn
+  moved: boolean; // false: stayed (chose nothing in time)
+  cost: number; // what the turn cost: MOVE_COST + the alignment extra
+  aligned: number; // how many other players' chosen rooms were aligned with theirs
+  effect: Effect | null; // what the room did (only for the player who stepped in)
   delta: number; // the points the room gave (+) or took (-)
+  escaped: boolean;
 };
 
 export type Reveal = {
   turn: number;
-  dice: number;
   steps: StepResult[];
   out: string[]; // ran out of Survival Points this turn
-  escaped: string[]; // walked into the portal this turn
+  escaped: string[]; // found the exit this turn
 };
 
 export type State = {
@@ -195,14 +245,12 @@ export type State = {
   order: string[]; // everybody, fixed order for the screen
   alive: string[]; // still in the labyrinth (after the end: only those who escaped)
   turn: number; // 1..MAX_TURNS
-  dice: number; // the shared die of this turn
   phase: Phase;
   pos: Record<string, number>;
+  prev: Record<string, number>; // the room each player just came from (-1 = none yet)
   sp: Record<string, number>; // Survival Points
-  stood: Record<string, number[]>; // the rooms each player has stood in (what they have explored)
+  stood: Record<string, number[]>; // the rooms each player has stood in (the ones they have found out)
   used: Record<string, number[]>; // the rooms whose effect a player already got
-  unlocked: number[]; // locked rooms that are open now
-  exposed: number[]; // illusion rooms that were walked into (they show their true face)
   locked: string[]; // players who have picked this turn (not WHICH room)
   reveal: Reveal | null;
   lastLeft: string | null; // the last player who left (forfeited)
@@ -219,19 +267,9 @@ export type Move = { uid: string; rev: number; to: number; at: number };
 
 export const publicState = (s: State): State => ({ ...s, picks: {}, pickAt: {} });
 
-// The room a player SEES: an illusion room looks like a bonus room until it is exposed.
-export const shownKind = (map: SugorokuMap, s: State, cell: number): RoomKind =>
-  map.kinds[cell] === 'illusion' && !s.exposed.includes(cell) ? 'bonus' : map.kinds[cell];
-
-// What a player has explored: every room they stood in and the rooms next to them.
-export function seenBy(s: State, uid: string): Set<number> {
-  const seen = new Set<number>();
-  for (const c of s.stood[uid] ?? []) {
-    seen.add(c);
-    for (const n of neighbors(c)) seen.add(n);
-  }
-  return seen;
-}
+// The rooms a player may choose now: the neighbours of their room except the one they came from.
+export const optionsOf = (s: State, uid: string): number[] =>
+  neighbors(s.pos[uid]).filter((n) => n !== s.prev[uid]);
 
 export function shuffleOrder(playerIds: string[], seed: string): string[] {
   const a = playerIds.slice();
@@ -250,20 +288,11 @@ function edit(s: State): State {
 }
 
 function startPick(s: State, now: number) {
-  const map = mapFor(s.seed);
   s.phase = 'pick';
-  s.dice = diceFor(s.seed, s.turn);
   s.picks = {};
   s.pickAt = {};
   s.locked = [];
   s.reveal = null;
-  // Nobody has a doorway for this die: they stay, there is nothing to decide.
-  for (const id of s.alive) {
-    if (exitsFor(map, s.pos[id], s.dice).length === 0) {
-      s.picks[id] = s.pos[id];
-      s.locked.push(id);
-    }
-  }
   s.pickFrom = now;
   s.endsAt = now + PICK_MS;
   s.rev += 1;
@@ -277,14 +306,12 @@ export function newGame(order: string[], seed: string, now: number): State {
     order: order.slice(),
     alive: order.slice(),
     turn: 1,
-    dice: 1,
     phase: 'pick',
     pos: Object.fromEntries(order.map((id) => [id, START])),
+    prev: Object.fromEntries(order.map((id) => [id, -1])),
     sp: Object.fromEntries(order.map((id) => [id, START_POINTS])),
     stood: Object.fromEntries(order.map((id) => [id, [START]])),
     used: Object.fromEntries(order.map((id) => [id, [] as number[]])),
-    unlocked: [],
-    exposed: [],
     locked: [],
     reveal: null,
     lastLeft: null,
@@ -309,14 +336,13 @@ function endGame(s: State) {
 }
 
 // ------------------------------------------------------------ moves ----
-// A player picks (or changes the pick of) the room to walk into: a room behind a doorway that
-// carries the die, or their own room to stay. The last pick made before the turn is resolved counts.
+// A player picks (or changes the pick of) the room to walk into: one of the rooms next to theirs,
+// but not the one they came from. The last pick made before the turn is resolved counts.
 export function apply(state: State, move: Move): State {
   if (state.phase !== 'pick' || move.rev !== state.rev) return state;
   if (!state.alive.includes(move.uid) || !isValidCell(move.to)) return state;
   if (move.at <= (state.pickAt[move.uid] ?? 0)) return state;
-  const here = state.pos[move.uid];
-  if (move.to !== here && !exitsFor(mapFor(state.seed), here, state.dice).includes(move.to)) return state;
+  if (!optionsOf(state, move.uid).includes(move.to)) return state;
   if (state.picks[move.uid] === move.to) return state;
   const s = edit(state);
   s.picks[move.uid] = move.to;
@@ -326,68 +352,67 @@ export function apply(state: State, move: Move): State {
 }
 
 // ----------------------------------------------------------- timers ----
-// Everybody's step is resolved at once, then every player who has not escaped pays 1 point.
+// Everybody's move is made at once; alignment is counted on the rooms they CHOSE.
 function resolve(s: State, now: number) {
   const map = mapFor(s.seed);
+  const movers = s.alive.filter((id) => s.picks[id] !== undefined);
   const steps: StepResult[] = [];
-  const tried: number[] = [];
   const escaped: string[] = [];
 
   for (const uid of s.alive) {
     const from = s.pos[uid];
-    const want = s.picks[uid] ?? from;
-    const step: StepResult = { uid, from, to: from, outcome: 'stayed', tried: null, effect: null, delta: 0 };
-    if (want !== from) {
-      const kind = map.kinds[want];
-      if (kind === 'locked' && !s.unlocked.includes(want)) {
-        step.outcome = 'locked';
-        step.tried = want;
-        tried.push(want);
-      } else if (kind === 'illusion') {
-        step.outcome = 'illusion';
-        step.tried = want;
-        if (!s.exposed.includes(want)) s.exposed.push(want);
-      } else {
-        step.outcome = 'moved';
-        step.to = want;
-        const used = s.used[uid];
-        if (kind === 'exit') {
-          step.outcome = 'exit';
-          escaped.push(uid);
-        } else if ((kind === 'bonus' || kind === 'danger' || kind === 'recovery') && !used.includes(want)) {
-          const delta =
-            kind === 'bonus'
-              ? BONUS_POINTS
-              : kind === 'danger'
-                ? -DANGER_POINTS
-                : Math.min(RECOVERY_POINTS, Math.max(0, START_POINTS - s.sp[uid]));
-          if (delta !== 0) {
-            step.effect = kind;
-            step.delta = delta;
-            s.sp[uid] += delta;
-            used.push(want);
-          }
+    const moved = s.picks[uid] !== undefined;
+    const to = moved ? s.picks[uid] : from;
+    const alignedWith = moved ? movers.filter((o) => o !== uid && aligned(s.picks[o], to)).length : 0;
+    const step: StepResult = {
+      uid,
+      from,
+      to,
+      moved,
+      cost: MOVE_COST + Math.min(alignedWith, ALIGN_CAP),
+      aligned: alignedWith,
+      effect: null,
+      delta: 0,
+      escaped: false,
+    };
+    if (moved) {
+      s.prev[uid] = from;
+      s.pos[uid] = to;
+      if (!s.stood[uid].includes(to)) s.stood[uid].push(to);
+      const kind = map.kinds[to];
+      if (kind === 'exit') {
+        step.escaped = true;
+        escaped.push(uid);
+      } else if ((kind === 'bonus' || kind === 'danger' || kind === 'recovery') && !s.used[uid].includes(to)) {
+        const delta =
+          kind === 'bonus'
+            ? BONUS_POINTS
+            : kind === 'danger'
+              ? -DANGER_POINTS
+              : Math.min(RECOVERY_POINTS, Math.max(0, START_POINTS - s.sp[uid]));
+        if (delta !== 0) {
+          step.effect = kind;
+          step.delta = delta;
+          s.used[uid].push(to);
         }
       }
     }
-    s.pos[uid] = step.to;
-    if (!s.stood[uid].includes(step.to)) s.stood[uid].push(step.to);
     steps.push(step);
   }
-  for (const room of tried) if (!s.unlocked.includes(room)) s.unlocked.push(room); // the door gave way
 
+  // Points are taken after everybody has moved. Whoever escaped pays nothing.
   const out: string[] = [];
-  for (const uid of s.alive) {
-    if (escaped.includes(uid)) continue;
-    s.sp[uid] -= 1;
-    if (s.sp[uid] <= 0) {
-      s.sp[uid] = 0;
-      out.push(uid);
+  for (const step of steps) {
+    if (step.escaped) continue;
+    s.sp[step.uid] = s.sp[step.uid] - step.cost + step.delta;
+    if (s.sp[step.uid] <= 0) {
+      s.sp[step.uid] = 0;
+      out.push(step.uid);
     }
   }
   s.alive = s.alive.filter((id) => !out.includes(id));
   s.winners = escaped;
-  s.reveal = { turn: s.turn, dice: s.dice, steps, out, escaped };
+  s.reveal = { turn: s.turn, steps, out, escaped };
   s.picks = {};
   s.pickAt = {};
   s.locked = [];

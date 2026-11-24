@@ -2,32 +2,32 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   apply,
-  exitsFor,
+  cellName,
   mapFor,
   MAX_TURNS,
-  neighbors,
   newGame,
+  noteFor,
+  omenOf,
+  optionsOf,
   publicState,
   remainingNow,
   RoomKind,
-  seenBy,
-  shownKind,
   shuffleOrder,
   SIZE,
-  START,
   START_POINTS,
   State,
-  doorKey,
   tick,
 } from '../game/futureSugoroku';
 import * as api from '../lib/api';
 import { cosmos as c, FONT_SUGOROKU } from '../gameThemes/futureSugoroku';
 import type { GameProps } from './types';
 
-// Future Sugoroku: a 5 x 5 labyrinth of chambers in a star-filled void. One die is rolled for
-// everybody each turn; you may only walk through a doorway whose number is the die. Everybody
-// picks a chamber in secret, then all the steps happen at once. Reach the portal within 15 turns
-// and before your Survival Points run out.
+// Future Sugoroku: a 5 x 5 labyrinth of rooms in a star-filled void. Everybody starts in the middle
+// room (C3). Each turn you have 45 seconds to choose the next room: one of the rooms next to yours,
+// never the one you just left. Every choosable room carries a note about somebody's future, and the
+// note hints at how the rooms that come AFTER it look. Everybody's choice is secret until the time is
+// up, then everybody moves at once and loses points (more when your chosen rooms line up with other
+// players': same row, column or diagonal). Find the hidden exit on the outer ring.
 //
 // All the rules live in src/game/futureSugoroku.ts. The HOST's phone is the only one that runs the
 // game: it applies everybody's picks (saved in lobbies/{code}/sugoroku) and saves the state, which
@@ -35,31 +35,20 @@ import type { GameProps } from './types';
 // phones only show the state and send picks. If the host forfeits the game, the others cannot
 // continue (known limit, same as Fortune and Xibalba). The forfeit buttons are GameScreen's.
 //
-// LOOK: the Ancient Cosmic Labyrinth (src/gameThemes/futureSugoroku/). Only the chambers you stand
-// in and the ones next to them are visible; the others appear as you explore, and you remember
-// them. Doorways show their number only for the chambers you have stood in. The portal is HIDDEN: it
-// is on the outer ring and shows up only when it is in a chamber you can see.
+// LOOK: the Ancient Cosmic Labyrinth (src/gameThemes/futureSugoroku/). Everybody sees where every
+// player is. What a room IS (bonus, danger, recovery, the exit) is shown only to a player who has
+// stepped into it, and only on that player's own screen. Other players' Survival Points are not
+// shown (their jumps would give away what a room was).
 //
 // Hidden notes kept here on purpose, not on the game screen: the special rooms and what they do,
-// that each effect works once per player, that a locked room opens for everybody after one try,
-// that an illusion room looks like a bonus room, and that a safe route is guaranteed.
+// that each effect works once per player, how a note is made (a good note: none of the rooms after it
+// is a danger room; a bad note: one is), and that a safe route to the exit is guaranteed.
 
 const PLAYER_COLORS = ['#F4C95D', '#7DF3E4', '#B58CFF', '#FF8FA3', '#7FB8FF', '#9BE08A', '#FFB86B', '#E58CFF'];
-const GAP = 6;
-const DOOR = 22; // the space between two chambers: it holds the doorway
+const GAP = 6; // between two rooms
 const PAD = 10;
-const ROLL_MS = 1100; // the die tumbles this long before it shows its face
-const MOVE_MS = 750; // a marker glides from one chamber to the next in this time
-const TOKEN = 18;
-
-const PIPS: Record<number, number[]> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8],
-};
+const MOVE_MS = 750; // a marker glides from one room to the next in this time
+const TOKEN = 20;
 
 const GLYPH: Record<RoomKind, string> = {
   plain: '',
@@ -68,8 +57,6 @@ const GLYPH: Record<RoomKind, string> = {
   bonus: '✦',
   danger: '☠',
   recovery: '❖',
-  locked: '▣',
-  illusion: '✦', // never shown as such until exposed, see below
 };
 const TINT: Record<RoomKind, string> = {
   plain: c.stoneEdge,
@@ -78,68 +65,38 @@ const TINT: Record<RoomKind, string> = {
   bonus: c.bonus,
   danger: c.danger,
   recovery: c.recovery,
-  locked: c.locked,
-  illusion: c.illusion,
 };
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
+const points = (n: number) => `${n} point${n === 1 ? '' : 's'}`;
 
-// The die. While it rolls it tumbles (spins, hops, grows a little) and flickers through random faces;
-// `spin` runs from 0 to 1 over the roll.
-function Die({ value, rolling, spin }: { value: number; rolling: boolean; spin: Animated.Value }) {
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '720deg'] });
-  const hop = spin.interpolate({ inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1], outputRange: [0, -18, 0, -10, 0, 0] });
-  const grow = spin.interpolate({ inputRange: [0, 0.2, 0.4, 0.6, 1], outputRange: [1, 1.2, 1, 1.1, 1] });
-  return (
-    <Animated.View
-      style={[
-        styles.die,
-        rolling && styles.dieRolling,
-        { transform: [{ translateY: hop }, { rotate }, { scale: grow }] },
-      ]}
-    >
-      {Array.from({ length: 9 }, (_, i) => (
-        <View key={i} style={styles.pipCell}>
-          {PIPS[value]?.includes(i) && <View style={styles.pip} />}
-        </View>
-      ))}
-    </Animated.View>
-  );
-}
-
-// Where a marker sits on the grid (pixels from the top-left of the grid): the middle of its chamber,
-// shifted a little when several players share the chamber.
+// Where a marker sits on the grid (pixels from the top-left of the grid): the middle of its room,
+// shifted a little when several players share the room.
 const cellCenter = (id: number, cell: number) => ({
-  x: (id % SIZE) * (cell + DOOR) + cell / 2,
-  y: Math.floor(id / SIZE) * (cell + DOOR) + cell / 2,
+  x: (id % SIZE) * (cell + GAP) + cell / 2,
+  y: Math.floor(id / SIZE) * (cell + GAP) + cell / 2,
 });
 function markerSpot(s: State, p: string, cell: number) {
   const base = cellCenter(s.pos[p], cell);
   const mates = s.order.filter((q) => s.alive.includes(q) && s.pos[q] === s.pos[p]);
   const i = Math.max(0, mates.indexOf(p));
-  return { x: base.x + (i - (mates.length - 1) / 2) * (TOKEN - 2), y: base.y + cell * 0.18 };
+  return { x: base.x + (i - (mates.length - 1) / 2) * (TOKEN - 4), y: base.y + cell * 0.2 };
 }
 
 export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   const [st, setSt] = useState<State | null>(null);
-  const [choice, setChoice] = useState<number | null>(null);
-  const [boardW, setBoardW] = useState(300);
+  const [choice, setChoice] = useState<number | null>(null); // the room whose note I am reading
+  const [lockedCell, setLockedCell] = useState<number | null>(null); // the room I locked in
+  const [boardW, setBoardW] = useState(320);
   const [, setFrame] = useState(0); // re-render a few times per second for the countdown
   const receivedAt = useRef(Date.now());
   const startedAt = useRef(Date.now());
   const sent = useRef(''); // the pick already sent for this turn
   const finished = useRef(false);
-  // The die rolling.
-  const [rolling, setRolling] = useState(false);
-  const [rollFace, setRollFace] = useState(1);
-  const spin = useRef(new Animated.Value(1)).current;
-  const lastRolled = useRef(0); // the turn the die last rolled for
   const reduceMotion = useRef(false);
-  // The markers gliding between chambers: one animated position per player, in grid pixels.
+  // The markers gliding between rooms: one animated position per player, in grid pixels.
   const tokens = useRef<Record<string, Animated.ValueXY>>({});
   const tokenAt = useRef<Record<string, string>>({}); // where each marker was last sent, "x,y"
-  const wasSeen = useRef<Record<string, boolean>>({}); // whether the marker was in my sight last time
-  const bumped = useRef(-1); // the rev whose locked door / illusion bumps were already played
   const roomRef = useRef(room);
   roomRef.current = room;
   const host = useRef<{ state: State | null; pending: State | null; writing: boolean }>({
@@ -240,40 +197,16 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearInterval(id);
   }, []);
 
-  // A new turn (or phase): nothing is picked yet.
-  useEffect(() => {
-    setChoice(null);
-    sent.current = '';
-  }, [st?.rev]);
-
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion.current = v)).catch(() => {});
   }, []);
 
-  // A new turn begins: the shared die rolls. The doorways light up only when it has landed.
+  // A new turn (or phase): nothing is read or locked yet.
   useEffect(() => {
-    if (!st || st.phase !== 'pick' || lastRolled.current === st.turn) return;
-    if (reduceMotion.current) {
-      lastRolled.current = st.turn;
-      return;
-    }
-    const turn = st.turn;
-    setRolling(true);
-    spin.setValue(0);
-    Animated.timing(spin, { toValue: 1, duration: ROLL_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-    const flicker = setInterval(() => setRollFace(1 + Math.floor(Math.random() * 6)), 90);
-    const done = setTimeout(() => {
-      lastRolled.current = turn;
-      clearInterval(flicker);
-      setRolling(false);
-    }, ROLL_MS);
-    return () => {
-      clearInterval(flicker);
-      clearTimeout(done);
-      setRolling(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st?.turn, st?.phase]);
+    setChoice(null);
+    setLockedCell(null);
+    sent.current = '';
+  }, [st?.rev]);
 
   // The game is over: after a moment everybody reports. Only those who escaped "finished".
   useEffect(() => {
@@ -287,57 +220,29 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.phase, st?.winners]);
 
-  const cellPx = Math.max(36, Math.min(62, Math.floor((boardW - PAD * 2 - DOOR * (SIZE - 1)) / SIZE)));
+  const cell = Math.max(44, Math.min(78, Math.floor((boardW - PAD * 2 - GAP * (SIZE - 1)) / SIZE)));
 
-  // The markers glide from chamber to chamber when a turn is resolved (a marker I cannot see
-  // just jumps, so nothing is given away), and bump against a locked door or an illusion.
+  // The markers glide from room to room when a turn is resolved. Everybody sees everybody.
   useEffect(() => {
     if (!st) return;
-    const myCell = st.pos[uid] ?? START;
-    const iSee = (cellId: number) => !st.alive.includes(uid) || cellId === myCell || neighbors(myCell).includes(cellId);
     const anims: Animated.CompositeAnimation[] = [];
     for (const p of st.order) {
       if (!st.alive.includes(p)) continue;
-      const to = markerSpot(st, p, cellPx);
+      const to = markerSpot(st, p, cell);
       const key = `${to.x},${to.y}`;
-      const sees = iSee(st.pos[p]);
       const tv = tokens.current[p];
       if (!tv) {
         tokens.current[p] = new Animated.ValueXY(to);
         tokenAt.current[p] = key;
       } else if (tokenAt.current[p] !== key) {
         tokenAt.current[p] = key;
-        if (sees && wasSeen.current[p] && !reduceMotion.current) {
-          anims.push(Animated.timing(tv, { toValue: to, duration: MOVE_MS, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }));
-        } else {
-          tv.setValue(to);
-        }
-      }
-      wasSeen.current[p] = sees;
-    }
-    // A locked door shoves the marker back; an illusion lets it walk in and throws it out again.
-    if (st.phase === 'reveal' && st.reveal && bumped.current !== st.rev && !reduceMotion.current) {
-      bumped.current = st.rev;
-      for (const step of st.reveal.steps) {
-        const tv = tokens.current[step.uid];
-        if (!tv || step.tried === null || !iSee(step.from) || !st.alive.includes(step.uid)) continue;
-        const home = markerSpot(st, step.uid, cellPx);
-        const a = cellCenter(step.from, cellPx);
-        const b = cellCenter(step.tried, cellPx);
-        const k = step.outcome === 'illusion' ? 1 : 0.4;
-        const far = { x: home.x + (b.x - a.x) * k, y: home.y + (b.y - a.y) * k };
-        const t = step.outcome === 'illusion' ? 450 : 260;
-        anims.push(
-          Animated.sequence([
-            Animated.timing(tv, { toValue: far, duration: t, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-            Animated.timing(tv, { toValue: home, duration: t, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          ])
-        );
+        if (reduceMotion.current) tv.setValue(to);
+        else anims.push(Animated.timing(tv, { toValue: to, duration: MOVE_MS, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }));
       }
     }
     if (anims.length) Animated.parallel(anims).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st?.rev, cellPx]);
+  }, [st?.rev, cell]);
 
   if (!room) {
     return (
@@ -362,19 +267,17 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   const left = remainingNow(st, receivedAt.current, Date.now());
   const alive = st.alive.includes(uid);
   const picking = st.phase === 'pick';
-  const canPick = picking && alive && !rolling; // the doorways light up once the die has landed
+  const canPick = picking && alive;
   const rev = st.reveal;
-  const myPos = st.pos[uid] ?? START;
-  const dests = canPick ? exitsFor(map, myPos, st.dice) : [];
-  const seen = seenBy(st, uid);
-  const stood = new Set(st.stood[uid] ?? []);
-  const cell = cellPx;
-  const gridW = SIZE * cell + (SIZE - 1) * DOOR;
-  const gridH = gridW;
+  const myPos = st.pos[uid];
+  const myPrev = st.prev[uid];
+  const options = canPick ? optionsOf(st, uid) : [];
+  const stood = new Set(st.stood[uid] ?? []); // the rooms I found out by stepping in
+  const gridW = SIZE * cell + (SIZE - 1) * GAP;
 
-  const pick = (to: number) => {
-    if (!canPick) return;
-    setChoice(to);
+  const lockIn = (to: number) => {
+    if (!canPick || !options.includes(to)) return;
+    setLockedCell(to);
     const key = `${st.rev}:${to}`;
     if (sent.current === key) return;
     sent.current = key;
@@ -382,126 +285,105 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
       .sendSugorokuMove(room.code, { matchId: room.matchId, roundNo: room.roundNo }, { rev: st.rev, to })
       .catch((e) => {
         sent.current = '';
+        setLockedCell(null);
         console.warn('pick failed', e);
       });
   };
 
-  // What the reveal says: what happened to me, and what everybody can see.
-  const revealLines = (): string[] => {
-    if (!rev) return [];
+  // What the reveal says about me; the others only get what everybody can see (the cost of the turn).
+  const myLines = (): string[] => {
+    const mine = rev?.steps.find((x) => x.uid === uid);
+    if (!mine) return [];
+    if (mine.escaped) return ['You found the exit!'];
     const lines: string[] = [];
-    const mine = rev.steps.find((x) => x.uid === uid);
-    if (mine) {
-      const pts = Math.abs(mine.delta);
-      if (mine.outcome === 'exit') lines.push('You step into the portal!');
-      else if (mine.outcome === 'illusion') lines.push('It was an illusion! You are thrown back.');
-      else if (mine.outcome === 'locked') lines.push('The door is locked and will not give… yet.');
-      else if (mine.effect === 'bonus') lines.push(`A chamber of bounty: +${pts} Survival Points.`);
-      else if (mine.effect === 'danger') lines.push(`A chamber of peril: −${pts} Survival Points.`);
-      else if (mine.effect === 'recovery') lines.push(`A chamber of renewal: +${pts} Survival Points.`);
-      else if (mine.outcome === 'moved') lines.push('You move to the next chamber.');
-      else lines.push('You stay in the chamber.');
+    if (!mine.moved) {
+      lines.push(`You did not choose in time and stayed in ${cellName(mine.to)}. It cost ${points(mine.cost)}.`);
+    } else {
+      const extra = mine.aligned > 0 ? ` You lined up with ${mine.aligned} other player${mine.aligned === 1 ? '' : 's'}.` : '';
+      lines.push(`You moved to ${cellName(mine.to)}. It cost ${points(mine.cost)}.${extra}`);
     }
-    for (const id of rev.escaped) if (id !== uid) lines.push(`${name(id)} reached the portal!`);
-    for (const id of rev.out) lines.push(id === uid ? 'You run out of Survival Points.' : `${name(id)} runs out of Survival Points.`);
+    const pts = Math.abs(mine.delta);
+    if (mine.effect === 'bonus') lines.push(`A lucky room: +${pts} Survival Points.`);
+    else if (mine.effect === 'danger') lines.push(`A dangerous room: −${pts} Survival Points.`);
+    else if (mine.effect === 'recovery') lines.push(`A restful room: +${pts} Survival Points.`);
+    if (rev?.out.includes(uid)) lines.push('You ran out of Survival Points.');
     return lines;
   };
 
   const overText = () => {
-    if (st.winners.length === 0) return 'Nobody escaped the labyrinth.';
+    if (st.winners.length === 0) return 'Nobody found the exit.';
     if (st.winners.length === 1) {
       const w = st.winners[0];
-      return `${who(w)} ${w === uid ? 'escape' : 'escapes'} through the portal!`;
+      return `${who(w)} ${w === uid ? 'find' : 'finds'} the exit!`;
     }
-    return `${st.winners.map(who).join(' and ')} escape together. A shared victory!`;
+    return `${st.winners.map(who).join(' and ')} find the exit together. A shared victory!`;
   };
 
   // ------------------------------------------------------------ board ----
-  // (plain functions, not components: a component made inside this one would be rebuilt on every
-  // 100 ms redraw of the countdown and lose the player's tap)
-  const renderDoor = (a: number, b: number) => {
-    const no = map.door[doorKey(a, b)];
-    const known = stood.has(a) || stood.has(b) || !alive;
-    const lit = canPick && (a === myPos || b === myPos) && no === st.dice;
-    if (!known) return <View style={styles.doorUnknown} />;
-    return (
-      <View style={[styles.door, lit && styles.doorLit]}>
-        <Text style={[styles.doorText, lit && { color: c.portal }]}>{no}</Text>
-      </View>
-    );
-  };
-
   const renderRoom = (id: number) => {
-    const visible = seen.has(id) || !alive; // the portal is hidden like any other chamber
-    const here = id === myPos;
-    const target = dests.includes(id);
-    const chosen = choice === id;
-    const kind = visible ? shownKind(map, st, id) : 'plain';
-    const opened = kind === 'locked' && st.unlocked.includes(id);
-    const tint = TINT[kind];
+    const known = stood.has(id);
+    const kind: RoomKind = known ? map.kinds[id] : 'plain';
+    const isOption = options.includes(id);
+    const isPrev = canPick && id === myPrev;
+    const reading = choice === id;
+    const lockedHere = lockedCell === id;
+    const centerGlyph = isOption ? '✎' : isPrev ? '⊘' : known ? GLYPH[kind] : '';
+    const centerColor = isOption ? c.portal : isPrev ? c.rune : TINT[kind];
     return (
       <Pressable
-        onPress={() => pick(id)}
-        disabled={!target}
+        key={id}
+        onPress={() => setChoice(id)}
+        disabled={!isOption}
         accessibilityRole="button"
-        accessibilityLabel={`Chamber ${id + 1}`}
+        accessibilityLabel={`Room ${cellName(id)}${isOption ? ', read its note' : ''}`}
         style={({ pressed }) => [
           styles.room,
-          { width: cell, height: cell },
-          !visible && styles.roomFog,
-          visible && { borderColor: tint },
-          kind === 'exit' && styles.roomPortal,
-          here && styles.roomHere,
-          target && styles.roomTarget,
-          chosen && styles.roomChosen,
-          pressed && target && { opacity: 0.7 },
+          { width: cell, height: cell, marginRight: id % SIZE === SIZE - 1 ? 0 : GAP, marginBottom: GAP },
+          known && { borderColor: TINT[kind] },
+          id === myPos && styles.roomHere,
+          isOption && styles.roomOption,
+          reading && styles.roomReading,
+          lockedHere && styles.roomLocked,
+          pressed && isOption && { opacity: 0.7 },
         ]}
       >
-        {visible && (
-          <Text style={[styles.glyph, { color: tint, fontSize: kind === 'exit' ? cell * 0.62 : cell * 0.42 }]}>
-            {opened ? '▢' : GLYPH[kind]}
-          </Text>
-        )}
-        {!visible && <Text style={styles.fogMark}>·</Text>}
+        <Text style={styles.coord}>{cellName(id)}</Text>
+        {isOption && known && GLYPH[kind] !== '' && <Text style={[styles.cornerGlyph, { color: TINT[kind] }]}>{GLYPH[kind]}</Text>}
+        {centerGlyph !== '' && <Text style={[styles.glyph, { color: centerColor, fontSize: cell * 0.4 }]}>{centerGlyph}</Text>}
+        {centerGlyph === '' && !known && <Text style={styles.fogMark}>·</Text>}
       </Pressable>
     );
   };
 
   const sp = st.sp[uid] ?? 0;
-  const hint = !alive
-    ? null
-    : !picking
-      ? null
-      : rolling
-        ? 'The die is rolling…'
-        : dests.length > 0
-        ? `Doorways marked ${st.dice} are open. Choose a chamber.`
-        : `No doorway answers to ${st.dice}. You stay here.`;
+  const note =
+    canPick && choice !== null && options.includes(choice)
+      ? noteFor(st.seed, omenOf(map, myPos, choice), choice)
+      : null;
 
   return (
     <View style={styles.root}>
-      {/* The die, the turn and the clock */}
+      {/* The turn and the clock */}
       <View style={styles.top}>
-        <Die value={rolling ? rollFace : st.dice} rolling={rolling} spin={spin} />
         <View style={styles.topText}>
           <Text style={styles.turn}>
             Turn {st.turn} of {MAX_TURNS}
           </Text>
-          <Text style={styles.sub}>The die shows {st.dice} for everyone</Text>
+          <Text style={styles.sub}>{picking ? 'Choose your next room' : st.phase === 'reveal' ? 'Everyone moves…' : 'The labyrinth falls silent'}</Text>
         </View>
-        {picking && <Text style={[styles.timer, left < 4000 && { color: c.hot }]}>{secondsLeft(left)}s</Text>}
+        {picking && <Text style={[styles.timer, left < 10000 && { color: c.hot }]}>{secondsLeft(left)}s</Text>}
       </View>
 
-      {/* Survival Points */}
+      {/* My Survival Points (other players' points are not shown) */}
       <View style={styles.spBox}>
         <Text style={styles.spLabel}>Survival Points</Text>
         <View style={styles.spBar}>
-          <View style={[styles.spFill, { width: `${Math.min(100, (sp / START_POINTS) * 100)}%` }, sp <= 4 && { backgroundColor: c.hot }]} />
+          <View style={[styles.spFill, { width: `${Math.max(0, Math.min(100, (sp / START_POINTS) * 100))}%` }, sp <= 4 && { backgroundColor: c.hot }]} />
         </View>
         <Text style={[styles.spNum, sp <= 4 && { color: c.hot }]}>{sp}</Text>
       </View>
 
-      {/* The players */}
+      {/* The players and where they are */}
       <View style={styles.players}>
         {st.order.map((id) => {
           const out = !st.alive.includes(id);
@@ -515,7 +397,7 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
                 {id === uid ? ' (you)' : ''}
               </Text>
               <Text style={[styles.playerState, (ready || won) && { color: c.portal }]}>
-                {won ? 'FREE' : out ? 'OUT' : ready ? '✔' : picking ? '…' : `${st.sp[id] ?? 0}`}
+                {won ? 'FREE' : out ? 'OUT' : `${cellName(st.pos[id])}${ready ? ' ✔' : ''}`}
               </Text>
             </View>
           );
@@ -524,84 +406,82 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
 
       {/* The labyrinth */}
       <View style={styles.board} onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}>
-        <View style={{ width: gridW, height: gridH }}>
-        {Array.from({ length: SIZE }, (_, r) => (
-          <React.Fragment key={r}>
-            <View style={styles.line}>
-              {Array.from({ length: SIZE }, (_, col) => {
-                const id = r * SIZE + col;
-                return (
-                  <React.Fragment key={col}>
-                    {renderRoom(id)}
-                    {col < SIZE - 1 && (
-                      <View style={{ width: DOOR, alignItems: 'center' }}>
-                        {renderDoor(id, id + 1)}
-                      </View>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </View>
-            {r < SIZE - 1 && (
-              <View style={[styles.line, { height: DOOR }]}>
-                {Array.from({ length: SIZE }, (_, col) => {
-                  const id = r * SIZE + col;
-                  return (
-                    <React.Fragment key={col}>
-                      <View style={{ width: cell, alignItems: 'center' }}>
-                        {renderDoor(id, id + SIZE)}
-                      </View>
-                      {col < SIZE - 1 && <View style={{ width: DOOR }} />}
-                    </React.Fragment>
-                  );
-                })}
-              </View>
-            )}
-          </React.Fragment>
-        ))}
-        {/* the markers, gliding over the chambers */}
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-          {st.order.map((p) => {
-            const tv = tokens.current[p];
-            const there = st.pos[p];
-            if (!tv || !st.alive.includes(p)) return null;
-            if (alive && p !== uid && there !== myPos && !neighbors(myPos).includes(there)) return null; // out of sight
-            return (
-              <Animated.View
-                key={p}
-                style={[
-                  styles.token,
-                  { backgroundColor: colorOf(p) },
-                  p === uid && styles.tokenMe,
-                  { transform: tv.getTranslateTransform() },
-                ]}
-              >
-                <Text style={styles.tokenText}>{name(p).charAt(0).toUpperCase()}</Text>
-              </Animated.View>
-            );
-          })}
-        </View>
+        <View style={{ width: gridW }}>
+          <View style={styles.grid}>{Array.from({ length: SIZE * SIZE }, (_, id) => renderRoom(id))}</View>
+          {/* the markers, gliding over the rooms: everybody sees everybody */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {st.order.map((p) => {
+              const tv = tokens.current[p];
+              if (!tv || !st.alive.includes(p)) return null;
+              return (
+                <Animated.View
+                  key={p}
+                  style={[
+                    styles.token,
+                    { backgroundColor: colorOf(p) },
+                    p === uid && styles.tokenMe,
+                    { transform: tv.getTranslateTransform() },
+                  ]}
+                >
+                  <Text style={styles.tokenText}>{name(p).charAt(0).toUpperCase()}</Text>
+                </Animated.View>
+              );
+            })}
+          </View>
         </View>
       </View>
 
-      {alive && picking && hint && <Text style={styles.hint}>{hint}</Text>}
-      {canPick && dests.length > 0 && (
-        <Pressable
-          onPress={() => pick(myPos)}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.stay, choice === myPos && styles.stayChosen, pressed && { opacity: 0.7 }]}
-        >
-          <Text style={[styles.stayText, choice === myPos && { color: c.void1 }]}>Stay in this chamber</Text>
-        </Pressable>
+      {/* The note on the wall of the room I am looking at */}
+      {canPick && (
+        <View style={styles.noteBox}>
+          {note === null ? (
+            <Text style={styles.hint}>
+              Tap a glowing room to read the note on its wall.
+              {myPrev >= 0 ? ` You cannot go back to ${cellName(myPrev)}.` : ''}
+            </Text>
+          ) : (
+            <>
+              <Text style={styles.noteTitle}>A NOTE ON THE WALL OF {cellName(choice!)}</Text>
+              <Text style={styles.noteText}>“{note}”</Text>
+              <Pressable
+                onPress={() => lockIn(choice!)}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.move, lockedCell === choice && styles.moveLocked, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={[styles.moveText, lockedCell === choice && { color: c.void1 }]}>
+                  {lockedCell === choice ? `✔ MOVING TO ${cellName(choice!)}` : `MOVE TO ${cellName(choice!)}`}
+                </Text>
+              </Pressable>
+              {lockedCell !== null && lockedCell !== choice && (
+                <Text style={styles.hint}>You are currently set to move to {cellName(lockedCell)}.</Text>
+              )}
+            </>
+          )}
+        </View>
+      )}
+      {picking && alive && (
+        <Text style={styles.hint}>
+          {st.locked.length} of {st.alive.length} have chosen
+        </Text>
       )}
 
       {st.phase === 'reveal' && rev && (
         <View style={styles.reveal}>
-          {revealLines().map((line, i) => (
+          {myLines().map((line, i) => (
             <Text key={i} style={[styles.revealLine, i === 0 && { color: c.bone, fontWeight: '800' }]}>
               {line}
             </Text>
           ))}
+          <Text style={styles.revealHead}>THE COST OF THIS TURN</Text>
+          {rev.steps
+            .filter((x) => x.uid !== uid)
+            .map((x) => (
+              <Text key={x.uid} style={styles.revealLine}>
+                {name(x.uid)}: −{x.escaped ? 0 : x.cost}
+                {x.aligned > 0 ? `, lined up with ${x.aligned}` : ''}
+                {x.escaped ? ', found the exit!' : rev.out.includes(x.uid) ? ', ran out of Survival Points' : ''}
+              </Text>
+            ))}
         </View>
       )}
 
@@ -617,15 +497,6 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   );
 }
 
-// A chamber edge: the top-left catches the starlight, the bottom-right is in shadow.
-const edge = (light: string, dark: string) => ({
-  borderTopColor: light,
-  borderLeftColor: light,
-  borderBottomColor: dark,
-  borderRightColor: dark,
-});
-const flat = (col: string) => edge(col, col);
-
 const styles = StyleSheet.create({
   root: { gap: 12 },
   waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
@@ -633,23 +504,9 @@ const styles = StyleSheet.create({
   waitingText: { color: c.boneMuted, fontFamily: FONT_SUGOROKU, fontSize: 15 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   topText: { flex: 1, gap: 2 },
-  turn: { color: c.bone, fontFamily: FONT_SUGOROKU, fontSize: 18, fontWeight: '800' },
+  turn: { color: c.bone, fontFamily: FONT_SUGOROKU, fontSize: 20, fontWeight: '800' },
   sub: { color: c.boneMuted, fontFamily: FONT_SUGOROKU, fontSize: 13 },
-  timer: { color: c.gold, fontFamily: FONT_SUGOROKU, fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  die: {
-    width: 62,
-    height: 62,
-    borderRadius: 12,
-    backgroundColor: c.tablet,
-    borderWidth: 3,
-    borderColor: c.portal,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 5,
-  },
-  dieRolling: { borderColor: c.gold },
-  pipCell: { width: '33.33%', height: '33.33%', alignItems: 'center', justifyContent: 'center' },
-  pip: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.portal },
+  timer: { color: c.gold, fontFamily: FONT_SUGOROKU, fontSize: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
   spBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   spLabel: { color: c.boneMuted, fontFamily: FONT_SUGOROKU, fontSize: 13, fontWeight: '600' },
   spBar: { flex: 1, height: 10, borderRadius: 5, backgroundColor: c.panel, borderWidth: 1, borderColor: c.stoneEdge, overflow: 'hidden' },
@@ -682,51 +539,36 @@ const styles = StyleSheet.create({
     padding: PAD,
     alignItems: 'center',
   },
-  line: { flexDirection: 'row', alignItems: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
   room: {
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: c.stone,
     borderWidth: 2,
+    borderColor: c.stoneLo,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  roomFog: { backgroundColor: c.fog, borderColor: c.stoneLo },
-  roomPortal: { backgroundColor: '#12304A', borderWidth: 3 },
-  roomHere: { backgroundColor: '#3A3170', ...flat(c.gold), borderWidth: 3 },
-  roomTarget: { backgroundColor: '#17415A', ...flat(c.portal), borderWidth: 3 },
-  roomChosen: { backgroundColor: c.gold, ...flat(c.goldSoft) },
+  roomHere: { backgroundColor: '#3A3170', borderColor: c.gold, borderWidth: 3 },
+  roomOption: { backgroundColor: '#17415A', borderColor: c.portal, borderWidth: 3 },
+  roomReading: { backgroundColor: '#1E5C7E', borderColor: c.goldSoft },
+  roomLocked: { backgroundColor: c.gold, borderColor: c.goldSoft },
+  coord: { position: 'absolute', top: 3, left: 5, color: c.rune, fontSize: 9, fontWeight: '700' },
+  cornerGlyph: { position: 'absolute', top: 2, right: 5, fontSize: 12, fontWeight: '900' },
   glyph: { fontWeight: '900' },
   fogMark: { color: c.rune, fontSize: 18, opacity: 0.5 },
   token: { position: 'absolute', left: -TOKEN / 2, top: -TOKEN / 2, width: TOKEN, height: TOKEN, borderRadius: TOKEN / 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.void1 },
   tokenMe: { borderWidth: 2, borderColor: c.bone },
-  tokenText: { color: c.void1, fontSize: 10, fontWeight: '900' },
-  door: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: c.panel,
-    borderWidth: 1.5,
-    borderColor: c.rune,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doorLit: { backgroundColor: 'rgba(125,243,228,0.22)', borderColor: c.portal, borderWidth: 2 },
-  doorText: { color: c.boneMuted, fontSize: 10, fontWeight: '800', lineHeight: 12 },
-  doorUnknown: { width: 4, height: 4, borderRadius: 2, backgroundColor: c.rune, opacity: 0.4 },
+  tokenText: { color: c.void1, fontSize: 11, fontWeight: '900' },
+  noteBox: { gap: 10, backgroundColor: c.panel, borderWidth: 2, borderColor: c.portalViolet, borderRadius: 12, padding: 14 },
+  noteTitle: { color: c.portalViolet, fontFamily: FONT_SUGOROKU, fontSize: 11, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
+  noteText: { color: c.bone, fontFamily: FONT_SUGOROKU, fontSize: 18, lineHeight: 26, fontStyle: 'italic', textAlign: 'center' },
+  move: { alignSelf: 'center', borderWidth: 2, borderColor: c.gold, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: c.stone },
+  moveLocked: { backgroundColor: c.gold },
+  moveText: { color: c.gold, fontFamily: FONT_SUGOROKU, fontSize: 15, fontWeight: '800' },
   hint: { color: c.portal, fontFamily: FONT_SUGOROKU, fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  stay: {
-    alignSelf: 'center',
-    borderWidth: 2,
-    borderColor: c.gold,
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    backgroundColor: c.panel,
-  },
-  stayChosen: { backgroundColor: c.gold },
-  stayText: { color: c.gold, fontFamily: FONT_SUGOROKU, fontSize: 15, fontWeight: '700' },
   note: { color: c.goldSoft, fontFamily: FONT_SUGOROKU, fontSize: 15, fontWeight: '600', textAlign: 'center' },
   reveal: { backgroundColor: c.panel, borderWidth: 2, borderColor: c.portalViolet, borderRadius: 10, padding: 14, gap: 6 },
+  revealHead: { color: c.boneMuted, fontFamily: FONT_SUGOROKU, fontSize: 11, fontWeight: '800', letterSpacing: 2, textAlign: 'center', marginTop: 6 },
   revealLine: { color: c.boneMuted, fontFamily: FONT_SUGOROKU, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   over: { backgroundColor: c.panel, borderWidth: 2, borderColor: c.portal, borderRadius: 10, padding: 18 },
   overText: { color: c.portal, fontFamily: FONT_SUGOROKU, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
