@@ -54,7 +54,8 @@ export const ruins = {
   switchPlateLit: '#4F4437',
   lever: '#B9B1A3',
   leverArmed: '#E3A64A',
-  bulbGlass: '#4B4943',
+  bulbGlass: '#7F8C96', // the unlit bulb: pale cold glass, nothing else on the board is this colour
+  bulbGlassEdge: '#C9D6DE',
   bulbGlow: '#FFD27A',
   bulbGlowCore: '#FFF3C9',
   tnt: '#A4322A',

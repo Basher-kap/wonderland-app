@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import Svg, { Line, Path, Polygon, Rect } from 'react-native-svg';
-import { BANDS, BEAM_BANDS, buildBoard, flip, isExpired, remainingMs, SWITCH_COUNT, TIME_LIMIT_MS } from '../game/lightBulb';
+import { BANDS, BEAM_BANDS, buildBoard, depthAt, flip, isExpired, laneAt, pitchAt, remainingMs, SWITCH_COUNT, TIME_LIMIT_MS } from '../game/lightBulb';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { BlastArt, BulbArt, displayWeight, FLOOR_H, FONT_DISPLAY, ruins, SwitchArt, TntArt } from '../gameThemes/lightBulb';
 import type { GameProps } from './types';
@@ -26,6 +26,7 @@ const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (V
 const HUD_H = 46;
 const FOOT_H = 78; // the question, and the button that throws the switch
 const BEAM_THICK = 0.72; // the fallen beam covers this fraction of its band
+const SAMPLES_PER_BAND = 8; // how finely each wire is drawn
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${pad(Math.ceil(ms / 1000) % 60)}`;
@@ -120,30 +121,30 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
   const y0 = swH + 8; // where the wires leave the fuse box
   const termH = Math.max(46, laneW * 1.55);
   const y1 = BH - termH; // where the wires reach the terminals
-  const levelY = (r: number) => y0 + ((y1 - y0) * r) / BANDS;
-  const bandH = (y1 - y0) / BANDS;
+  // The bands are of uneven height (board.bandTop), so a level's height comes from the board.
+  const levelY = (u: number) => y0 + (y1 - y0) * depthAt(board, u);
   const bulbR = Math.min(laneW * 0.3, 15);
   const tntW = Math.min(laneW * 0.72, 30);
   const tntH = tntW * 1.25;
   const bulbCy = y1 + bulbR * 1.7;
   const tntCy = y1 + tntH * 0.3 + tntH / 2 + 3;
 
-  // One smooth path per wire: it leaves each level straight down, and swaps lanes with a neighbour in an S.
+  // One path per wire, sampled finely: it swaps lanes with a neighbour in an S whose timing differs from
+  // pair to pair, drifts sideways on its own slow curve, and the whole bundle squeezes together in the
+  // middle (pitchAt). The geometry is in lane units (game/lightBulb.ts); here it is only scaled to pixels.
   const wirePaths = useMemo(() => {
     if (BW <= 0 || BH <= 0) return [] as string[];
+    const steps = BANDS * SAMPLES_PER_BAND;
     return Array.from({ length: SWITCH_COUNT }, (_, w) => {
-      const xs = board.lanes.map((lane, r) => {
-        const wob = r === 0 || r === BANDS ? 0 : board.wobble[r][w] * laneW * 0.12;
-        return (lane[w] + 0.5) * laneW + wob;
-      });
-      let d = `M${xs[0].toFixed(1)} ${levelY(0).toFixed(1)}`;
-      for (let r = 0; r < BANDS; r++) {
-        const ym = (levelY(r) + levelY(r + 1)) / 2;
-        d += ` C${xs[r].toFixed(1)} ${ym.toFixed(1)} ${xs[r + 1].toFixed(1)} ${ym.toFixed(1)} ${xs[r + 1].toFixed(1)} ${levelY(r + 1).toFixed(1)}`;
+      let d = '';
+      for (let k = 0; k <= steps; k++) {
+        const u = (BANDS * k) / steps;
+        const x = BW / 2 + (laneAt(board, w, u) - (SWITCH_COUNT - 1) / 2) * laneW * pitchAt(u);
+        d += `${k === 0 ? 'M' : 'L'}${x.toFixed(1)} ${levelY(u).toFixed(1)} `;
       }
       return d;
     });
-    // levelY and laneW only depend on the measured area (BW, BH)
+    // levelY and laneW only depend on the board and the measured area (BW, BH)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board, BW, BH]);
 
@@ -194,13 +195,14 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
               {/* the wires: all the same grey. Each has a dark edge so a crossing shows who goes over whom. */}
               {board.paintOrder.map((w) => (
                 <React.Fragment key={w}>
-                  <Path d={wirePaths[w]} fill="none" stroke={ruins.wireShade} strokeWidth={5.6} strokeLinecap="round" />
-                  <Path d={wirePaths[w]} fill="none" stroke={ruins.wire} strokeWidth={3} strokeLinecap="round" />
+                  <Path d={wirePaths[w]} fill="none" stroke={ruins.wireShade} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d={wirePaths[w]} fill="none" stroke={ruins.wire} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
                 </React.Fragment>
               ))}
 
               {/* fallen beams: they hide a stretch of the wires, where nothing swaps places */}
               {BEAM_BANDS.map((b, i) => {
+                const bandH = levelY(b + 1) - levelY(b);
                 const h = bandH * BEAM_THICK;
                 const top = levelY(b) + (bandH - h) / 2;
                 const slant = h * 0.35;

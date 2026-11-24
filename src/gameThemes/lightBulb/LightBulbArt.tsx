@@ -52,16 +52,16 @@ export function BulbArt({ cx, cy, r, lit }: Pos & { r: number; lit?: boolean }) 
       <Path
         d={`M${cx - r * 0.5} ${top + r * 0.9} Q${cx - r * 1.1} ${cy - r * 0.3} ${cx - r * 0.95} ${cy + r * 0.2} Q${cx - r * 0.7} ${cy + r * 0.95} ${cx} ${cy + r * 0.95} Q${cx + r * 0.7} ${cy + r * 0.95} ${cx + r * 0.95} ${cy + r * 0.2} Q${cx + r * 1.1} ${cy - r * 0.3} ${cx + r * 0.5} ${top + r * 0.9} Z`}
         fill={lit ? ruins.bulbGlowCore : ruins.bulbGlass}
-        stroke={lit ? ruins.bulbGlow : ruins.panelEdge}
+        stroke={lit ? ruins.bulbGlow : ruins.bulbGlassEdge}
         strokeWidth={1.5}
       />
       {/* the filament */}
       <Path
         d={`M${cx - r * 0.3} ${top + r * 0.95} L${cx - r * 0.3} ${cy - r * 0.1} L${cx - r * 0.12} ${cy - r * 0.35} L${cx + r * 0.12} ${cy - r * 0.05} L${cx + r * 0.3} ${cy - r * 0.35} L${cx + r * 0.3} ${top + r * 0.95}`}
         fill="none"
-        stroke={lit ? ruins.blast : ruins.ash}
+        stroke={lit ? ruins.blast : ruins.ink}
         strokeWidth={1.4}
-        opacity={lit ? 1 : 0.7}
+        opacity={lit ? 1 : 0.8}
       />
       {/* a crack in the glass, because nothing in this house is whole */}
       {!lit && <Path d={`M${cx + r * 0.55} ${cy - r * 0.2} L${cx + r * 0.3} ${cy + r * 0.1} L${cx + r * 0.42} ${cy + r * 0.4}`} fill="none" stroke={ruins.ash} strokeWidth={1} opacity={0.6} />}
