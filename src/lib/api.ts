@@ -1190,6 +1190,98 @@ export function subscribeBeauty(
   );
 }
 
+// ------------------------------------------------------------- Pleasure ----
+export type PleasureMove = {
+  id: string;
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  kind: 'answer' | 'guess';
+  q: number;
+  text?: string;
+  choice?: number;
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type PleasureSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: PleasureMove[]; // always empty for a phone that is not the lobby host
+};
+
+export async function sendPleasureMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; q: number } & ({ kind: 'answer'; text: string } | { kind: 'guess'; choice: number })
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  const data: Record<string, unknown> = {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    q: move.q,
+    at: serverTimestamp(),
+  };
+  if (move.kind === 'answer') data.text = move.text;
+  else data.choice = move.choice;
+  await setDoc(doc(database(), 'lobbies', code, 'pleasure', id), data);
+}
+
+// LOBBY HOST only.
+export async function writePleasureState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'pleasure', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribePleasure(
+  rawCode: string,
+  isHost: boolean,
+  onData: (snap: PleasureSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  if (!isHost) {
+    return onSnapshot(
+      doc(db, 'lobbies', rawCode, 'pleasure', 'state'),
+      (snap) => {
+        onData({ state: snap.exists() ? (snap.data() as PleasureSnapshot['state']) : null, moves: [] });
+      },
+      onError
+    );
+  }
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'pleasure'),
+    (snap) => {
+      let state: PleasureSnapshot['state'] = null;
+      const moves: PleasureMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as PleasureSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as PleasureMove), id: d.id, at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 // ------------------------------------------------------- Color Territory ----
 // Players write TAPS (one circle each) as their own documents; the HOST's phone folds them into the
 // board with game/territory.ts and saves the resulting state as the single document "state". Only the

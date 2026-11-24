@@ -12,6 +12,7 @@ export * as lightBulb from './lightBulb';
 export * as magicalBanana from './magicalBanana';
 export * as memoryCard from './memoryCard';
 export * as schulte from './schulte';
+export * as pleasure from './pleasure';
 export * as territory from './territory';
 export * as wordle from './wordle';
 export * as xibalba from './xibalba';

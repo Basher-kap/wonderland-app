@@ -7,13 +7,14 @@ import { EsportsArenaBackground, inversionIntro } from './inversion';
 import { FoodLandBackground, magicalBananaIntro } from './magicalBanana';
 import { FestivalBackground, fortuneIntro } from './fortune';
 import { CourtBackground, jankenIntro } from './janken';
+import { StudioBackground, pleasureIntro } from './pleasure';
+import { EnchantedBackground, colorTerritoryIntro } from './colorTerritory';
 import { NaumachiaBackground, battleshipsIntro } from './battleships';
 import { TatamiBackground, karutaIntro } from './karuta';
 import { CaveBackground, xibalbaIntro } from './xibalba';
 import { RuinsBackground, lightBulbIntro } from './lightBulb';
 import { SeanceBackground, memoryCardIntro } from './memoryCard';
 import { RoyalCourtBackground, beautyContestIntro } from './beautyContest';
-import { EnchantedBackground, colorTerritoryIntro } from './colorTerritory';
 import { CosmosBackground, futureSugorokuIntro } from './futureSugoroku';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
@@ -28,6 +29,7 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   'magical-banana': { Backdrop: FoodLandBackground, intro: magicalBananaIntro },
   fortune: { Backdrop: FestivalBackground, intro: fortuneIntro },
   'janken-negotiation': { Backdrop: CourtBackground, intro: jankenIntro },
+  pleasure: { Backdrop: StudioBackground, intro: pleasureIntro },
   battleships: { Backdrop: NaumachiaBackground, intro: battleshipsIntro },
   karuta: { Backdrop: TatamiBackground, intro: karutaIntro },
   'traps-of-xibalba': { Backdrop: CaveBackground, intro: xibalbaIntro },

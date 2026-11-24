@@ -233,6 +233,21 @@ export const GAMES: Game[] = [
     clearConditions: ['Players must win as many rounds as possible in a limited number of rounds.'],
   },
   {
+    id: 'pleasure',
+    name: 'Pleasure',
+    domain: 'experience',
+    description: 'Answer the bear’s personal questions, then guess the Host’s answers.',
+    difficulty: 'easy',
+    rules: [
+      'All players must answer the following question given honestly by a bear.',
+      'At the end of the series of questions, all of the players will have the chance to guess the host’s answer.',
+    ],
+    clearConditions: [
+      'Correctly guessed 4 answers of a host by the players, the host wins the game.',
+      'However, a player who guessed all the host’s answers wins the game.',
+    ],
+  },
+  {
     id: 'color-territory',
     name: 'Color Territory',
     domain: 'experience',

@@ -25,6 +25,7 @@ import { XibalbaGame } from './XibalbaGame';
 import { BattleshipsGame } from './BattleshipsGame';
 import { KarutaGame } from './KarutaGame';
 import { LightBulbGame } from './LightBulbGame';
+import { PleasureGame } from './PleasureGame';
 import { ColorTerritoryGame } from './ColorTerritoryGame';
 import { MemoryCardGame } from './MemoryCardGame';
 import { BeautyContestGame } from './BeautyContestGame';
@@ -158,6 +159,17 @@ export const GAME_MODULES: Record<string, GameModule> = {
     // multiStage: gives the game the lobby (`room`) for the shared negotiation notes, and keeps the
     // board on screen after a player's last round so they can watch the others finish.
     multiStage: true,
+  },
+  pleasure: {
+    Component: PleasureGame,
+    // Only the player who won reports finished: true (the Host, or a player who guessed every answer).
+    // A draw or a shared perfect score = nobody finished = a draw.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'won the show' : 'did not win'),
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
+    fullScreen: true,
   },
     battleships: {
     Component: BattleshipsGame,
