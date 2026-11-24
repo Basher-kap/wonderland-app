@@ -1,46 +1,5 @@
-// Future Sugoroku: pure rules, no React, no Firebase.
-//
-// A SIZE x SIZE labyrinth of rooms (5 x 5 = 25 rooms, numbered 0..24 row by row, so 0 is the
-// top-left and 24 the bottom-right; rows are named A-E and columns 1-5, the middle room is C3).
-// Everybody starts in START (the middle room) with START_POINTS Survival Points. The exit is in a
-// room on the OUTER ring (the seed picks which one) and it is HIDDEN. The game lasts MAX_TURNS turns.
-//
-// Every turn each player chooses, within PICK_MS, one of the rooms next to theirs (up, down, left,
-// right), but never the room they just came from. Everybody's choice is secret until the time is up
-// (or everybody has locked in); then all the moves are made at once.
-//
-// POINTS. Every player loses MOVE_COST point(s) a turn, moving or not. A player who moved loses more
-// when other players' chosen rooms are ALIGNED with theirs (same row, same column or same diagonal;
-// the same room counts too): +1 for every aligned player. The more players are aligned, the more all
-// of them lose.
-//
-// SPECIAL ROOMS are hidden: a player only learns what a room is by stepping into it (and only that
-// player does). Each effect works once per player:
-//   bonus    +BONUS_POINTS
-//   danger   -DANGER_POINTS (a large deduction)
-//   recovery +RECOVERY_POINTS (never above START_POINTS)
-//
-// NOTES (the "future"). Every room a player can choose carries a note about the future: a line of
-// somebody's life. The note says how the rooms that come AFTER it look: a good note when none of the
-// rooms the player could choose next (the room's neighbours except the one they come from) is a
-// danger room, a bad note when one of them is. The note of a room depends on the room you come from.
-//
-// Whoever walks into the exit escapes. The game ends at the end of the turn in which somebody
-// escaped (everybody who escaped in that same turn shares the victory), when nobody is left, or
-// when MAX_TURNS is over (everybody still inside is out).
-//
-// Like Fortune and Xibalba, the HOST's phone is the only one that runs the game: players send
-// "moves" (the room they walk into) and the host applies them with `apply`, calls `tick` a few
-// times per second for the timers and saves the state, which every phone shows. The picks stay on
-// the host (`picks` is stripped by `publicState`) until the turn is resolved. A move carries the
-// `rev` of the turn it was made for, and `rev` only goes up, so an old move is ignored.
-//
-// FAIRNESS (hidden note): the map is built so a route that avoids every danger room exists from the
-// middle to the exit and is at most 10 steps long.
-//
-// NOT shown to the players on purpose (hidden notes): the special rooms and their numbers, that each
-// effect works once per player, how the notes are made, and that a safe route is guaranteed.
 import { makeRng } from './schulte';
+import { BAD_NOTES, GOOD_NOTES } from './futureSugorokuNotes';
 
 // ----------------------------------------------------------- tuning ----
 export const SIZE = 5;
@@ -156,52 +115,6 @@ export function mapFor(seed: string): SugorokuMap {
 
 // ------------------------------------------------------------ notes ----
 export type Omen = 'good' | 'bad';
-
-const GOOD_NOTES = [
-  'You are having a good time studying.',
-  'Your sister calls with wonderful news.',
-  'You are laughing over dinner with old friends.',
-  'You finally get the job offer you wanted.',
-  'You are walking home under a warm evening sky.',
-  'Your garden is blooming after a long winter.',
-  'You wake up rested on the first day of a holiday.',
-  'A stranger returns the wallet you thought was lost.',
-  'You are teaching your little cousin to ride a bike.',
-  'Your small shop is full of cheerful customers.',
-  'Your favorite song comes on the radio, loud and clear.',
-  'You are signing the lease on a bright new apartment.',
-  'Your team celebrates a hard-won victory.',
-  'You are baking bread while rain taps the window.',
-  'You finish a long project and feel proud of it.',
-  'Your grandmother’s recipe turns out perfectly.',
-  'You board a train to a place you always wanted to see.',
-  'Your exam results arrive, and they are great.',
-  'You sleep peacefully after a day well spent.',
-  'A neighbor brings you soup just when you need it.',
-];
-
-const BAD_NOTES = [
-  'You are stuck in traffic and already late.',
-  'Your phone slips from your hand and the screen cracks.',
-  'You are arguing with your best friend over something small.',
-  'You lose a job you thought was safe.',
-  'You miss the last train home in the pouring rain.',
-  'Your savings melt away after one bad decision.',
-  'You oversleep on the day of a big exam.',
-  'You forget an important promise and someone is waiting.',
-  'Your landlord knocks, and the rent is overdue.',
-  'You are lost in a strange city with a dead phone.',
-  'A rumor about you spreads through the office.',
-  'You burn the dinner just as the guests arrive.',
-  'The bridge is closed and there is no way around.',
-  'Your umbrella breaks just as the storm begins.',
-  'You lose your keys and the door is locked.',
-  'The meeting runs three hours and nothing is decided.',
-  'You find an empty chair where a friend should be.',
-  'Your project is deleted a minute before the deadline.',
-  'You wait for a call that never comes.',
-  'A heavy cloud hangs over a long, lonely evening.',
-];
 
 // What the rooms AFTER `to` look like for a player coming from `from`: bad when one of the rooms
 // they could choose next (the neighbours of `to`, except `from`) is a danger room.

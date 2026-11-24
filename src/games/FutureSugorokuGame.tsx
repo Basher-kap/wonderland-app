@@ -22,28 +22,6 @@ import * as api from '../lib/api';
 import { cosmos as c, FONT_SUGOROKU } from '../gameThemes/futureSugoroku';
 import type { GameProps } from './types';
 
-// Future Sugoroku: a 5 x 5 labyrinth of rooms in a star-filled void. Everybody starts in the middle
-// room (C3). Each turn you have 45 seconds to choose the next room: one of the rooms next to yours,
-// never the one you just left. Every choosable room carries a note about somebody's future, and the
-// note hints at how the rooms that come AFTER it look. Everybody's choice is secret until the time is
-// up, then everybody moves at once and loses points (more when your chosen rooms line up with other
-// players': same row, column or diagonal). Find the hidden exit on the outer ring.
-//
-// All the rules live in src/game/futureSugoroku.ts. The HOST's phone is the only one that runs the
-// game: it applies everybody's picks (saved in lobbies/{code}/sugoroku) and saves the state, which
-// every phone shows; the picks are not in the saved state until the turn is resolved. The other
-// phones only show the state and send picks. If the host forfeits the game, the others cannot
-// continue (known limit, same as Fortune and Xibalba). The forfeit buttons are GameScreen's.
-//
-// LOOK: the Ancient Cosmic Labyrinth (src/gameThemes/futureSugoroku/). Everybody sees where every
-// player is. What a room IS (bonus, danger, recovery, the exit) is shown only to a player who has
-// stepped into it, and only on that player's own screen. Other players' Survival Points are not
-// shown (their jumps would give away what a room was).
-//
-// Hidden notes kept here on purpose, not on the game screen: the special rooms and what they do,
-// that each effect works once per player, how a note is made (a good note: none of the rooms after it
-// is a danger room; a bad note: one is), and that a safe route to the exit is guaranteed.
-
 const PLAYER_COLORS = ['#F4C95D', '#7DF3E4', '#B58CFF', '#FF8FA3', '#7FB8FF', '#9BE08A', '#FFB86B', '#E58CFF'];
 const GAP = 6; // between two rooms
 const PAD = 10;
@@ -436,12 +414,12 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
         <View style={styles.noteBox}>
           {note === null ? (
             <Text style={styles.hint}>
-              Tap a glowing room to read the note on its wall.
+              Tap a glowing room. The walls will tell you what becomes of you.
               {myPrev >= 0 ? ` You cannot go back to ${cellName(myPrev)}.` : ''}
             </Text>
           ) : (
             <>
-              <Text style={styles.noteTitle}>A NOTE ON THE WALL OF {cellName(choice!)}</Text>
+              <Text style={styles.noteTitle}>THE WALLS SHOW YOU {cellName(choice!)}</Text>
               <Text style={styles.noteText}>“{note}”</Text>
               <Pressable
                 onPress={() => lockIn(choice!)}
