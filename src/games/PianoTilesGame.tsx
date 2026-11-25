@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import {
@@ -38,7 +38,9 @@ import type { GameProps } from './types';
 // tones; replace them with real piano samples under the same names whenever you like), played with
 // expo-audio (npx expo install expo-audio).
 //
-// LOOK: the Midnight Recital (src/gameThemes/pianoTiles/), a placeholder until you send a design.
+// LOOK: the Enchanted Symphony (src/gameThemes/pianoTiles/): luminous pearl and midnight keys in a
+// magical concert hall. Every note that sounds, the piano's or yours, sends a ring of light and a
+// floating note up from its key.
 //
 // Hidden notes kept here on purpose, not on the game screen: the melody grows by one note a round,
 // the beat gets faster and more uneven up to the 8th round, only the notes count (not your rhythm),
@@ -57,6 +59,10 @@ const SOUNDS = [
 
 const PAD = 10;
 const GAP = 8;
+const BURST_MS = 1000; // a note rises from a key and fades in this time
+
+// A shower of light for one note: a ring that opens and a note that floats up from the key.
+type Burst = { id: number; col: number; row: number; glyph: string; bad: boolean; t: Animated.Value };
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 const REASON: Record<string, string> = { wrong: 'a wrong note', short: 'stopped too soon', none: 'no answer in time' };
 
@@ -75,6 +81,9 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
   const finished = useRef(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const players = useRef<AudioPlayer[]>([]);
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  const burstId = useRef(0);
+  const reduceMotion = useRef(false);
   const roomRef = useRef(room);
   roomRef.current = room;
   const host = useRef<{ state: State | null; pending: State | null; writing: boolean }>({
@@ -82,6 +91,10 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
     pending: null,
     writing: false,
   });
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion.current = v)).catch(() => {});
+  }, []);
 
   // The 8 notes, loaded once and released when the game closes.
   useEffect(() => {
@@ -110,7 +123,20 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
     }
   };
 
+  // Every note that sounds (the piano's or mine) sends a ring of light and a floating note up from its key.
+  const spawnBurst = (i: number, bad: boolean) => {
+    if (reduceMotion.current) return;
+    const id = ++burstId.current;
+    const t = new Animated.Value(0);
+    const b: Burst = { id, col: i % 4, row: Math.floor(i / 4), glyph: bad ? '✕' : id % 2 ? '♪' : '♫', bad, t };
+    setBursts((cur) => [...cur.slice(-11), b]);
+    Animated.timing(t, { toValue: 1, duration: BURST_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(() =>
+      setBursts((cur) => cur.filter((x) => x.id !== id))
+    );
+  };
+
   const flash = (i: number, bad = false, ms = 240) => {
+    spawnBurst(i, bad);
     setLit(i);
     setLitBad(bad);
     timers.current.push(
@@ -288,6 +314,8 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
   const rev = st.reveal;
   const beat = Math.max(1, Math.ceil(difficultyFor(st.round) * 5));
   const tile = Math.floor((boardW - PAD * 2 - GAP * 3) / 4);
+  const tileH = Math.round(tile * 1.3);
+  const gridW = tile * 4 + GAP * 3;
 
   const hand = (seq: string, wrong: boolean) => {
     setMine(wrong ? 'wrong' : 'sent');
@@ -336,7 +364,7 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
           styles.tile,
           {
             width: tile,
-            height: Math.round(tile * 1.3),
+            height: tileH,
             marginRight: col === 3 ? 0 : GAP,
             marginBottom: row === 0 ? GAP : 0,
             backgroundColor: white ? c.ivory : c.ebony,
@@ -346,6 +374,7 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
           pressed && canPlay && { opacity: 0.85 },
         ]}
       >
+        <View pointerEvents="none" style={[styles.shine, { backgroundColor: white ? 'rgba(255,255,255,0.85)' : 'rgba(183,156,255,0.55)' }]} />
         <Text style={[styles.tileText, { color: white ? c.ebony : c.ivory }, on && !litBad && !white && { color: c.goldBright }]}>
           {NOTE_NAMES[i]}
         </Text>
@@ -398,7 +427,56 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
 
       {/* The tiles: 2 rows of 4 */}
       <View style={styles.board} onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}>
-        <View style={styles.grid}>{Array.from({ length: TILES }, (_, i) => renderTile(i))}</View>
+        <View style={{ width: gridW }}>
+          <View style={styles.grid}>{Array.from({ length: TILES }, (_, i) => renderTile(i))}</View>
+          {/* the light and the notes rising from the keys */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {bursts.map((b) => {
+              const cx = b.col * (tile + GAP) + tile / 2;
+              const cy = b.row * (tileH + GAP) + tileH / 2;
+              const ring = tile * 0.9;
+              const tint = b.bad ? c.bad : c.gold;
+              return (
+                <React.Fragment key={b.id}>
+                  <Animated.View
+                    style={{
+                      position: 'absolute',
+                      left: cx - ring / 2,
+                      top: cy - ring / 2,
+                      width: ring,
+                      height: ring,
+                      borderRadius: ring / 2,
+                      borderWidth: 3,
+                      borderColor: tint,
+                      opacity: b.t.interpolate({ inputRange: [0, 1], outputRange: [0.85, 0] }),
+                      transform: [{ scale: b.t.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.9] }) }],
+                    }}
+                  />
+                  <Animated.Text
+                    style={{
+                      position: 'absolute',
+                      left: cx - 12,
+                      top: cy - 16,
+                      width: 24,
+                      textAlign: 'center',
+                      fontSize: 24,
+                      fontWeight: '900',
+                      color: b.bad ? c.bad : b.col % 2 === 0 ? c.goldBright : c.violetSoft,
+                      opacity: b.t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] }),
+                      transform: [
+                        { translateY: b.t.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
+                        { translateX: b.t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, b.col % 2 === 0 ? 10 : -10, 0] }) },
+                        { scale: b.t.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.4] }) },
+                      ],
+                    }}
+                  >
+                    {b.glyph}
+                  </Animated.Text>
+                </React.Fragment>
+              );
+            })}
+          </View>
+        </View>
       </View>
 
       {/* The players */}
@@ -479,16 +557,17 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(9,9,14,0.8)',
     borderWidth: 2,
-    borderColor: c.goldDeep,
-    borderRadius: 14,
+    borderColor: c.violet,
+    borderRadius: 16,
     padding: PAD,
     alignItems: 'center',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  tile: { borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 },
-  tileLitWhite: { backgroundColor: c.goldBright, borderColor: c.gold },
-  tileLitBlack: { backgroundColor: c.goldWash, borderColor: c.gold },
-  tileBad: { backgroundColor: c.bad, borderColor: c.bad },
+  tile: { borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 },
+  shine: { position: 'absolute', top: 0, left: 8, right: 8, height: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
+  tileLitWhite: { backgroundColor: c.goldBright, borderColor: c.gold, shadowColor: c.gold, shadowOpacity: 0.95, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
+  tileLitBlack: { backgroundColor: c.goldWash, borderColor: c.gold, shadowColor: c.gold, shadowOpacity: 0.95, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
+  tileBad: { backgroundColor: c.bad, borderColor: c.bad, shadowColor: c.bad, shadowOpacity: 0.9, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
   tileText: { fontFamily: FONT_PIANO, fontSize: 16, fontWeight: '800' },
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   player: {

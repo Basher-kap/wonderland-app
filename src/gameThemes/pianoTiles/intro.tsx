@@ -2,9 +2,9 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { IntroTheme } from '../types';
 import { stage as sc, FONT_PIANO } from './theme';
-import { RecitalBackground } from './RecitalBackground';
+import { SymphonyBackground } from './SymphonyBackground';
 
-// Piano Tiles: the rules sit on a black lacquer lid edged in gold, a note carved in each top corner.
+// Piano Tiles: the rules glow on a deep blue tablet edged in gold, a note in each top corner.
 function NoteDecor() {
   return (
     <>
@@ -12,7 +12,7 @@ function NoteDecor() {
         <Text style={[notes.glyph, { color: sc.gold }]}>♪</Text>
       </View>
       <View pointerEvents="none" style={notes.right}>
-        <Text style={[notes.glyph, { color: sc.ivory }]}>♫</Text>
+        <Text style={[notes.glyph, { color: sc.violetSoft }]}>♫</Text>
       </View>
     </>
   );
@@ -25,12 +25,12 @@ const notes = StyleSheet.create({
 });
 
 export const intro: IntroTheme = {
-  Backdrop: RecitalBackground,
+  Backdrop: SymphonyBackground,
   accent: sc.gold,
   text: sc.ivory,
   hint: sc.muted,
-  bullet: sc.goldBright,
+  bullet: sc.violetSoft,
   fontFamily: FONT_PIANO,
-  dialog: { backgroundColor: sc.tablet, borderColor: sc.gold, borderWidth: 3, borderRadius: 10, paddingTop: 42 },
+  dialog: { backgroundColor: sc.tablet, borderColor: sc.gold, borderWidth: 3, borderRadius: 14, paddingTop: 42 },
   Decor: NoteDecor,
 };

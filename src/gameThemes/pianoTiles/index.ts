@@ -1,3 +1,3 @@
-export * from './RecitalBackground';
+export * from './SymphonyBackground';
 export * from './theme';
 export { intro as pianoTilesIntro } from './intro';
