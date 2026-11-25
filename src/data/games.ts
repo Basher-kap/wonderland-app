@@ -321,7 +321,7 @@ export const GAMES: Game[] = [
     clearConditions: ['Finish the game holding the Joker card.'],
     additionalRulesHeading: 'Game Over',
     additionalRules: [
-      'Players are eliminated, and electrocuted via a wire connected to their chair, if:',
+      'Players are eliminated, if:',
       'the Joker card is drawn from them,',
       'they run out of cards, or',
       'they leave their seat.',
