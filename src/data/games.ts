@@ -355,6 +355,19 @@ export const GAMES: Game[] = [
     ],
     clearConditions: ['The player who survives all the rounds wins the game.'],
   },
+  {
+    id: 'stroop-effect',
+    name: 'Stroop Effect',
+    domain: 'logic',
+    difficulty: 'easy',
+    description: 'Name the color a word is written in, not the word itself.',
+    rules: [
+      'Each round, a color word appears on the screen and player must click the color that the word is written in.',
+      'Correct answers earn 1 point, while incorrect answers lose 1 point.',
+      'Questions become progressively faster or more challenging as the game continues.',
+    ],
+     clearConditions: ['The player with the highest score after all questions wins the game.'],
+  },
 ];
 
 export const getGame = (id: string) => GAMES.find((g) => g.id === id);

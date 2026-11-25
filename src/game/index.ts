@@ -21,3 +21,4 @@ export * as beautyContest from './beautyContest';
 export * as oldMaid from './oldMaid';
 export * as pianoTiles from './pianoTiles';
 export * as russianRoulette from './russianRoulette';
+export * as stroop from './stroop';

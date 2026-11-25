@@ -1,0 +1,20 @@
+const s=require('./stroop.js');const assert=require('assert');
+for(let k=0;k<3000;k++){const q=s.buildQuestions('m:'+k);const q2=s.buildQuestions('m:'+k);
+ assert.deepStrictEqual(q,q2);assert.strictEqual(q.length,20);
+ q.forEach((x,i)=>{assert(x.options.includes(x.ink));assert(x.options.includes(x.word));assert.strictEqual(new Set(x.options).size,x.options.length);
+  assert.strictEqual(x.options.length,i<10?4:6);
+  if(i>=2)assert(!(x.ink===q[i-1].ink&&x.ink===q[i-2].ink));
+  if(i>0)assert(x.limitMs<=q[i-1].limitMs)});
+ assert.strictEqual(q[0].limitMs,5000);assert.strictEqual(q[19].limitMs,2500);}
+let same=[0,0];for(let k=0;k<3000;k++)s.buildQuestions('x:'+k).forEach((x,i)=>{same[i<10?0:1]+=x.word===x.ink?1:0});console.log('same-rate early/late',same[0]/30000,same[1]/30000);
+const q=s.buildQuestions('a');
+const ans=q.map((x,i)=>i<5?{picked:x.ink,ms:1000}:i<8?{picked:x.options.find(c=>c!==x.ink),ms:900}:{picked:null,ms:0});
+const r=s.summarize(q,ans);console.log(r);assert.strictEqual(r.score,5);
+assert.strictEqual(s.summarize(q,[{picked:q[0].ink,ms:99999}]).totalMs,5000);
+const R=(uid,score,totalMs,o={})=>({uid,finished:true,totalMs,score,...o});
+assert.strictEqual(s.pickWinner([R('a',10,5000),R('b',12,9000)]),'b');
+assert.strictEqual(s.pickWinner([R('a',12,9000),R('b',12,8000)]),'b');
+assert.strictEqual(s.pickWinner([R('a',12,8000),R('b',12,8000)]),null);
+assert.strictEqual(s.pickWinner([R('a',20,1,{forfeited:true}),R('b',1,9000)]),'b');
+assert.strictEqual(s.pickWinner([{uid:'a',finished:false,totalMs:0}]),null);
+console.log('stroop ok');

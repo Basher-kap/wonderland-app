@@ -35,6 +35,8 @@ import { OldMaidGame } from './OldMaidGame';
 import { describeResult as describePianoResult, pickWinner as pickPianoWinner } from '../game/pianoTiles';
 import { PianoTilesGame } from './PianoTilesGame';
 import { RussianRouletteGame } from './RussianRouletteGame';
+import { StroopGame } from './StroopGame';
+import { describeScore as describeStroop, pickWinner as pickHighestStroopScore } from '../game/stroop';
 
 import type { GameProps } from './types';
 
@@ -235,6 +237,13 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
     endsOnFirstFinish: true,
     fullScreen: true, // the whole screen, no scrolling: the glade must stay in the frame
+  },
+  'stroop-effect': {
+    Component: StroopGame,
+    // Highest score wins; a tie goes to the lower total time; a tie on both is a draw.
+    pickWinner: pickHighestStroopScore,
+    describe: describeStroop,
+    fullScreen: true, // the whole screen, no scrolling: the buttons must stay in the frame
   },
     'beauty-contest': {
     Component: BeautyContestGame,
