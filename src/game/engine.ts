@@ -87,11 +87,13 @@ export function shuffle<T>(items: readonly T[], rand: () => number = Math.random
 // Beauty Contest is the only game a lobby of BEAUTY_ONLY_FROM or more players plays; smaller lobbies
 // never draw it (its special rules wait for 4 players left, so it needs a big start).
 export const BEAUTY_CONTEST_ID = 'beauty-contest';
+export const PLEASURE_ID = 'pleasure';
 export const BEAUTY_ONLY_FROM = 5;
+const BIG_LOBBY_GAMES = [BEAUTY_CONTEST_ID, PLEASURE_ID];
 const gamePool = (players: number) =>
   players >= BEAUTY_ONLY_FROM
-    ? [BEAUTY_CONTEST_ID]
-    : GAMES.map((g) => g.id).filter((id) => id !== BEAUTY_CONTEST_ID);
+    ? BIG_LOBBY_GAMES
+    : GAMES.map((g) => g.id).filter((id) => !BIG_LOBBY_GAMES.includes(id));
 
 
 // Host starts the match: everyone gets 10 lives and a clean tally, the first
