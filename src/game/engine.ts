@@ -1,27 +1,11 @@
-// Pure game rules: no Firebase, no React. Everything takes a state and returns
-// a new state, so it can be tested on its own (see app/test/engine.test.cjs).
-// The app runs these rules on the host's phone and saves the result to Firestore.
-
 import { DEFAULT_DIFFICULTY, DIFFICULTY_MULTIPLIER, GAMES, difficultyOf } from '../data/games';
 import type { Difficulty } from '../data/games';
 import type { Domain } from '../theme/base';
 
 export const START_LIVES = 10;
 export const MAX_PLAYERS = 8;
-
-// Personal ranking points, kept per domain on each player's own profile. They have
-// nothing to do with lives or tickets. A round WON adds WIN_POINTS in that game's
-// domain, a round LOST takes away LOSS_POINTS (a draw changes nothing). Both are
-// multiplied by the difficulty of that one game (x2 easy, x3 normal, x5 hard, see
-// DIFFICULTY_MULTIPLIER in data/games.ts). A domain's points never go below 0.
-// IMPORTANT: backend/firestore.rules repeats the base numbers (10 and 5) and the largest
-// multiplier (5) as a sanity limit, so change them in both places.
 export const WIN_POINTS = 10;
 export const LOSS_POINTS = 5;
-// Some games give EVERY player extra points on top of the win/loss points, for what they did in
-// the game (Wordle: 5 / 10 / 20 for each word guessed). Extras are NOT multiplied by the difficulty
-// and are earned win, lose or draw. MAX_EXTRA is the most one player can get from one game;
-// backend/firestore.rules repeats it (a round can be worth at most 10 x 5 + 35 = 85 points).
 export const MAX_EXTRA = 35;
 
 export type DomainCount = Record<Domain, number>;
@@ -34,8 +18,6 @@ export type PlayerState = {
   wins: DomainCount; // rounds won in this match, per domain
   losses: DomainCount; // rounds lost in this match, per domain (a draw is neither)
   plays: DomainCount; // rounds played in this match, per domain
-  // Ranking points earned in this match per domain: signed, already multiplied by each round's
-  // difficulty. Added to the player's profile points when the match is settled.
   pts: DomainCount;
 };
 
@@ -53,10 +35,7 @@ export type RoundState = {
   no: number;
   gameId: string;
   difficulty?: Difficulty; // missing on rounds saved before difficulty existed
-  // false when the round is drawn; the host sets it to true once EVERY player has finished
-  // reading the intro, and that is the moment all the boards start together.
   go?: boolean;
-  // Set when the match was ended because this player forfeited it (the round counts for nobody).
   quitBy?: string;
   status: 'active' | 'done';
   winnerId: string | null;
@@ -72,7 +51,6 @@ export type MatchState = {
   winnerId: string | null;
 };
 
-// An expected, user-facing problem (as opposed to a bug).
 export class RuleError extends Error {}
 
 export function shuffle<T>(items: readonly T[], rand: () => number = Math.random): T[] {
@@ -84,20 +62,16 @@ export function shuffle<T>(items: readonly T[], rand: () => number = Math.random
   return out;
 }
 
-// Beauty Contest is the only game a lobby of BEAUTY_ONLY_FROM or more players plays; smaller lobbies
-// never draw it (its special rules wait for 4 players left, so it needs a big start).
 export const BEAUTY_CONTEST_ID = 'beauty-contest';
 export const PLEASURE_ID = 'pleasure';
 export const BEAUTY_ONLY_FROM = 5;
 const BIG_LOBBY_GAMES = [BEAUTY_CONTEST_ID, PLEASURE_ID];
 const gamePool = (players: number) =>
-  players >= BEAUTY_ONLY_FROM
-    ? BIG_LOBBY_GAMES
-    : GAMES.map((g) => g.id).filter((id) => !BIG_LOBBY_GAMES.includes(id));
-
-
-// Host starts the match: everyone gets 10 lives and a clean tally, the first
-// leg is shuffled, and the first game is drawn.
+  GAMES.filter((g) => {
+    if (BIG_LOBBY_GAMES.includes(g.id) && players < BEAUTY_ONLY_FROM) return false; // only with 5+ players
+    return (g.minPlayers ?? 1) <= players; // Old Maid needs 4+
+  }).map((g) => g.id);
+  
 export function startMatch(
   state: MatchState,
   matchId: string,
@@ -134,8 +108,6 @@ export function startMatch(
   );
 }
 
-// Games are drawn at random without repeats until all of them were played
-// (one leg). Then a new shuffled leg begins.
 export function drawNextGame(state: MatchState, rand: () => number = Math.random): MatchState {
   if (state.status !== 'playing') throw new RuleError('The lobby is not in play.');
   if (state.currentRound?.status === 'active') throw new RuleError('A round is already active.');
@@ -144,7 +116,8 @@ export function drawNextGame(state: MatchState, rand: () => number = Math.random
   let queue = [...state.gameQueue];
   if (queue.length === 0) {
     leg += 1;
-    queue = shuffle(gamePool(Object.keys(state.players).length), rand);  }
+    queue = shuffle(gamePool(Object.keys(state.players).length), rand);
+  }
   const [gameId, ...rest] = queue;
   const game = GAMES.find((g) => g.id === gameId);
 
@@ -169,11 +142,6 @@ export type RoundOutcome = {
   eliminated: string[]; // players who reached 0 lives
   matchWinnerId: string | null; // player with the most lives left
 };
-
-// Losers of the round lose 1 life, the winner keeps theirs. A null winner is a
-// draw: nobody loses a life. Everyone's round tally goes up. When someone
-// reaches 0 lives the match ends; the winner is the player with the most lives
-// left (ties: whoever joined first).
 export function applyRoundResult(
   state: MatchState,
   winnerId: string | null,
@@ -241,11 +209,6 @@ export function applyRoundResult(
   };
 }
 
-// A player forfeits the WHOLE match: they are out (0 lives), so the match ends for everybody,
-// exactly like when someone runs out of lives. The winner is whoever has the most lives left
-// (ties: whoever joined first). The unfinished round counts for nobody: no lives, no wins, no
-// losses, no points. The quitter's ticket goes down and the winner's goes up when the match is
-// settled, like any other match.
 export function forfeitMatch(state: MatchState, uid: string): MatchState {
   if (state.status !== 'playing') throw new RuleError('The lobby is not in play.');
   if (!state.players[uid]) throw new RuleError('That player is not in this lobby.');
@@ -277,8 +240,6 @@ export type Settlement = {
   pointsDelta: DomainCount; // per domain: the match's difficulty-multiplied win/loss points (can be negative)
 };
 
-// What a finished match changes on ONE player's profile. Each phone applies its
-// own settlement once (the Firestore rules check it against the lobby).
 export function settlementFor(state: MatchState, uid: string): Settlement {
   if (state.status !== 'finished') throw new RuleError('The match is not finished.');
   const me = state.players[uid];

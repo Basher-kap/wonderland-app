@@ -22,6 +22,7 @@ export type Game = {
   additionalRulesHeading?: string; // heading of that dialog; defaults to "Additional Rule"
   // Not decided for most games yet, so they use DEFAULT_DIFFICULTY until you set one here.
   difficulty?: Difficulty;
+  minPlayers?: number; // the game is only drawn when the lobby has at least this many players
 };
 
 export const DEFAULT_DIFFICULTY: Difficulty = 'normal';
@@ -305,6 +306,26 @@ export const GAMES: Game[] = [
       'Everyone is given 45 seconds to memorize the cards on the other players’ racks.',
     ],
     clearConditions: ['Players who have emptied their cards clear the game.'],
+  },
+   {
+    id: 'old-maid',
+    name: 'Old Maid',
+    domain: 'chance',
+    difficulty: 'normal',
+    minPlayers: 4,
+    description: 'Draw cards from the player on your right and be the one who ends up holding the Joker.',
+    rules: [
+      'Each player starts with seven cards and discards matching number pairs.',
+      'Players draw one card at a time from the player on their right (moving counterclockwise).',
+    ],
+    clearConditions: ['Finish the game holding the Joker card.'],
+    additionalRulesHeading: 'Game Over',
+    additionalRules: [
+      'Players are eliminated, and electrocuted via a wire connected to their chair, if:',
+      'the Joker card is drawn from them,',
+      'they run out of cards, or',
+      'they leave their seat.',
+    ],
   },
 ];
 

@@ -31,6 +31,7 @@ import { MemoryCardGame } from './MemoryCardGame';
 import { BeautyContestGame } from './BeautyContestGame';
 import { pickWinner as pickSugorokuWinner } from '../game/futureSugoroku';
 import { FutureSugorokuGame } from './FutureSugorokuGame';
+import { OldMaidGame } from './OldMaidGame';
 
 import type { GameProps } from './types';
 
@@ -252,5 +253,15 @@ export const GAME_MODULES: Record<string, GameModule> = {
     // escape in the same turn are all counted before the winner is picked.
     multiStage: true,
     needsRoom: true,
+  },
+  'old-maid': {
+    Component: OldMaidGame,
+    // Only the survivor holding the Joker reports finished: true (nobody = a draw).
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'survived with the Joker' : 'electrocuted'),
+    multiStage: true, // the board stays for players who are out, so they can watch
+    needsRoom: true,
+    endsOnFirstFinish: true,
+    fullScreen: true,
   },
 };

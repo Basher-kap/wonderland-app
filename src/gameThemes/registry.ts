@@ -16,6 +16,7 @@ import { RuinsBackground, lightBulbIntro } from './lightBulb';
 import { SeanceBackground, memoryCardIntro } from './memoryCard';
 import { RoyalCourtBackground, beautyContestIntro } from './beautyContest';
 import { CosmosBackground, futureSugorokuIntro } from './futureSugoroku';
+import { PlazaBackground, oldMaidIntro } from './oldMaid';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
 // Space look. To give a new game a look: add a folder next to the others (theme.ts, a background,
@@ -38,6 +39,7 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   'memory-card': { Backdrop: SeanceBackground, intro: memoryCardIntro },
   'beauty-contest': { Backdrop: RoyalCourtBackground, intro: beautyContestIntro },
   'future-sugoroku': { Backdrop: CosmosBackground, intro: futureSugorokuIntro },
+  'old-maid': { Backdrop: PlazaBackground, intro: oldMaidIntro },
 };
 
 // The background of the whole game screen (GameScreen) and of the rules dialogs (RoundIntro).
