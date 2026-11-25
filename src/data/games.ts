@@ -327,6 +327,19 @@ export const GAMES: Game[] = [
       'they leave their seat.',
     ],
   },
+  {
+    id: 'piano-tiles',
+    name: 'Piano Tiles',
+    domain: 'experience',
+    description: 'Play back the piano’s melody note for note. It gets longer every round.',
+    difficulty: 'normal',
+    rules: [
+      'A piano will play in a series of rounds.',
+      'Each player will have to play exactly the notes that the piano played, in order.',
+      'As the match goes on, the tune gets longer and longer.',
+    ],
+    clearConditions: ['The remaining players who survive the rounds clear the game.'],
+  },
 ];
 
 export const getGame = (id: string) => GAMES.find((g) => g.id === id);

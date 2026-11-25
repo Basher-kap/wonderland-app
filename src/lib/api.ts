@@ -1372,6 +1372,83 @@ export function subscribeTerritory(
   );
 }
 
+// ------------------------------------------------------------ Piano Tiles ----
+export type PianoMove = {
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  seq: string; // the tiles played, as digits 0-7 ("0472...")
+  ms: number; // how long the player took, in ms
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type PianoSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: PianoMove[];
+};
+
+export async function sendPianoMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number; seq: string; ms: number }
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  // The id must be "<uid>_<digits>": the time plus 3 random digits keeps it unique.
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  await setDoc(doc(database(), 'lobbies', code, 'piano', id), {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    seq: move.seq,
+    ms: Math.round(move.ms),
+    at: serverTimestamp(),
+  });
+}
+
+// HOST only.
+export async function writePianoState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'piano', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribePiano(
+  rawCode: string,
+  onData: (snap: PianoSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'piano'),
+    (snap) => {
+      let state: PianoSnapshot['state'] = null;
+      const moves: PianoMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as PianoSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as PianoMove), at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 // -------------------------------------------------------- Battleships ----
 export type BattleshipsMove = {
   uid: string;

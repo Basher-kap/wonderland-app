@@ -1,0 +1,515 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
+import {
+  apply,
+  difficultyFor,
+  LISTEN_LEAD_MS,
+  newGame,
+  NOTE_NAMES,
+  pickWinner,
+  planFor,
+  publicState,
+  remainingNow,
+  ROUND_CAP,
+  shuffleOrder,
+  State,
+  TILES,
+  tick,
+} from '../game/pianoTiles';
+import * as api from '../lib/api';
+import { stage as c, FONT_PIANO } from '../gameThemes/pianoTiles';
+import type { GameProps } from './types';
+
+// Piano Tiles: a piano plays a melody and everybody plays it back, note for note, on 8 tiles (2 rows
+// x 4 columns, white and black alternating) that sound Do Re Mi Fa Sol La Ti DO. A wrong note, a
+// melody cut short or running out of time puts you out; the survivors face a longer melody and a
+// harder beat in the next round, and the ones who survive clear the game.
+//
+// All the rules live in src/game/pianoTiles.ts. The HOST's phone is the only one that runs the game:
+// it applies what everybody played (saved in lobbies/{code}/piano) and saves the state, which every
+// phone shows. Every phone plays the melody ITSELF from the seed (it is not in the saved state), so
+// there is no sound to stream. What the players played is not in the saved state until the reveal.
+// If the host forfeits the game, the others cannot continue (known limit, same as Fortune and
+// Xibalba). The forfeit buttons are GameScreen's.
+//
+// SOUND: the 8 notes are the files assets/sounds/piano-1.wav ... piano-8.wav (synthesized piano
+// tones; replace them with real piano samples under the same names whenever you like), played with
+// expo-audio (npx expo install expo-audio).
+//
+// LOOK: the Midnight Recital (src/gameThemes/pianoTiles/), a placeholder until you send a design.
+//
+// Hidden notes kept here on purpose, not on the game screen: the melody grows by one note a round,
+// the beat gets faster and more uneven up to the 8th round, only the notes count (not your rhythm),
+// a round nobody passes is played again, and the fastest survivor wins if several clear the game.
+
+const SOUNDS = [
+  require('../../assets/sounds/piano-1.wav'),
+  require('../../assets/sounds/piano-2.wav'),
+  require('../../assets/sounds/piano-3.wav'),
+  require('../../assets/sounds/piano-4.wav'),
+  require('../../assets/sounds/piano-5.wav'),
+  require('../../assets/sounds/piano-6.wav'),
+  require('../../assets/sounds/piano-7.wav'),
+  require('../../assets/sounds/piano-8.wav'),
+];
+
+const PAD = 10;
+const GAP = 8;
+const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
+const REASON: Record<string, string> = { wrong: 'a wrong note', short: 'stopped too soon', none: 'no answer in time' };
+
+export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
+  const [st, setSt] = useState<State | null>(null);
+  const [lit, setLit] = useState<number | null>(null); // the tile that is sounding or pressed
+  const [litBad, setLitBad] = useState(false); // ... and it was a wrong note
+  const [heard, setHeard] = useState(0); // notes of the melody heard so far this round
+  const [entered, setEntered] = useState(''); // what I have played this round
+  const [mine, setMine] = useState<'idle' | 'sent' | 'wrong'>('idle');
+  const [boardW, setBoardW] = useState(320);
+  const [, setFrame] = useState(0); // re-render a few times per second for the countdown
+  const receivedAt = useRef(Date.now());
+  const startedAt = useRef(Date.now());
+  const playFrom = useRef(0); // when my play phase started (my phone's clock)
+  const finished = useRef(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const players = useRef<AudioPlayer[]>([]);
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  const host = useRef<{ state: State | null; pending: State | null; writing: boolean }>({
+    state: null,
+    pending: null,
+    writing: false,
+  });
+
+  // The 8 notes, loaded once and released when the game closes.
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    players.current = SOUNDS.map((src) => createAudioPlayer(src));
+    return () => {
+      players.current.forEach((p) => {
+        try {
+          p.release();
+        } catch {
+          // already gone
+        }
+      });
+      players.current = [];
+    };
+  }, []);
+
+  const playNote = (i: number) => {
+    const p = players.current[i];
+    if (!p) return;
+    try {
+      p.seekTo(0);
+      p.play();
+    } catch {
+      // a note that fails to play must not stop the game
+    }
+  };
+
+  const flash = (i: number, bad = false, ms = 240) => {
+    setLit(i);
+    setLitBad(bad);
+    timers.current.push(
+      setTimeout(() => {
+        setLit((cur) => (cur === i ? null : cur));
+        setLitBad(false);
+      }, ms)
+    );
+  };
+
+  // Subscribe to the game. The host also runs it.
+  useEffect(() => {
+    const r = roomRef.current;
+    if (!r) return;
+    const round = { matchId: r.matchId, roundNo: r.roundNo };
+    const h = host.current;
+    const withClock = (s: State): State => ({
+      ...publicState(s),
+      remainingMs: s.endsAt ? Math.max(0, s.endsAt - Date.now()) : 0,
+    });
+
+    const show = (s: State) => {
+      receivedAt.current = Date.now();
+      setSt(s);
+    };
+
+    // Save the latest state (one write at a time; only the newest state matters).
+    const flush = () => {
+      if (h.writing || !h.pending) return;
+      const s = h.pending;
+      h.pending = null;
+      h.writing = true;
+      api
+        .writePianoState(r.code, round, s.ver, JSON.stringify(withClock(s)))
+        .catch((e) => console.warn('saving the game failed', e))
+        .finally(() => {
+          h.writing = false;
+          flush();
+        });
+    };
+    const hostSet = (s: State) => {
+      h.state = s;
+      h.pending = s;
+      show(withClock(s));
+      flush();
+    };
+
+    const unsubscribe = api.subscribePiano(
+      r.code,
+      (snap) => {
+        let docState: State | null = null;
+        if (snap.state && snap.state.matchId === round.matchId && snap.state.roundNo === round.roundNo) {
+          try {
+            docState = JSON.parse(snap.state.data) as State;
+          } catch {
+            docState = null;
+          }
+        }
+        if (!r.isHost) {
+          if (docState) show(docState);
+          return;
+        }
+        // HOST: start the game (or carry on from the saved state), then apply what was played.
+        if (!h.state) {
+          if (docState) {
+            h.state = docState;
+            show(docState);
+          } else {
+            hostSet(newGame(shuffleOrder(r.playerIds, seed), seed, Date.now()));
+          }
+        }
+        let s = h.state!;
+        const moves = snap.moves
+          .filter((m) => m.matchId === round.matchId && m.roundNo === round.roundNo)
+          .sort((a, b) => a.at - b.at);
+        for (const m of moves) s = apply(s, { uid: m.uid, rev: m.rev, seq: m.seq, ms: m.ms, at: m.at });
+        if (s !== h.state) hostSet(s);
+      },
+      (e) => console.warn('game listener failed', e)
+    );
+
+    // HOST: the timers (listening, playing, the reveal) and players who forfeited.
+    const timer = r.isHost
+      ? setInterval(() => {
+          if (!h.state) return;
+          const next = tick(h.state, Date.now(), roomRef.current?.out ?? []);
+          if (next !== h.state) hostSet(next);
+        }, 200)
+      : null;
+
+    return () => {
+      unsubscribe();
+      if (timer) clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => f + 1), 100);
+    return () => clearInterval(id);
+  }, []);
+
+  // A new phase: the piano plays the melody (listen), or my board is cleared for playing it back.
+  useEffect(() => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    setLit(null);
+    setLitBad(false);
+    setEntered('');
+    setMine('idle');
+    if (!st) return;
+    if (st.phase === 'listen') {
+      setHeard(0);
+      const plan = planFor(st.seed, st.round, st.redo);
+      plan.notes.forEach((note, k) => {
+        timers.current.push(
+          setTimeout(() => {
+            playNote(note);
+            flash(note, false, Math.min(260, Math.max(90, (plan.onsets[k + 1] ?? plan.onsets[k] + 600) - plan.onsets[k] - 40)));
+            setHeard(k + 1);
+          }, LISTEN_LEAD_MS + plan.onsets[k])
+        );
+      });
+    } else if (st.phase === 'play') {
+      playFrom.current = Date.now();
+    }
+    return () => {
+      timers.current.forEach(clearTimeout);
+      timers.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev]);
+
+  // The game is over: after a moment everybody reports. Only those who cleared it "finished".
+  useEffect(() => {
+    if (st?.phase !== 'over' || finished.current) return;
+    const id = setTimeout(() => {
+      if (finished.current) return;
+      finished.current = true;
+      onFinish({
+        finished: st.winners.includes(uid),
+        totalMs: st.times[uid] ?? 0,
+        score: Math.min(1000, st.rounds[uid] ?? 0),
+      });
+    }, 4000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.phase, st?.winners]);
+
+  if (!room) {
+    return (
+      <View style={styles.waiting}>
+        <Text style={styles.waitingTitle}>Piano Tiles needs other players</Text>
+        <Text style={styles.waitingText}>Create or join a lobby to play it.</Text>
+      </View>
+    );
+  }
+  if (!st) {
+    return (
+      <View style={styles.waiting}>
+        <Text style={styles.waitingText}>The piano is warming up…</Text>
+      </View>
+    );
+  }
+
+  const name = (id: string) => room.usernames[id] ?? 'A player';
+  const who = (id: string) => (id === uid ? 'You' : name(id));
+  const left = remainingNow(st, receivedAt.current, Date.now());
+  const alive = st.alive.includes(uid);
+  const plan = planFor(st.seed, st.round, st.redo);
+  const length = plan.notes.length;
+  const listening = st.phase === 'listen';
+  const playing = st.phase === 'play';
+  const canPlay = playing && alive && mine === 'idle';
+  const rev = st.reveal;
+  const beat = Math.max(1, Math.ceil(difficultyFor(st.round) * 5));
+  const tile = Math.floor((boardW - PAD * 2 - GAP * 3) / 4);
+
+  const hand = (seq: string, wrong: boolean) => {
+    setMine(wrong ? 'wrong' : 'sent');
+    api
+      .sendPianoMove(
+        room.code,
+        { matchId: room.matchId, roundNo: room.roundNo },
+        { rev: st.rev, seq, ms: Date.now() - playFrom.current }
+      )
+      .catch((e) => console.warn('handing in failed', e));
+  };
+
+  const press = (i: number) => {
+    if (!canPlay) return;
+    playNote(i);
+    const next = entered + String(i);
+    setEntered(next);
+    const wrong = plan.expected[next.length - 1] !== String(i);
+    flash(i, wrong, 260);
+    if (wrong || next.length === length) hand(next, wrong);
+  };
+
+  const overText = () => {
+    if (st.winners.length === 0) return 'Nobody mastered the melody.';
+    if (st.winners.length === 1) return `${who(st.winners[0])} ${st.winners[0] === uid ? 'clear' : 'clears'} the game!`;
+    const w = pickWinner(st.winners.map((id) => ({ uid: id, finished: true, totalMs: st.times[id] ?? 0 })));
+    const names = st.winners.map(who).join(' and ');
+    return w
+      ? `${names} survived every round. ${who(w)} ${w === uid ? 'were' : 'was'} the fastest!`
+      : `${names} survived every round. An exact tie!`;
+  };
+
+  const renderTile = (i: number) => {
+    const row = Math.floor(i / 4);
+    const col = i % 4;
+    const white = (row + col) % 2 === 0;
+    const on = lit === i;
+    return (
+      <Pressable
+        key={i}
+        onPress={() => press(i)}
+        disabled={!canPlay}
+        accessibilityRole="button"
+        accessibilityLabel={NOTE_NAMES[i]}
+        style={({ pressed }) => [
+          styles.tile,
+          {
+            width: tile,
+            height: Math.round(tile * 1.3),
+            marginRight: col === 3 ? 0 : GAP,
+            marginBottom: row === 0 ? GAP : 0,
+            backgroundColor: white ? c.ivory : c.ebony,
+            borderColor: white ? c.ivoryDeep : c.ebonyEdge,
+          },
+          on && (litBad ? styles.tileBad : white ? styles.tileLitWhite : styles.tileLitBlack),
+          pressed && canPlay && { opacity: 0.85 },
+        ]}
+      >
+        <Text style={[styles.tileText, { color: white ? c.ebony : c.ivory }, on && !litBad && !white && { color: c.goldBright }]}>
+          {NOTE_NAMES[i]}
+        </Text>
+      </Pressable>
+    );
+  };
+
+  const dotsFilled = listening ? heard : playing ? entered.length : 0;
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.top}>
+        <View style={styles.topText}>
+          <Text style={styles.round}>
+            Round {st.round} of {ROUND_CAP}
+          </Text>
+          <Text style={styles.sub}>
+            {listening
+              ? 'Listen to the piano…'
+              : playing
+                ? alive
+                  ? mine === 'idle'
+                    ? 'Play it back, note for note'
+                    : mine === 'wrong'
+                      ? 'A wrong note…'
+                      : 'Played. Waiting for the others…'
+                  : 'You are out. Watching…'
+                : st.phase === 'reveal'
+                  ? 'The verdict'
+                  : 'The recital is over'}
+          </Text>
+        </View>
+        <View style={styles.beat}>
+          <Text style={styles.beatLabel}>BEAT</Text>
+          <View style={styles.beatBars}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <View key={i} style={[styles.beatBar, { height: 6 + i * 3 }, i < beat && { backgroundColor: c.gold }]} />
+            ))}
+          </View>
+        </View>
+        {playing && <Text style={[styles.timer, left < 5000 && { color: c.bad }]}>{secondsLeft(left)}s</Text>}
+      </View>
+
+      {/* How many notes, and how far along */}
+      <View style={styles.dots}>
+        {Array.from({ length }, (_, i) => (
+          <View key={i} style={[styles.noteDot, i < dotsFilled && styles.noteDotOn]} />
+        ))}
+      </View>
+
+      {/* The tiles: 2 rows of 4 */}
+      <View style={styles.board} onLayout={(e) => setBoardW(e.nativeEvent.layout.width)}>
+        <View style={styles.grid}>{Array.from({ length: TILES }, (_, i) => renderTile(i))}</View>
+      </View>
+
+      {/* The players */}
+      <View style={styles.players}>
+        {st.order.map((id) => {
+          const out = !st.alive.includes(id);
+          const won = st.phase === 'over' && st.winners.includes(id);
+          const ready = playing && st.done.includes(id);
+          return (
+            <View key={id} style={[styles.player, id === uid && styles.playerMe, out && !won && { opacity: 0.4 }]}>
+              <Text style={styles.playerName} numberOfLines={1}>
+                {name(id)}
+                {id === uid ? ' (you)' : ''}
+              </Text>
+              <Text style={[styles.playerState, (ready || won) && { color: c.good }]}>
+                {won ? 'CLEARED' : out ? 'OUT' : ready ? '✔' : playing ? '…' : `${st.rounds[id] ?? 0}`}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {st.phase === 'reveal' && rev && (
+        <View style={styles.reveal}>
+          <Text style={[styles.revealLine, { color: c.ivory, fontWeight: '800' }]}>
+            {rev.allOut
+              ? 'Nobody got it right. The recital ends in silence.'
+              : rev.redo
+                ? `Nobody got it right. Round ${rev.round} is played again with a new melody.`
+                : rev.failed.length === 0
+                  ? `Everyone played the ${rev.length} notes perfectly.`
+                  : `${rev.passed.length === 1 ? rev.passed.map(who)[0] : rev.passed.map(who).join(', ')} played all ${rev.length} notes.`}
+          </Text>
+          {!rev.allOut && !rev.redo &&
+            rev.failed.map((f) => (
+              <Text key={f.uid} style={styles.revealLine}>
+                {who(f.uid)}: out, {REASON[f.reason]}.
+              </Text>
+            ))}
+          {rev.allOut &&
+            rev.failed.map((f) => (
+              <Text key={f.uid} style={styles.revealLine}>
+                {who(f.uid)}: {REASON[f.reason]}.
+              </Text>
+            ))}
+        </View>
+      )}
+
+      {st.phase === 'over' && (
+        <View style={styles.over}>
+          <Text style={styles.overText}>{overText()}</Text>
+        </View>
+      )}
+
+      {st.lastLeft && st.phase !== 'over' && <Text style={styles.note}>{name(st.lastLeft)} left the game.</Text>}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { gap: 12 },
+  waiting: { alignItems: 'center', gap: 6, paddingVertical: 30 },
+  waitingTitle: { color: c.ivory, fontFamily: FONT_PIANO, fontSize: 18, fontWeight: '700' },
+  waitingText: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 15 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  topText: { flex: 1, gap: 2 },
+  round: { color: c.ivory, fontFamily: FONT_PIANO, fontSize: 20, fontWeight: '800' },
+  sub: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 13 },
+  beat: { alignItems: 'center', gap: 3 },
+  beatLabel: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 9, fontWeight: '800', letterSpacing: 2 },
+  beatBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  beatBar: { width: 5, borderRadius: 2, backgroundColor: c.sheen },
+  timer: { color: c.gold, fontFamily: FONT_PIANO, fontSize: 26, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  noteDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.sheen },
+  noteDotOn: { backgroundColor: c.gold },
+  board: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(9,9,14,0.8)',
+    borderWidth: 2,
+    borderColor: c.goldDeep,
+    borderRadius: 14,
+    padding: PAD,
+    alignItems: 'center',
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  tile: { borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 10 },
+  tileLitWhite: { backgroundColor: c.goldBright, borderColor: c.gold },
+  tileLitBlack: { backgroundColor: c.goldWash, borderColor: c.gold },
+  tileBad: { backgroundColor: c.bad, borderColor: c.bad },
+  tileText: { fontFamily: FONT_PIANO, fontSize: 16, fontWeight: '800' },
+  players: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  player: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: c.panel,
+    borderWidth: 1,
+    borderColor: c.ebonyEdge,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  playerMe: { borderColor: c.gold },
+  playerName: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 13, fontWeight: '600', flex: 1 },
+  playerState: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 13, fontWeight: '800' },
+  note: { color: c.goldBright, fontFamily: FONT_PIANO, fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  reveal: { backgroundColor: c.panel, borderWidth: 2, borderColor: c.gold, borderRadius: 10, padding: 14, gap: 6 },
+  revealLine: { color: c.muted, fontFamily: FONT_PIANO, fontSize: 15, lineHeight: 22, textAlign: 'center' },
+  over: { backgroundColor: c.panel, borderWidth: 2, borderColor: c.goldBright, borderRadius: 10, padding: 18 },
+  overText: { color: c.goldBright, fontFamily: FONT_PIANO, fontSize: 22, fontWeight: '800', textAlign: 'center', lineHeight: 30 },
+});

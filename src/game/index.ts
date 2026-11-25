@@ -19,3 +19,4 @@ export * as xibalba from './xibalba';
 export * as futureSugoroku from './futureSugoroku';
 export * as beautyContest from './beautyContest';
 export * as oldMaid from './oldMaid';
+export * as pianoTiles from './pianoTiles';

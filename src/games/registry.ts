@@ -32,6 +32,8 @@ import { BeautyContestGame } from './BeautyContestGame';
 import { pickWinner as pickSugorokuWinner } from '../game/futureSugoroku';
 import { FutureSugorokuGame } from './FutureSugorokuGame';
 import { OldMaidGame } from './OldMaidGame';
+import { describeResult as describePianoResult, pickWinner as pickPianoWinner } from '../game/pianoTiles';
+import { PianoTilesGame } from './PianoTilesGame';
 
 import type { GameProps } from './types';
 
@@ -263,5 +265,14 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
     endsOnFirstFinish: true,
     fullScreen: true,
+  },
+  'piano-tiles': {
+    Component: PianoTilesGame,
+    // Only players who cleared the game report finished: true. One of them wins; several = the least playing time wins.
+    pickWinner: pickPianoWinner,
+    describe: describePianoResult,
+    // Like Fortune: the board stays for players who are out, so they can watch (and hear) the game go on.
+    multiStage: true,
+    needsRoom: true,
   },
 };
