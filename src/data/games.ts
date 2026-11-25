@@ -340,6 +340,21 @@ export const GAMES: Game[] = [
     ],
     clearConditions: ['The remaining players who survive the rounds clear the game.'],
   },
+    {
+    id: 'russian-roulette',
+    name: 'Russian Roulette',
+    domain: 'chance',
+    description: 'Load the live bullets, spin the cylinder, then shoot a player or yourself.',
+    difficulty: 'hard',
+    rules: [
+      'Each player has only 1 life in a game.',
+      'Each round has a number of live bullets to fill.',
+      'All players have to load them into their cylinders and spin it.',
+      'Players have to decide to shoot one of the other players or themselves.',
+      'Aiming at yourself will grant you protection.',
+    ],
+    clearConditions: ['The player who survives all the rounds wins the game.'],
+  },
 ];
 
 export const getGame = (id: string) => GAMES.find((g) => g.id === id);

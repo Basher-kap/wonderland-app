@@ -34,6 +34,7 @@ import { FutureSugorokuGame } from './FutureSugorokuGame';
 import { OldMaidGame } from './OldMaidGame';
 import { describeResult as describePianoResult, pickWinner as pickPianoWinner } from '../game/pianoTiles';
 import { PianoTilesGame } from './PianoTilesGame';
+import { RussianRouletteGame } from './RussianRouletteGame';
 
 import type { GameProps } from './types';
 
@@ -274,5 +275,15 @@ export const GAME_MODULES: Record<string, GameModule> = {
     // Like Fortune: the board stays for players who are out, so they can watch (and hear) the game go on.
     multiStage: true,
     needsRoom: true,
+  },
+  'russian-roulette': {
+    Component: RussianRouletteGame,
+    // Only the last player alive reports finished: true. A draw (nobody, or several survivors) = nobody finished.
+    pickWinner: pickFastestFinisher,
+    describe: (r) => (r.finished ? 'was the last one standing' : 'did not survive'),
+    multiStage: true,
+    needsRoom: true,
+    endsOnFirstFinish: true,
+    fullScreen: true,
   },
 };

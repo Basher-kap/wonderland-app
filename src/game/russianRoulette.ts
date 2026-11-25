@@ -1,0 +1,303 @@
+// Russian Roulette: pure rules, no React, no Firebase.
+//
+// Every player has ONE life. Each round a number of live bullets (bulletsFor) is placed at the centre of
+// the screen; every player loads them into the chambers of their own revolver (6 chambers, they choose
+// which) and spins the cylinder. The cylinder closes by itself and the player then has to aim: at
+// another player, or at themselves. When the time limit is reached the gun fires by itself.
+// Whether a gun fires a live bullet or a blank is decided by the SPIN: a random chamber ends up under
+// the hammer, and it is live when a bullet was loaded in it (so a gun with n live bullets fires a live
+// one n times out of 6, wherever the player put them).
+//
+// WHAT A SHOT DOES (all the guns of a round fire together, then the results are shown one by one):
+//  - A blank does nothing. A blank fired at yourself PROTECTS you: you cannot be hit by anybody's
+//    live bullet in that round.
+//  - A live bullet fired at yourself kills you.
+//  - A live bullet fired at another player kills them, unless they are protected.
+//  The last player alive wins. If everybody dies in the same round, or more than one player survives
+//  all MAX_ROUNDS rounds, nobody wins (a draw).
+//
+// ROUNDS: 1st and 2nd = 1 live bullet, 3rd and 4th = 2, ... 11th and 12th = 6 (every chamber is live,
+// so every shot kills and nobody can protect themselves any more).
+//
+// DECISIONS (change them here):
+//  - A player who does not aim before the time is up fires at THEMSELVES (DEFAULT_AIM). One who has not
+//    loaded or spun by then gets random chambers loaded.
+//  - The first aim is final: pressing a target pulls the trigger (it stays hidden until the reveal).
+//  - A target who is no longer in the game (forfeited) counts as 'self'.
+//  - A player who forfeits the game leaves at once.
+//
+// Like Fortune and Xibalba, the HOST's phone (the lobby host) is the only one that runs the game:
+// players send "moves" (load + spin, aim) and it applies them with `apply`, calls `tick` a few times per
+// second for the timers and saves the state, which every phone shows. Which chambers were loaded, where
+// each spin stopped and who aimed at whom stay on that phone (`publicState` strips them) until the reveal.
+import { makeRng } from './schulte';
+
+// ----------------------------------------------------------- tuning ----
+export const CHAMBERS = 6;
+export const MAX_ROUNDS = 12;
+export const PLAY_MS = 35000; // load, spin, aim: then the gun fires by itself
+export const MIN_PLAY_MS = 3000; // even if everybody has fired, a round lasts at least this long
+export const REVEAL_LEAD_MS = 1600; // before the first shot
+export const SHOT_MS = 3200; // for each shot
+export const SHOT_RESULT_AT = 1800; // ... the result lands this long after the shot starts
+export const REVEAL_TAIL_MS = 3400; // after the last shot (who is out, the next round)
+export const DEFAULT_AIM = 'self';
+
+export type Aim = string; // 'self' or the uid of another player
+
+export const bulletsFor = (round: number) => Math.min(CHAMBERS, Math.ceil(round / 2));
+
+export const popcount = (n: number) => {
+  let c = 0;
+  for (let x = n; x > 0; x >>= 1) c += x & 1;
+  return c;
+};
+
+// ------------------------------------------------------------ state ----
+export type Phase = 'play' | 'reveal' | 'over';
+export type Outcome = 'click' | 'shielded' | 'suicide' | 'hit' | 'blocked';
+
+export type Shot = {
+  uid: string;
+  aim: Aim; // 'self' or the target's uid
+  live: boolean;
+  auto: boolean; // the gun fired by itself (the player did not aim in time)
+  outcome: Outcome;
+};
+
+export type Reveal = {
+  round: number;
+  bullets: number;
+  shots: Shot[]; // in the order they are shown
+  dead: string[];
+  survivors: string[];
+};
+
+export type State = {
+  ver: number; // goes up on every change (the host saves when it changes)
+  rev: number; // goes up on every round / phase (moves are made for one rev)
+  seed: string;
+  order: string[];
+  gone: string[]; // players who forfeited the game
+  alive: string[];
+  round: number;
+  bullets: number; // live bullets of this round
+  phase: Phase;
+  spun: string[]; // who has loaded and spun (not WHICH chambers)
+  fired: string[]; // who has aimed (not at whom)
+  reveal: Reveal | null;
+  winner: string | null;
+  lastLeft: string | null;
+  endsAt: number; // when the running timer ends, in the HOST's clock (0 = none)
+  pickFrom: number; // when this round started, in the HOST's clock
+  remainingMs: number; // filled in when the state is saved, so every phone can count down
+  // PHONE OF THE LOBBY HOST ONLY (empty in a saved state, see publicState).
+  masks: Record<string, number>; // the loaded chambers, as bits 0-5
+  spins: Record<string, number>; // the chamber under the hammer after the spin
+  aims: Record<string, Aim>;
+};
+
+export type Move =
+  | { kind: 'load'; uid: string; rev: number; mask: number; at: number }
+  | { kind: 'aim'; uid: string; rev: number; target: Aim; at: number };
+
+export const publicState = (s: State): State => ({ ...s, masks: {}, spins: {}, aims: {} });
+
+function edit(s: State): State {
+  const c: State = JSON.parse(JSON.stringify(s));
+  c.ver = s.ver + 1;
+  return c;
+}
+
+function shuffled<T>(list: T[], rand: () => number): T[] {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// `n` random chambers loaded, as bits.
+export function autoMask(n: number, rand: () => number): number {
+  return shuffled([0, 1, 2, 3, 4, 5], rand)
+    .slice(0, n)
+    .reduce((m, i) => m | (1 << i), 0);
+}
+
+function startRound(s: State, now: number, rand: () => number) {
+  s.phase = 'play';
+  s.bullets = bulletsFor(s.round);
+  s.spun = [];
+  s.fired = [];
+  s.masks = {};
+  s.aims = {};
+  s.spins = Object.fromEntries(s.alive.map((id) => [id, Math.floor(rand() * CHAMBERS)]));
+  s.reveal = null;
+  s.pickFrom = now;
+  s.endsAt = now + PLAY_MS;
+  s.rev += 1;
+}
+
+export function newGame(order: string[], seed: string, now: number, rand: () => number = Math.random): State {
+  const s: State = {
+    ver: 1,
+    rev: 0,
+    seed,
+    order: order.slice(),
+    gone: [],
+    alive: order.slice(),
+    round: 1,
+    bullets: 1,
+    phase: 'play',
+    spun: [],
+    fired: [],
+    reveal: null,
+    winner: null,
+    lastLeft: null,
+    endsAt: 0,
+    pickFrom: now,
+    remainingMs: 0,
+    masks: {},
+    spins: {},
+    aims: {},
+  };
+  startRound(s, now, rand);
+  s.remainingMs = PLAY_MS;
+  return s;
+}
+
+// ------------------------------------------------------------ moves ----
+export function apply(state: State, move: Move): State {
+  if (state.phase !== 'play' || move.rev !== state.rev || !state.alive.includes(move.uid)) return state;
+
+  if (move.kind === 'load') {
+    if (state.masks[move.uid] !== undefined) return state; // a spin cannot be redone
+    if (!Number.isInteger(move.mask) || move.mask < 0 || move.mask >= 1 << CHAMBERS) return state;
+    if (popcount(move.mask) !== state.bullets) return state;
+    const s = edit(state);
+    s.masks[move.uid] = move.mask;
+    s.spun.push(move.uid);
+    return s;
+  }
+
+  // Aiming: only after the spin, and the first aim is final.
+  if (state.masks[move.uid] === undefined || state.aims[move.uid] !== undefined) return state;
+  const ok = move.target === 'self' || (move.target !== move.uid && state.alive.includes(move.target));
+  if (!ok) return state;
+  const s = edit(state);
+  s.aims[move.uid] = move.target;
+  s.fired.push(move.uid);
+  return s;
+}
+
+// ----------------------------------------------------------- timers ----
+// All the guns fire. Returns what happened, in the order it will be shown.
+function fireAll(s: State, rand: () => number): Reveal {
+  const bullets = s.bullets;
+  const info = s.alive.map((id) => {
+    const mask = s.masks[id] ?? autoMask(bullets, rand);
+    const asked = s.aims[id];
+    let aim: Aim = asked ?? DEFAULT_AIM;
+    if (aim !== 'self' && !s.alive.includes(aim)) aim = 'self';
+    const spin = s.spins[id] ?? Math.floor(rand() * CHAMBERS);
+    return { uid: id, aim, auto: asked === undefined, live: ((mask >> spin) & 1) === 1 };
+  });
+  const protectedIds = new Set(info.filter((i) => i.aim === 'self' && !i.live).map((i) => i.uid));
+  const dead = new Set<string>();
+  const shots: Shot[] = info.map((i) => {
+    let outcome: Outcome;
+    if (!i.live) outcome = i.aim === 'self' ? 'shielded' : 'click';
+    else if (i.aim === 'self') {
+      outcome = 'suicide';
+      dead.add(i.uid);
+    } else if (protectedIds.has(i.aim)) outcome = 'blocked';
+    else {
+      outcome = 'hit';
+      dead.add(i.aim);
+    }
+    return { uid: i.uid, aim: i.aim, live: i.live, auto: i.auto, outcome };
+  });
+  return {
+    round: s.round,
+    bullets,
+    shots: shuffled(shots, rand),
+    dead: s.alive.filter((id) => dead.has(id)),
+    survivors: s.alive.filter((id) => !dead.has(id)),
+  };
+}
+
+export const revealMs = (r: Pick<Reveal, 'shots'>) => REVEAL_LEAD_MS + r.shots.length * SHOT_MS + REVEAL_TAIL_MS;
+// When shot i starts, and when its result lands, in ms from the start of the reveal.
+export const shotStart = (i: number) => REVEAL_LEAD_MS + i * SHOT_MS;
+export const shotResultAt = (i: number) => shotStart(i) + SHOT_RESULT_AT;
+
+function resolve(s: State, now: number, rand: () => number) {
+  const reveal = fireAll(s, rand);
+  s.reveal = reveal;
+  s.alive = reveal.survivors.slice();
+  s.masks = {};
+  s.spins = {};
+  s.aims = {};
+  s.phase = 'reveal';
+  s.endsAt = now + revealMs(reveal);
+  s.rev += 1;
+}
+
+function over(s: State) {
+  s.phase = 'over';
+  s.winner = s.alive.length === 1 ? s.alive[0] : null;
+  s.endsAt = 0;
+  s.rev += 1;
+}
+
+function afterReveal(s: State, now: number, rand: () => number) {
+  if (s.alive.length <= 1 || s.round >= MAX_ROUNDS) {
+    over(s);
+    return;
+  }
+  s.round += 1;
+  startRound(s, now, rand);
+}
+
+function dropPlayer(state: State, uid: string): State {
+  const s = edit(state);
+  s.gone.push(uid);
+  s.lastLeft = uid;
+  s.alive = s.alive.filter((id) => id !== uid);
+  s.spun = s.spun.filter((id) => id !== uid);
+  s.fired = s.fired.filter((id) => id !== uid);
+  delete s.masks[uid];
+  delete s.spins[uid];
+  delete s.aims[uid];
+  // During the reveal the round is already settled: afterReveal decides what happens next.
+  if (s.alive.length <= 1 && s.phase === 'play') over(s);
+  return s;
+}
+
+// Call a few times per second on the lobby host. `left` = players who forfeited the game.
+export function tick(state: State, now: number, left: string[] = [], rand: () => number = Math.random): State {
+  if (state.phase === 'over') return state;
+  for (const id of left) if (state.order.includes(id) && !state.gone.includes(id)) return dropPlayer(state, id);
+
+  if (state.phase === 'play') {
+    const allFired = state.alive.every((id) => state.fired.includes(id)) && now >= state.pickFrom + MIN_PLAY_MS;
+    if (!allFired && now < state.endsAt) return state;
+    const s = edit(state);
+    resolve(s, now, rand);
+    return s;
+  }
+  if (state.endsAt === 0 || now < state.endsAt) return state;
+  const s = edit(state);
+  afterReveal(s, now, rand);
+  return s;
+}
+
+export const remainingNow = (state: State, receivedAt: number, now: number) =>
+  Math.max(0, state.remainingMs - (now - receivedAt));
+
+// Small deterministic shuffle for cosmetic things (which silhouette a player gets).
+export const variantOf = (seed: string, uid: string, variants: number) => {
+  const rnd = makeRng(`${seed}:rr:${uid}`);
+  return Math.floor(rnd() * variants);
+};

@@ -18,6 +18,7 @@ import { RoyalCourtBackground, beautyContestIntro } from './beautyContest';
 import { CosmosBackground, futureSugorokuIntro } from './futureSugoroku';
 import { PlazaBackground, oldMaidIntro } from './oldMaid';
 import { SymphonyBackground, pianoTilesIntro } from './pianoTiles';
+import { BlackMarketBackground, russianRouletteIntro } from './russianRoulette';
 
 // One place that says which games have their own look. A game that is not listed here keeps the
 // Space look. To give a new game a look: add a folder next to the others (theme.ts, a background,
@@ -42,6 +43,7 @@ export const GAME_LOOKS: Record<string, GameLook> = {
   'future-sugoroku': { Backdrop: CosmosBackground, intro: futureSugorokuIntro },
   'old-maid': { Backdrop: PlazaBackground, intro: oldMaidIntro },
   'piano-tiles': { Backdrop: SymphonyBackground, intro: pianoTilesIntro },
+  'russian-roulette': { Backdrop: BlackMarketBackground, intro: russianRouletteIntro },
 };
 
 // The background of the whole game screen (GameScreen) and of the rules dialogs (RoundIntro).

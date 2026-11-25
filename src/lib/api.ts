@@ -1449,6 +1449,96 @@ export function subscribePiano(
   );
 }
 
+// ------------------------------------------------------- Russian Roulette ----
+export type RouletteMove = {
+  id: string;
+  uid: string;
+  matchId: string;
+  roundNo: number;
+  rev: number;
+  kind: 'load' | 'aim';
+  mask?: number; // the loaded chambers, bits 0-5
+  target?: string; // 'self' or the uid of another player
+  at: number; // server time in ms (an estimate until the server has confirmed it)
+};
+export type RouletteSnapshot = {
+  state: { matchId: string; roundNo: number; v: number; data: string } | null;
+  moves: RouletteMove[]; // always empty for a phone that is not the lobby host
+};
+
+export async function sendRouletteMove(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  move: { rev: number } & ({ kind: 'load'; mask: number } | { kind: 'aim'; target: string })
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  const uid = myUid();
+  const id = `${uid}_${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+  const data: Record<string, unknown> = {
+    uid,
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    rev: move.rev,
+    kind: move.kind,
+    at: serverTimestamp(),
+  };
+  if (move.kind === 'load') data.mask = move.mask;
+  else data.target = move.target;
+  await setDoc(doc(database(), 'lobbies', code, 'roulette', id), data);
+}
+
+// LOBBY HOST only.
+export async function writeRouletteState(
+  rawCode: string,
+  round: { matchId: string; roundNo: number },
+  version: number,
+  data: string
+): Promise<void> {
+  const code = normalizeCode(rawCode);
+  await setDoc(doc(database(), 'lobbies', code, 'roulette', 'state'), {
+    matchId: round.matchId,
+    roundNo: round.roundNo,
+    v: version,
+    data,
+  });
+}
+
+export function subscribeRoulette(
+  rawCode: string,
+  isHost: boolean,
+  onData: (snap: RouletteSnapshot) => void,
+  onError?: (e: unknown) => void
+) {
+  if (!db) return () => {};
+  if (!isHost) {
+    return onSnapshot(
+      doc(db, 'lobbies', rawCode, 'roulette', 'state'),
+      (snap) => {
+        onData({ state: snap.exists() ? (snap.data() as RouletteSnapshot['state']) : null, moves: [] });
+      },
+      onError
+    );
+  }
+  return onSnapshot(
+    collection(db, 'lobbies', rawCode, 'roulette'),
+    (snap) => {
+      let state: RouletteSnapshot['state'] = null;
+      const moves: RouletteMove[] = [];
+      for (const d of snap.docs) {
+        const v = d.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>;
+        if (d.id === 'state') {
+          state = v as unknown as RouletteSnapshot['state'];
+        } else {
+          const at = v.at as { toMillis?: () => number } | undefined;
+          moves.push({ ...(v as unknown as RouletteMove), id: d.id, at: at?.toMillis ? at.toMillis() : Date.now() });
+        }
+      }
+      onData({ state, moves });
+    },
+    onError
+  );
+}
+
 // -------------------------------------------------------- Battleships ----
 export type BattleshipsMove = {
   uid: string;
