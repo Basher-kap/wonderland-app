@@ -276,12 +276,12 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
       lines.push(`${who(e.drawer ?? '')} left the seat.`);
     } else {
       lines.push(`${who(e.drawer ?? '')} drew a card from ${e.target === uid ? 'you' : name(e.target)}.`);
-      if (e.joker) lines.push('IT WAS THE JOKER!');
+      if (e.joker) lines.push('IT WAS THE OLD MAID!');
       else if (e.pair) lines.push(`A pair of ${rankOf(e.pair[0])}s is thrown away.`);
       if (e.auto) lines.push('(Too slow: a random card.)');
     }
     for (const o of e.out) {
-      const why = o.why === 'joker' ? 'lost the Joker' : o.why === 'empty' ? 'ran out of cards' : 'left their seat';
+      const why = o.why === 'joker' ? 'was left with the Old Maid' : o.why === 'empty' ? 'ran out of cards' : 'left their seat';
       lines.push(`${who(o.uid)} ${why}: electrocuted.`);
     }
     return lines.join(' ');
@@ -297,7 +297,7 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
         ? `${name(st.current)} is drawing from you. ${secondsLeft(left)}s`
         : `${who1}: drawing from ${name(st.target)}. ${secondsLeft(left)}s`;
   } else if (st.last) banner = eventLine(st.last);
-  if (st.phase === 'over') banner = st.winner === uid ? 'You hold the Joker. You survived!' : `${name(st.winner)} survived holding the Joker.`;
+  if (st.phase === 'over') banner = st.winner === uid ? 'You hold the Old Maid. You survived!' : `${name(st.winner)} survived holding the Old Maid.`;
 
   // seats on an ellipse, me at the bottom, the player on my right next, going counterclockwise
   const rx = Math.max(60, area.w / 2 - SEAT_W / 2 - 4);
@@ -402,7 +402,7 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
               ? ''
               : !alive
                 ? myOutWhy === 'joker'
-                  ? 'The Joker was taken from you. You are out.'
+                  ? 'The Old Maid was drawn from you. You are out.'
                   : myOutWhy === 'empty'
                     ? 'You ran out of cards. You are out.'
                     : 'You left your seat. You are out.'
@@ -434,7 +434,7 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
             <Text style={[styles.overTitle, { color: st.winner === uid ? plaza.good : plaza.warn }]}>
               {st.winner === uid ? 'GAME CLEAR' : 'GAME OVER'}
             </Text>
-            <Text style={styles.sub}>{aliveOf(st).length > 0 ? `${name(st.winner)} survived with the Joker.` : 'Nobody survived.'}</Text>
+            <Text style={styles.sub}>{aliveOf(st).length > 0 ? `${name(st.winner)} survived with the Old Maid.` : 'Nobody survived.'}</Text>
           </View>
         </View>
       )}
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   tray: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   trayHint: { color: plaza.ink, fontWeight: '800', fontSize: 13, textAlign: 'center', backgroundColor: 'rgba(255,246,226,0.85)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' },
   hand: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 10, minHeight: 90 },
-  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,246,226,0.35)' },
+  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,246,226,0.35)' },
   waiting: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   panel: { backgroundColor: plaza.paper, borderColor: plaza.gold, borderWidth: 3, borderRadius: 14, padding: 18, alignItems: 'center', maxWidth: 340 },
   title: { color: plaza.title, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 20, textAlign: 'center' },

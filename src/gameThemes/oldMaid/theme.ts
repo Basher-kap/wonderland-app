@@ -6,7 +6,7 @@ import type { ImageSourcePropType } from 'react-native';
  * and arches, a tiled fountain, orange trees and flower beds, a tiled path (azulejos) under the
  * players, and festive bunting strung across the top. Everything is bright and warm; the playing cards
  * are cream with big red / ink indices so they read at a glance, and the card backs show a blue and
- * white tile pattern. Only the Joker's wire (the zap) breaks the mood.
+ * white tile pattern. Only the Old Maid's wire (the zap) breaks the mood.
  *
  * BACKGROUND IMAGE: when your design is ready, put the file in assets/images/ and replace `null`
  * below with:  require('../../../assets/images/old-maid-bg.png')

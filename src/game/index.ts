@@ -1,5 +1,3 @@
-// Pure rules, no React. engine = the match model; every mini-game's own rules are a namespace
-// (their exports share names such as pickWinner), e.g. `import { schulte } from '../game'`.
 export * from './engine';
 export * as battleships from './battleships';
 export * as fortune from './fortune';

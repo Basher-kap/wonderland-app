@@ -11,7 +11,7 @@ const GLYPH: Record<string, string> = { S: '♠', H: '♥', D: '♦', C: '♣' }
 type CardProps = { card: string; width: number; selected?: boolean; dim?: boolean };
 
 // A face-up card. Big index in the corner and a big suit in the middle, so a card reads from across the
-// table. The Joker is a jester on a gold ground.
+// table. The odd card out ('JK' in the rules code) is the OLD MAID herself: a grumpy old lady in spectacles and a shawl.
 export function PlayingCard({ card, width, selected, dim }: CardProps) {
   const h = width * CARD_RATIO;
   const joker = card === 'JK';
@@ -31,18 +31,29 @@ export function PlayingCard({ card, width, selected, dim }: CardProps) {
     >
       {joker ? (
         <View style={s.center}>
-          <Svg width={width * 0.8} height={h * 0.72} viewBox="0 0 60 80">
-            <Path d="M8 34 L14 8 L24 24 L30 4 L36 24 L46 8 L52 34 Z" fill={p.cardRed} stroke={p.cardInk} strokeWidth={1.4} strokeLinejoin="round" />
-            <Circle cx={14} cy={8} r={3} fill={p.tileYellow} />
-            <Circle cx={30} cy={4} r={3} fill={p.tileYellow} />
-            <Circle cx={46} cy={8} r={3} fill={p.tileYellow} />
-            <Circle cx={30} cy={48} r={17} fill="#FFE2B5" stroke={p.cardInk} strokeWidth={1.4} />
-            <Circle cx={24} cy={45} r={2.2} fill={p.cardInk} />
-            <Circle cx={36} cy={45} r={2.2} fill={p.cardInk} />
-            <Path d="M22 54 Q30 62 38 54" stroke={p.cardRed} strokeWidth={2.2} fill="none" strokeLinecap="round" />
-            <Rect x={8} y={32} width={44} height={4} rx={2} fill={p.tileBlue} />
+          <Svg width={width * 0.88} height={h * 0.78} viewBox="0 0 60 80">
+            {/* shawl and lace collar */}
+            <Path d="M4 80 Q6 56 30 54 Q54 56 56 80 Z" fill={p.tileBlue} stroke={p.cardInk} strokeWidth={1.3} />
+            <Path d="M18 58 Q30 70 42 58 L40 54 Q30 60 20 54 Z" fill="#FFFFFF" stroke={p.cardInk} strokeWidth={1} />
+            {/* hair: a grey bun on top and grey sides */}
+            <Circle cx={30} cy={9} r={8} fill="#C9C9D2" stroke={p.cardInk} strokeWidth={1.3} />
+            <Path d="M10 36 Q8 14 30 14 Q52 14 50 36 Q46 22 30 22 Q14 22 10 36 Z" fill="#C9C9D2" stroke={p.cardInk} strokeWidth={1.3} />
+            {/* face */}
+            <Path d="M14 34 Q14 22 30 22 Q46 22 46 34 Q46 54 30 56 Q14 54 14 34 Z" fill="#FFE2C4" stroke={p.cardInk} strokeWidth={1.4} />
+            {/* round spectacles on a chain */}
+            <Circle cx={23} cy={35} r={6} fill="#FFFFFF" stroke={p.cardInk} strokeWidth={1.6} />
+            <Circle cx={37} cy={35} r={6} fill="#FFFFFF" stroke={p.cardInk} strokeWidth={1.6} />
+            <Line x1={29} y1={35} x2={31} y2={35} stroke={p.cardInk} strokeWidth={1.6} />
+            <Circle cx={23} cy={36} r={1.8} fill={p.cardInk} />
+            <Circle cx={37} cy={36} r={1.8} fill={p.cardInk} />
+            {/* cross eyebrows, a long nose, wrinkles and a tight little mouth */}
+            <Path d="M17 27 L27 29" stroke={p.cardInk} strokeWidth={1.6} strokeLinecap="round" />
+            <Path d="M43 27 L33 29" stroke={p.cardInk} strokeWidth={1.6} strokeLinecap="round" />
+            <Path d="M30 37 Q27 44 31 45" stroke={p.cardInk} strokeWidth={1.3} fill="none" strokeLinecap="round" />
+            <Path d="M18 44 q2 2 4 0 M38 44 q2 2 4 0" stroke="#B88B6A" strokeWidth={1} fill="none" />
+            <Path d="M25 50 Q30 47 35 50" stroke={p.cardRed} strokeWidth={2} fill="none" strokeLinecap="round" />
           </Svg>
-          <Text style={[s.jokerWord, { fontSize: Math.max(8, 11 * f) }]}>JOKER</Text>
+          <Text style={[s.jokerWord, { fontSize: Math.max(7, 9.5 * f) }]}>OLD MAID</Text>
         </View>
       ) : (
         <>

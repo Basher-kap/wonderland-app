@@ -267,15 +267,15 @@ export const GAME_MODULES: Record<string, GameModule> = {
     needsRoom: true,
   },
   'old-maid': {
-    Component: OldMaidGame,
-    // Only the survivor holding the Joker reports finished: true (nobody = a draw).
-    pickWinner: pickFastestFinisher,
-    describe: (r) => (r.finished ? 'survived with the Joker' : 'electrocuted'),
-    multiStage: true, // the board stays for players who are out, so they can watch
-    needsRoom: true,
-    endsOnFirstFinish: true,
-    fullScreen: true,
-  },
+      Component: OldMaidGame,
+      // Only the survivor holding the Old Maid reports finished: true (nobody = a draw).
+      pickWinner: pickFastestFinisher,
+      describe: (r) => (r.finished ? 'survived with the Old Maid' : 'electrocuted'),
+      multiStage: true, // the board stays for players who are out, so they can watch
+      needsRoom: true,
+      endsOnFirstFinish: true,
+      fullScreen: true,
+    },
   'piano-tiles': {
     Component: PianoTilesGame,
     // Only players who cleared the game report finished: true. One of them wins; several = the least playing time wins.

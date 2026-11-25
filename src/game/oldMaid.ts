@@ -41,12 +41,14 @@ export const MAX_TURNS = 150; // safety cap: then the player holding the Joker w
 
 // ------------------------------------------------------------ cards ----
 export type Card = string; // 'JK' (the Joker) or a rank and a suit, e.g. '7H', '10S', 'AC'
+// The odd card out is the OLD MAID herself. Its code stays 'JK' and the code names keep saying JOKER / joker so nothing
+// saved or already written has to change; on screen it is only ever called the Old Maid.
 export const JOKER: Card = 'JK';
 export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'] as const;
 export const SUITS = ['S', 'H', 'D', 'C'] as const; // spades, hearts, diamonds, clubs
 
 export const isJoker = (c: Card) => c === JOKER;
-export const rankOf = (c: Card) => (isJoker(c) ? 'JOKER' : c.slice(0, -1));
+export const rankOf = (c: Card) => (isJoker(c) ? 'OLDMAID' : c.slice(0, -1));
 export const suitOf = (c: Card) => (isJoker(c) ? '' : c.slice(-1));
 export const isRed = (c: Card) => suitOf(c) === 'H' || suitOf(c) === 'D';
 

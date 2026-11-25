@@ -307,24 +307,23 @@ export const GAMES: Game[] = [
     ],
     clearConditions: ['Players who have emptied their cards clear the game.'],
   },
-   {
+  {
     id: 'old-maid',
     name: 'Old Maid',
     domain: 'chance',
     difficulty: 'normal',
     minPlayers: 4,
-    description: 'Draw cards from the player on your right and be the one who ends up holding the Joker.',
+    description: 'Draw cards from the player on your right and be the one who ends up holding the Old Maid.',
     rules: [
       'Each player starts with seven cards and discards matching number pairs.',
-      'Players draw one card at a time from the player on their right (moving counterclockwise).',
+      'Players draw one card at a time from the player on their right moving counterclockwise.',
     ],
-    clearConditions: ['Finish the game holding the Joker card.'],
+    clearConditions: ['Finish the game holding the Old Maid card.'],
     additionalRulesHeading: 'Game Over',
     additionalRules: [
-      'Players are eliminated, if:',
-      'the Joker card is drawn from them,',
+      'Players are eliminated if:',
+      'the Old Maid card is drawn from them,',
       'they run out of cards, or',
-      'they leave their seat.',
     ],
   },
   {
