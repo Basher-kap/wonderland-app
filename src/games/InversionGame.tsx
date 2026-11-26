@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { useGameSounds } from '../audio';
 import { Dir, makeTask, MAX_CHANCES, PAIR, TASK_COUNT } from '../game/inversion';
 import { InversionGamepad, displayWeight, esp, FONT_DISPLAY } from '../gameThemes/inversion';
 import type { GameProps } from './types';
@@ -126,6 +127,7 @@ function Brackets({ color }: { color: string }) {
 }
 
 export function InversionGame({ seed, onFinish }: GameProps) {
+  const { play } = useGameSounds('inversion'); // loads the sounds now, frees them when the game closes
   const [index, setIndex] = useState(0);
   const [chances, setChances] = useState(MAX_CHANCES);
   const [feedback, setFeedback] = useState<'ok' | 'bad' | null>(null);
@@ -159,6 +161,7 @@ export function InversionGame({ seed, onFinish }: GameProps) {
     const ok = pressed === task.answer;
     if (ok) correct.current += 1;
     const left = ok ? chances : chances - 1;
+    play(ok ? 'correct' : left <= 0 ? 'out' : 'wrong');
     setFeedback(ok ? 'ok' : 'bad');
     setChances(left);
     later(() => {
@@ -186,13 +189,22 @@ export function InversionGame({ seed, onFinish }: GameProps) {
         if (finished) answer(null);
       }
     );
-    return () => bar.stopAnimation();
+    // The arrows slide onto the monitor (quietly), then a warning when 30 % of the time is left.
+    play('arrow', { volume: 0.6 });
+    const warn = setTimeout(() => {
+      if (!busy.current && !done.current) play('warn');
+    }, task.timeLimitMs * 0.7);
+    return () => {
+      clearTimeout(warn);
+      bar.stopAnimation();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
   // The INVERSED sign blinks.
   useEffect(() => {
     if (!task.inversed) return;
+    const alarm = setTimeout(() => play('inversed'), 150); // just after the arrows appear
     blink.setValue(1);
     const loop = Animated.loop(
       Animated.sequence([
@@ -201,7 +213,10 @@ export function InversionGame({ seed, onFinish }: GameProps) {
       ])
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      clearTimeout(alarm);
+      loop.stop();
+    };
   }, [task, blink]);
 
   const onBox = (e: LayoutChangeEvent) => {
@@ -270,7 +285,10 @@ export function InversionGame({ seed, onFinish }: GameProps) {
 
       {box.w > 0 && (
         <View style={{ alignSelf: 'center', marginTop: 6 }}>
-          <InversionGamepad width={ctrlW} height={ctrlH} active={[pair[0], pair[1]]} onPress={(d) => answer(d)} />
+          <InversionGamepad width={ctrlW} height={ctrlH} active={[pair[0], pair[1]]} onPress={(d) => {
+            if (!busy.current && !done.current) play('press');
+            answer(d);
+          }} />
         </View>
       )}
     </View>

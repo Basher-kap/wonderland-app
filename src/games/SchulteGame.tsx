@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { useGameSounds } from '../audio';
 import { arrange, GRID_COLUMNS, LEVEL_COUNT, levelCells, levelDirection, SHUFFLE_LEVEL, SHUFFLE_MS, tap, tapOrder } from '../game/schulte';
 import { BUNTING_H, FLOOR_H, displayWeight, FONT_DISPLAY, kids } from '../gameThemes/schulte';
 import type { GameProps } from './types';
@@ -29,6 +30,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (ms: number) => `${pad(Math.floor(ms / 60000))}:${pad(Math.floor(ms / 1000) % 60)}.${Math.floor((ms % 1000) / 100)}`;
 
 export function SchulteGame({ seed, uid, onFinish }: GameProps) {
+  const { play } = useGameSounds('schulte'); // loads the sounds now, frees them when the game closes
   const [level, setLevel] = useState(1);
   const [wrong, setWrong] = useState<{ value: number; on: boolean } | null>(null); // red blink
   const [tapped, setTapped] = useState(0); // correct taps so far on this level
@@ -77,6 +79,12 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
     return () => clearInterval(id);
   }, [level]);
 
+  // Level 4: the blocks rattle every time the numbers are shuffled.
+  useEffect(() => {
+    if (shuffleN > 0) play('shuffle');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shuffleN]);
+
   const levelSeed = `${seed}:L${level}`;
   const cells = useMemo(() => levelCells(level, levelSeed), [level, levelSeed]);
   const order = useMemo(() => tapOrder(cells, level), [cells, level]); // the order to tap them in
@@ -87,16 +95,20 @@ export function SchulteGame({ seed, uid, onFinish }: GameProps) {
     if (done.current) return;
     const result = tap(cells, tapped, value, level);
     if (result === 'wrong') {
+      play('thud');
       setMistakes((m) => m + 1);
       blink(value);
     } else if (result === 'correct') {
+      play((['clack1', 'clack2', 'clack3'] as const)[tapped % 3]); // three blocks in turn, so it never sounds like a machine
       setTapped((t) => t + 1);
     } else if (level < LEVEL_COUNT) {
+      play('levelClear');
       clearBlink();
       setWrong(null);
       setLevel((l) => l + 1);
       setTapped(0);
     } else {
+      play('finish');
       done.current = true;
       const total = Date.now() - startedAt.current;
       setElapsed(total);

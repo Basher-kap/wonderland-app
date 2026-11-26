@@ -18,6 +18,7 @@ import {
   withClues,
   wrongCount,
 } from '../game/hangman';
+import { useGameSounds } from '../audio';
 import { Bullets, GallowsScene, GRID_H, GRID_W, Skyline, displayWeight, FONT_DISPLAY, west } from '../gameThemes/hangman';
 import type { GameProps } from './types';
 
@@ -47,6 +48,8 @@ type Clue = { key: string; uid: string; letter: string; at: number };
 type Result = { finished: boolean; totalMs: number };
 
 export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('hangman'); // loads the sounds now, frees them when the game closes
+  const soundTimers = useRef<ReturnType<typeof setTimeout>[]>([]); // the result of a letter follows its tap
   const entry = useMemo(() => pickEntry(seed), [seed]);
   const [state, setState] = useState(() => newState(entry.text));
   const [localClues, setLocalClues] = useState<Clue[]>([]); // practice run (no lobby)
@@ -91,6 +94,7 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
   // back is sent now, so it is never lost.
   useEffect(
     () => () => {
+      soundTimers.current.forEach(clearTimeout);
       if (pendingTimer.current) clearTimeout(pendingTimer.current);
       const r = pending.current;
       pending.current = null;
@@ -120,15 +124,25 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
 
   // A clue can also be the last letter I needed.
   useEffect(() => {
-    if (solved) finish(true);
+    if (solved) {
+      play('solved');
+      finish(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solved]);
 
   // The 6th wrong guess completes the outlaw; a moment later the trapdoor opens.
   useEffect(() => {
     if (!hanged) return;
-    const id = setTimeout(() => setTrapOpen(true), HANG_DELAY_MS);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => {
+      setTrapOpen(true);
+      play('trapdoor'); // the floor drops...
+    }, HANG_DELAY_MS);
+    const struggle = setTimeout(() => play('struggle'), HANG_DELAY_MS + 650); // ...and then the rope
+    return () => {
+      clearTimeout(id);
+      clearTimeout(struggle);
+    };
   }, [hanged]);
 
   // Pop-up for every NEW clue (the first look at the list only records what is already there).
@@ -140,6 +154,7 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
     const fresh = clues.filter((c) => !seen.current!.has(c.key));
     if (fresh.length === 0) return;
     fresh.forEach((c) => seen.current!.add(c.key));
+    play('clue');
     setPopups((p) => [...p, ...fresh]);
   }, [clues]);
 
@@ -178,6 +193,12 @@ export function HangmanGame({ seed, uid, onFinish, room }: GameProps) {
     if (done.current) return;
     const next = guess(view, letter);
     if (next === view) return;
+    play('tap');
+    // The result is heard a moment after the tap. A solved word has its own sound (see the effect above).
+    if (!isSolved(next)) {
+      const result = view.word.includes(letter) ? 'correct' : 'wrong';
+      soundTimers.current.push(setTimeout(() => play(result), 130));
+    }
     setState(next);
     if (isSolved(next)) finish(true);
     else if (isHanged(next)) finish(false, HANG_RESULT_MS);

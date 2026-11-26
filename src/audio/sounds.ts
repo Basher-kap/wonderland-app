@@ -104,6 +104,33 @@ export const SOUNDS = {
     warn: require('../../assets/sounds/stroop/stroop-warn.wav'),
     done: require('../../assets/sounds/stroop/stroop-done.wav'),
   },
+  hangman: {
+    tap: require('../../assets/sounds/hangman/hangman-tap.wav'),
+    correct: require('../../assets/sounds/hangman/hangman-correct.wav'),
+    wrong: require('../../assets/sounds/hangman/hangman-wrong.wav'),
+    clue: require('../../assets/sounds/hangman/hangman-clue.wav'),
+    solved: require('../../assets/sounds/hangman/hangman-solved.wav'),
+    trapdoor: require('../../assets/sounds/hangman/hangman-trapdoor.wav'),
+    struggle: require('../../assets/sounds/hangman/hangman-struggle.wav'),
+  },
+  schulte: {
+    clack1: require('../../assets/sounds/schulte/schulte-clack1.wav'),
+    clack2: require('../../assets/sounds/schulte/schulte-clack2.wav'),
+    clack3: require('../../assets/sounds/schulte/schulte-clack3.wav'),
+    thud: require('../../assets/sounds/schulte/schulte-thud.wav'),
+    levelClear: require('../../assets/sounds/schulte/schulte-levelclear.wav'),
+    shuffle: require('../../assets/sounds/schulte/schulte-shuffle.wav'),
+    finish: require('../../assets/sounds/schulte/schulte-finish.wav'),
+  },
+  inversion: {
+    press: require('../../assets/sounds/inversion/inversion-press.wav'),
+    arrow: require('../../assets/sounds/inversion/inversion-arrow.wav'),
+    inversed: require('../../assets/sounds/inversion/inversion-inversed.wav'),
+    correct: require('../../assets/sounds/inversion/inversion-correct.wav'),
+    wrong: require('../../assets/sounds/inversion/inversion-wrong.wav'),
+    warn: require('../../assets/sounds/inversion/inversion-warn.wav'),
+    out: require('../../assets/sounds/inversion/inversion-out.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;
