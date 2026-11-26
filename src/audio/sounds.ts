@@ -79,6 +79,31 @@ export const SOUNDS = {
     out: require('../../assets/sounds/magicalBanana/banana-out.wav'),
     win: require('../../assets/sounds/magicalBanana/banana-win.wav'),
   },
+  lightBulb: {
+    fuse: require('../../assets/sounds/lightBulb/lightbulb-fuse.wav'),
+    arm: require('../../assets/sounds/lightBulb/lightbulb-arm.wav'),
+    disarm: require('../../assets/sounds/lightBulb/lightbulb-disarm.wav'),
+    tick: require('../../assets/sounds/lightBulb/lightbulb-tick.wav'),
+    lit: require('../../assets/sounds/lightBulb/lightbulb-lit.wav'),
+    boom: require('../../assets/sounds/lightBulb/lightbulb-boom.wav'),
+  },
+  memoryCard: {
+    flip: require('../../assets/sounds/memoryCard/memory-flip.wav'),
+    heartbeat: require('../../assets/sounds/memoryCard/memory-heartbeat.wav'),
+    go: require('../../assets/sounds/memoryCard/memory-go.wav'),
+    match: require('../../assets/sounds/memoryCard/memory-match.wav'),
+    miss: require('../../assets/sounds/memoryCard/memory-miss.wav'),
+    win: require('../../assets/sounds/memoryCard/memory-win.wav'),
+    fail: require('../../assets/sounds/memoryCard/memory-fail.wav'),
+  },
+  stroop: {
+    start: require('../../assets/sounds/stroop/stroop-start.wav'),
+    correct: require('../../assets/sounds/stroop/stroop-correct.wav'),
+    wrong: require('../../assets/sounds/stroop/stroop-wrong.wav'),
+    timeUp: require('../../assets/sounds/stroop/stroop-timeup.wav'),
+    warn: require('../../assets/sounds/stroop/stroop-warn.wav'),
+    done: require('../../assets/sounds/stroop/stroop-done.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

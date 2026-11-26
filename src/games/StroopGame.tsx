@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
+import { useGameSounds } from '../audio';
 import { buildQuestions, COLOR_NAME, FEEDBACK_MS, judge, QUESTION_COUNT, summarize } from '../game/stroop';
 import type { Answer, ColorId } from '../game/stroop';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
@@ -28,6 +29,7 @@ const GARLAND_H = 64; // the garland and the streamers at the top of the backgro
 type Phase = 'ready' | 'asking' | 'feedback' | 'done';
 
 export function StroopGame({ seed, onFinish }: GameProps) {
+  const { play } = useGameSounds('stroop'); // loads the sounds now, frees them when the game closes
   const questions = useMemo(() => buildQuestions(seed), [seed]);
   const reduce = useReduceMotion();
   const [idx, setIdx] = useState(0);
@@ -50,6 +52,7 @@ export function StroopGame({ seed, onFinish }: GameProps) {
   // "Get ready", then the first word.
   useEffect(() => {
     if (phase !== 'ready') return;
+    play('start');
     const id = setTimeout(() => {
       askedAt.current = Date.now();
       setPhase('asking');
@@ -63,6 +66,7 @@ export function StroopGame({ seed, onFinish }: GameProps) {
     const ok = judge(q, picked);
     answers.current.push({ picked, ms });
     if (ok) setScore((s) => s + 1);
+    play(picked === null ? 'timeUp' : ok ? 'correct' : 'wrong');
     setFb({ picked, ok });
     setPhase('feedback');
   };
@@ -72,8 +76,13 @@ export function StroopGame({ seed, onFinish }: GameProps) {
   answerRef.current = answer;
   useEffect(() => {
     if (phase !== 'asking') return;
-    const id = setTimeout(() => answerRef.current(null), Math.max(0, q.limitMs - (Date.now() - askedAt.current)));
-    return () => clearTimeout(id);
+    const left = Math.max(0, q.limitMs - (Date.now() - askedAt.current));
+    const id = setTimeout(() => answerRef.current(null), left);
+    const warn = setTimeout(() => play('warn'), left * 0.7); // the candle is nearly out
+    return () => {
+      clearTimeout(id);
+      clearTimeout(warn);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, idx]);
 
@@ -83,6 +92,7 @@ export function StroopGame({ seed, onFinish }: GameProps) {
     const id = setTimeout(() => {
       if (idx + 1 >= QUESTION_COUNT) {
         setPhase('done');
+        play('done');
         if (!done.current) {
           done.current = true;
           const sum = summarize(questions, answers.current);

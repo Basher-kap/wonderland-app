@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import Svg, { Line, Path, Polygon, Rect } from 'react-native-svg';
 import { BANDS, BEAM_BANDS, buildBoard, depthAt, flip, isExpired, laneAt, pitchAt, remainingMs, SWITCH_COUNT, TIME_LIMIT_MS } from '../game/lightBulb';
+import { useGameSounds } from '../audio';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { BlastArt, BulbArt, displayWeight, FLOOR_H, FONT_DISPLAY, ruins, SwitchArt, TntArt } from '../gameThemes/lightBulb';
 import type { GameProps } from './types';
@@ -35,6 +36,7 @@ type Phase = 'playing' | 'lit' | 'boom';
 
 export function LightBulbGame({ seed, onFinish }: GameProps) {
   const board = useMemo(() => buildBoard(seed), [seed]);
+  const { play } = useGameSounds('lightBulb'); // loads the sounds now, frees them when the game closes
   const reduce = useReduceMotion();
   const reduceRef = useRef(reduce); // the fuse timer below is set up once; it must see the latest setting
   reduceRef.current = reduce;
@@ -58,6 +60,12 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
     setByFuse(fuse);
     setThrown(picked);
     setPhase('boom');
+    play('boom'); // as loud as it gets: the TNT
+    try {
+      Vibration.vibrate([0, 500, 80, 250]);
+    } catch {
+      /* no vibration on this device */
+    }
     onFinish({ finished: false, totalMs: ms });
     if (!reduceRef.current) {
       Animated.parallel([
@@ -75,6 +83,7 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
   // The fuse: the clock runs from the moment the board appears. When it runs out, the TNT goes off.
   useEffect(() => {
     startedAt.current = Date.now();
+    play('fuse'); // the fuse is lit
     const id = setInterval(() => {
       if (done.current) return;
       const ms = Date.now() - startedAt.current;
@@ -85,8 +94,17 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The last 10 seconds: a tick and a heavy heartbeat every second, louder and louder.
+  const secondsLeft = Math.ceil(remainingMs(elapsed) / 1000);
+  useEffect(() => {
+    if (phase !== 'playing' || secondsLeft > 10 || secondsLeft <= 0) return;
+    play('tick', { volume: 0.55 + 0.045 * (10 - secondsLeft) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, phase]);
+
   const onPressSwitch = (i: number) => {
     if (done.current) return;
+    play(armed === i ? 'disarm' : 'arm');
     setArmed((a) => (a === i ? null : i));
   };
 
@@ -100,6 +118,7 @@ export function LightBulbGame({ seed, onFinish }: GameProps) {
       setFinishedMs(ms);
       setThrown(armed);
       setPhase('lit');
+      play('lit');
       onFinish({ finished: true, totalMs: ms });
     } else {
       boom(ms, false, armed);

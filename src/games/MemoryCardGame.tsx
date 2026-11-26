@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { beatAt, CARD_COUNT, endTurn, FLIP_MS, isCleared, layout, matchedPairs, MAX_TURNS, newState, PAIR_COUNT, pick, READY_MS } from '../game/memoryCard';
 import type { Icon, State } from '../game/memoryCard';
+import { useGameSounds } from '../audio';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { displayWeight, FLOOR_H, FONT_DISPLAY, seance } from '../gameThemes/memoryCard';
 import type { GameProps } from './types';
@@ -110,6 +111,8 @@ const Card = memo(function Card({ icon, w, h, up, matched, missed, disabled, lab
 });
 
 export function MemoryCardGame({ seed, onFinish }: GameProps) {
+  const { play } = useGameSounds('memoryCard'); // loads the sounds now, frees them when the game closes
+  const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // the match / miss sound follows the flip
   const cards = useMemo(() => layout(seed), [seed]);
   const reduce = useReduceMotion();
   const [st, setSt] = useState<State>(newState);
@@ -144,6 +147,7 @@ export function MemoryCardGame({ seed, onFinish }: GameProps) {
         // Safety cap: nobody cleared the board, so this is not a win for anybody.
         done.current = true;
         setFailed(true);
+        play('fail');
         setElapsed(ms);
         onFinish({ finished: false, totalMs: ms });
         return;
@@ -155,6 +159,25 @@ export function MemoryCardGame({ seed, onFinish }: GameProps) {
   }, []);
 
   const beat = beatAt(elapsed);
+
+  // The séance: a heartbeat every second (louder while the cards can be flipped), and a screech when the
+  // flip window opens. The sound of a pick is in onPressCard.
+  const beatSecs = Math.ceil(beat.msLeft / 1000);
+  useEffect(() => {
+    if (done.current || failed || finishedMs !== null) return;
+    play('heartbeat', { volume: beat.phase === 'flip' ? 1 : 0.55 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beatSecs, beat.phase, beat.turn]);
+  useEffect(() => {
+    if (beat.phase === 'flip' && beat.turn < MAX_TURNS && !done.current && !failed && finishedMs === null) play('go');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beat.phase, beat.turn]);
+  useEffect(
+    () => () => {
+      if (resultTimer.current) clearTimeout(resultTimer.current);
+    },
+    []
+  );
   const flipping = beat.phase === 'flip' && !done.current && !failed && finishedMs === null;
 
   const onPressCard = (i: number) => {
@@ -165,6 +188,12 @@ export function MemoryCardGame({ seed, onFinish }: GameProps) {
     const { state, result } = pick(stRef.current, cards, i, b.turn);
     if (result === 'ignored') return;
     commit(state);
+    play('flip');
+    if (result === 'match' || result === 'miss') {
+      const cleared = result === 'match' && isCleared(state);
+      if (resultTimer.current) clearTimeout(resultTimer.current);
+      resultTimer.current = setTimeout(() => play(cleared ? 'win' : result), 260);
+    }
     if (result === 'match' && isCleared(state)) {
       done.current = true;
       setElapsed(ms);
