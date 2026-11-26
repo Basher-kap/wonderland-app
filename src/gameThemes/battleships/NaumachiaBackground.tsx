@@ -75,7 +75,7 @@ export function NaumachiaBackground({ children }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: roma.water[1], overflow: 'hidden' },
-  water: { ...StyleSheet.absoluteFillObject },
+  water: { ...StyleSheet.absoluteFill },
   wall: { position: 'absolute', top: 0, left: 0, right: 0, height: 190, backgroundColor: roma.stone, borderBottomWidth: 8, borderBottomColor: roma.stoneDark },
   archRow: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 52 },
   arch: { width: 26, backgroundColor: roma.arch, borderTopLeftRadius: 13, borderTopRightRadius: 13 },

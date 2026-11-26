@@ -74,5 +74,5 @@ const styles = StyleSheet.create({
   shelves: { position: 'absolute', top: 0, left: 0, right: 0 },
   books: { flexDirection: 'row', alignItems: 'flex-end', height: 62, paddingHorizontal: 4 },
   plank: { height: 7, backgroundColor: w.walnutLight, borderBottomWidth: 2, borderBottomColor: '#120B07' },
-  dimShelves: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,12,8,0.55)' },
+  dimShelves: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(20,12,8,0.55)' },
 });

@@ -166,6 +166,6 @@ const s = StyleSheet.create({
   cornerBR: { transform: [{ rotate: '180deg' }] },
   rank: { fontWeight: '900', lineHeight: undefined },
   pip: { fontWeight: '700' },
-  center: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   jokerWord: { color: p.cardRed, fontWeight: '900', letterSpacing: 1, position: 'absolute', bottom: 3 },
 });

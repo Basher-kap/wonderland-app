@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   tray: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   trayHint: { color: plaza.ink, fontWeight: '800', fontSize: 13, textAlign: 'center', backgroundColor: 'rgba(255,246,226,0.85)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' },
   hand: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 10, minHeight: 90 },
-  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,246,226,0.35)' },
+  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,246,226,0.35)' },
   waiting: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   panel: { backgroundColor: plaza.paper, borderColor: plaza.gold, borderWidth: 3, borderRadius: 14, padding: 18, alignItems: 'center', maxWidth: 340 },
   title: { color: plaza.title, fontFamily: FONT_DISPLAY, fontWeight: displayWeight, fontSize: 20, textAlign: 'center' },
