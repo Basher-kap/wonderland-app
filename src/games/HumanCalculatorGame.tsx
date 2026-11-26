@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Button } from '../components';
+import { useGameSounds } from '../audio';
 import {
   ANSWER_MS,
   buildQuestion,
@@ -104,6 +105,7 @@ function Monitor({ children, timerLeft }: { children: React.ReactNode; timerLeft
 
 export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
+  const { play } = useGameSounds('humanCalculator'); // loads the sounds now, frees them when the game closes
   const [q, setQ] = useState(1);
   const [phase, setPhase] = useState<Phase>('show');
   const [shown, setShown] = useState(-1); // index of the term on the screen, -1 = blank
@@ -154,7 +156,12 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     const timers: ReturnType<typeof setTimeout>[] = [];
     let t = 400;
     question.terms.forEach((_, i) => {
-      timers.push(setTimeout(() => setShown(i), t));
+      timers.push(
+        setTimeout(() => {
+          setShown(i);
+          play('term'); // a blip for every number or symbol that flashes
+        }, t)
+      );
       t += question.showMs;
       timers.push(setTimeout(() => setShown(-1), t));
       t += GAP_MS;
@@ -203,6 +210,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     const end = answerStart.current + ANSWER_MS;
     const tick = setInterval(() => setLeft(Math.max(0, end - Date.now())), 100);
     const stop = setTimeout(() => {
+      if (!iAmOut) play('timeUp');
       const text = typedRef.current;
       send(text.length > 0 ? Number(text) : null);
     }, ANSWER_MS);
@@ -215,6 +223,7 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
 
   const press = (key: string) => {
     if (phase !== 'answer') return;
+    play('key');
     let next = typedRef.current;
     if (key === 'C') next = '';
     else if (key === '<') next = next.slice(0, -1);
@@ -255,7 +264,10 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
   useEffect(() => {
     if (phase !== 'ready') return;
     const step = READY_MS / 3;
+    play('count');
     const timers = [
+      setTimeout(() => play('count'), step),
+      setTimeout(() => play('count'), step * 2),
       setTimeout(() => setCount(2), step),
       setTimeout(() => setCount(1), step * 2),
       setTimeout(() => {
@@ -266,6 +278,20 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
     ];
     return () => timers.forEach(clearTimeout);
   }, [phase]);
+
+  // ---- sounds that follow the game: a clock tick for every second of the answer time, and the verdict
+  // (my own answer: ding-dong or buzzer) when the reveal starts
+  const secondsLeft = Math.ceil(left / 1000);
+  useEffect(() => {
+    if (phase === 'answer' && !iAmOut && secondsLeft > 0) play('tick', { volume: secondsLeft <= 2 ? 1 : 0.5 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, secondsLeft]);
+  useEffect(() => {
+    if (phase !== 'reveal') return;
+    const mine = docs.find((d) => d.uid === uid && d.stage === q);
+    if (mine) play(mine.solved ? 'correct' : 'wrong');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, q]);
 
   // ------------------------------------------------------------------ screens
   // screen padding 20+20, podium padding 12+12, key gaps 16
@@ -368,7 +394,10 @@ export function HumanCalculatorGame({ seed, uid, onFinish, room }: GameProps) {
               ))}
             </View>
             <Pressable
-              onPress={() => send(typed.length > 0 ? Number(typed) : null)}
+              onPress={() => {
+                play('send');
+                send(typed.length > 0 ? Number(typed) : null);
+              }}
               disabled={typed.length === 0}
               accessibilityRole="button"
               style={({ pressed }) => [styles.sendBtn, typed.length === 0 && { opacity: 0.4 }, pressed && { opacity: 0.8 }]}

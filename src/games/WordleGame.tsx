@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Button } from '../components';
+import { useGameSounds } from '../audio';
 import {
   isValidWord,
   keyStates,
@@ -133,6 +134,8 @@ function Tile({
 
 export function WordleGame({ seed, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
+  const { play } = useGameSounds('wordle'); // loads the sounds now, frees them when the game closes
+  const soundTimers = useRef<ReturnType<typeof setTimeout>[]>([]); // the tile sounds of the guess being revealed
   const [level, setLevel] = useState(1);
   const answer = useMemo(() => pickAnswer(seed, level), [seed, level]);
   const [guesses, setGuesses] = useState<string[]>([]);
@@ -152,6 +155,7 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     () => () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
       if (advanceTimer.current) clearTimeout(advanceTimer.current);
+      soundTimers.current.forEach(clearTimeout);
     },
     []
   );
@@ -183,6 +187,7 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
   };
 
   const reject = (text: string) => {
+    play('invalid');
     setMessage(text);
     setBadRow(true);
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -191,12 +196,14 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
 
   const press = (letter: string) => {
     if (done.current || current.length >= WORD_LENGTH) return;
+    play('key');
     setMessage(null);
     setCurrent((c) => c + letter);
   };
 
   const erase = () => {
     if (done.current) return;
+    if (current.length > 0) play('erase');
     setMessage(null);
     setCurrent((c) => c.slice(0, -1));
   };
@@ -227,6 +234,13 @@ export function WordleGame({ seed, onFinish, room }: GameProps) {
     setGuesses(next);
     setCurrent('');
     setMessage(null);
+
+    // The sounds follow the tiles: each one is heard as it turns over (see Tile), then the verdict.
+    const states = scoreGuess(current, answer);
+    const sound = { green: 'tileGreen', yellow: 'tileYellow', gray: 'tileGray' } as const;
+    states.forEach((st, c) => soundTimers.current.push(setTimeout(() => play(sound[st]), c * 140 + FLIP_MS / 2)));
+    const verdict = current === answer ? 'solved' : next.length >= MAX_ATTEMPTS ? 'failed' : null;
+    if (verdict) soundTimers.current.push(setTimeout(() => play(verdict), (WORD_LENGTH - 1) * 140 + FLIP_MS + 80));
 
     if (current === answer) finishLevel(true);
     else if (next.length >= MAX_ATTEMPTS) finishLevel(false);

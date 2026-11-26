@@ -14,6 +14,7 @@ import {
   State,
   tick,
 } from '../game/magicalBanana';
+import { useGameSounds } from '../audio';
 import * as api from '../lib/api';
 import { FONT_FOOD, food as f } from '../gameThemes/magicalBanana';
 import type { GameProps } from './types';
@@ -59,12 +60,14 @@ function YourTurnBanner({ seconds, word }: { seconds: number; word: string }) {
 
 export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
+  const { play } = useGameSounds('magicalBanana'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [text, setText] = useState('');
   const [, setFrame] = useState(0); // re-render a few times per second for the countdowns
   const receivedAt = useRef(Date.now());
   const startedAt = useRef(Date.now());
   const sent = useRef(''); // the move already sent for this step of the game
+  const seenNote = useRef<string | null | undefined>(undefined); // the last result note already heard
   const finished = useRef(false);
   const roomRef = useRef(room);
   roomRef.current = room;
@@ -170,12 +173,53 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
   const itIsMyTurn = !!st && st.phase === 'turn' && st.current === uid && st.alive.includes(uid);
   useEffect(() => {
     if (!itIsMyTurn) return;
+    play('turn');
     try {
       Vibration.vibrate(300);
     } catch {
       /* no vibration on this device */
     }
   }, [itIsMyTurn, st?.rev]);
+
+  // The rhythm: one beat a second while somebody is on the clock, and a 3-2-1 beep in the countdowns.
+  useEffect(() => {
+    if (st?.phase === 'turn') {
+      play('beat', { volume: 0.5 });
+      const id = setInterval(() => play('beat', { volume: 0.5 }), 1000);
+      return () => clearInterval(id);
+    }
+    if (st?.phase === 'countdown') {
+      let beeps = 1;
+      play('count');
+      const id = setInterval(() => {
+        if (beeps++ >= 3) return clearInterval(id);
+        play('count');
+      }, 1000);
+      return () => clearInterval(id);
+    }
+  }, [st?.phase, st?.rev]);
+
+  // JUDGE was pressed (everybody hears the siren), and the game is won.
+  useEffect(() => {
+    if (st?.phase === 'judging') play('judge');
+    if (st?.phase === 'over' && st.winner === uid) play('win');
+  }, [st?.phase, st?.rev]);
+
+  // The result of a judging, or a player who ran out of time: heard once, when the note first appears.
+  useEffect(() => {
+    const key = st?.last ? JSON.stringify(st.last) : null;
+    if (seenNote.current === undefined) {
+      seenNote.current = key; // the first state we see is not news
+      return;
+    }
+    if (key === seenNote.current) return;
+    seenNote.current = key;
+    const kind = st?.last?.kind;
+    if (kind === 'ok') play('ok');
+    else if (kind === 'draw') play('draw');
+    else if (kind === 'no') play('no');
+    else if (kind) play('out'); // strike2, timeout, forfeit
+  }, [st?.rev]);
 
   // The game is over: after a moment everybody reports. Only the last player standing "finished".
   useEffect(() => {
@@ -229,6 +273,7 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
     const w = cleanWord(text);
     if (!w) return;
     setText('');
+    play('send');
     send('word', { word: w });
   };
 
@@ -370,10 +415,16 @@ export function MagicalBananaGame({ seed, uid, onFinish, room }: GameProps) {
             Is “{judge.word}” related to “{judge.prev}”?
           </Text>
           <View style={styles.inputRow}>
-            <Pressable onPress={() => send('vote', { vote: 'ok' })} accessibilityRole="button" style={[styles.voteButton, styles.voteOk]}>
+            <Pressable onPress={() => {
+                play('vote');
+                send('vote', { vote: 'ok' });
+              }} accessibilityRole="button" style={[styles.voteButton, styles.voteOk]}>
               <Text style={[styles.voteText, { color: f.ink }]}>OK</Text>
             </Pressable>
-            <Pressable onPress={() => send('vote', { vote: 'no' })} accessibilityRole="button" style={[styles.voteButton, styles.voteNo]}>
+            <Pressable onPress={() => {
+                play('vote');
+                send('vote', { vote: 'no' });
+              }} accessibilityRole="button" style={[styles.voteButton, styles.voteNo]}>
               <Text style={[styles.voteText, { color: f.cream }]}>NO</Text>
             </Pressable>
           </View>
