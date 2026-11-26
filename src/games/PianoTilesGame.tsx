@@ -12,7 +12,6 @@ import {
   planFor,
   publicState,
   remainingNow,
-  ROUND_CAP,
   shuffleOrder,
   State,
   TILES,
@@ -22,14 +21,15 @@ import * as api from '../lib/api';
 import { stage as c, FONT_PIANO } from '../gameThemes/pianoTiles';
 import type { GameProps } from './types';
 
-// Piano Tiles: a piano plays a melody and everybody plays it back, note for note, on 8 tiles (2 rows
-// x 4 columns, white and black alternating) that sound Do Re Mi Fa Sol La Ti DO. A wrong note, a
-// melody cut short or running out of time puts you out; the survivors face a longer melody and a
-// harder beat in the next round, and the ones who survive clear the game.
+// Piano Tiles: a piano plays a CHAIN of notes and everybody plays it back, note for note, on 8 tiles
+// (2 rows x 4 columns, white and black alternating) that sound Do Re Mi Fa Sol La Ti DO. A wrong note,
+// a chain cut short or running out of time puts you out. Every round the same chain repeats from the
+// start with one more note (4 notes, then 5, then 6 ...) and a harder beat, until one player is left:
+// the last survivor wins.
 //
 // All the rules live in src/game/pianoTiles.ts. The HOST's phone is the only one that runs the game:
 // it applies what everybody played (saved in lobbies/{code}/piano) and saves the state, which every
-// phone shows. Every phone plays the melody ITSELF from the seed (it is not in the saved state), so
+// phone shows. Every phone plays the chain ITSELF from the seed (it is not in the saved state), so
 // there is no sound to stream. What the players played is not in the saved state until the reveal.
 // If the host forfeits the game, the others cannot continue (known limit, same as Fortune and
 // Xibalba). The forfeit buttons are GameScreen's.
@@ -42,7 +42,8 @@ import type { GameProps } from './types';
 // magical concert hall. Every note that sounds, the piano's or yours, sends a ring of light and a
 // floating note up from its key.
 //
-// Hidden notes kept here on purpose, not on the game screen: the melody grows by one note a round,
+// Hidden notes kept here on purpose, not on the game screen: the chain grows by one note a round (it opens
+// with the scale, then goes on with random notes),
 // the beat gets faster and more uneven up to the 8th round, only the notes count (not your rhythm),
 // a round nobody passes is played again, and the fastest survivor wins if several clear the game.
 
@@ -339,8 +340,8 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
   };
 
   const overText = () => {
-    if (st.winners.length === 0) return 'Nobody mastered the melody.';
-    if (st.winners.length === 1) return `${who(st.winners[0])} ${st.winners[0] === uid ? 'clear' : 'clears'} the game!`;
+    if (st.winners.length === 0) return 'Nobody mastered the chain.';
+    if (st.winners.length === 1) return `${who(st.winners[0])} ${st.winners[0] === uid ? 'are' : 'is'} the last one standing!`;
     const w = pickWinner(st.winners.map((id) => ({ uid: id, finished: true, totalMs: st.times[id] ?? 0 })));
     const names = st.winners.map(who).join(' and ');
     return w
@@ -389,11 +390,11 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
       <View style={styles.top}>
         <View style={styles.topText}>
           <Text style={styles.round}>
-            Round {st.round} of {ROUND_CAP}
+            Round {st.round}
           </Text>
           <Text style={styles.sub}>
             {listening
-              ? 'Listen to the piano…'
+              ? `Listen. The chain is ${length} notes long`
               : playing
                 ? alive
                   ? mine === 'idle'
@@ -505,7 +506,7 @@ export function PianoTilesGame({ seed, uid, onFinish, room }: GameProps) {
             {rev.allOut
               ? 'Nobody got it right. The recital ends in silence.'
               : rev.redo
-                ? `Nobody got it right. Round ${rev.round} is played again with a new melody.`
+                ? `Nobody got it right. Round ${rev.round} is played again: the same chain, a new beat.`
                 : rev.failed.length === 0
                   ? `Everyone played the ${rev.length} notes perfectly.`
                   : `${rev.passed.length === 1 ? rev.passed.map(who)[0] : rev.passed.map(who).join(', ')} played all ${rev.length} notes.`}

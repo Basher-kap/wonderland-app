@@ -1,10 +1,11 @@
 // Piano Tiles: pure rules, no React, no Firebase.
 //
-// A piano plays a melody and every player has to play EXACTLY the same notes, in the same order, on
-// a board of 8 tiles (2 rows x 4 columns) that sound Do Re Mi Fa Sol La Ti DO. Anyone who plays a
-// wrong note, runs out of notes or runs out of time is out. The players who survive the round go on to
-// the next round, where the melody is LONGER and the beat is HARDER. The players who survive are the
-// ones who clear the game.
+// A piano plays a CHAIN of notes and every player has to play EXACTLY the same notes, in the same
+// order, on a board of 8 tiles (2 rows x 4 columns) that sound Do Re Mi Fa Sol La Ti DO. Anyone who
+// plays a wrong note, runs out of notes or runs out of time is out. The chain starts with 4 notes
+// (Do Re Mi Fa); every round the SAME notes repeat from the start and ONE NEW NOTE is added at the end
+// (Do Re Mi Fa Sol, then Do Re Mi Fa Sol La ...), and the beat gets harder. It goes on, practically for
+// ever, until one player is left: the last survivor wins.
 //
 // A ROUND has three phases:
 //   listen   the piano plays the melody (every phone plays it itself, from the seed: the melody is not
@@ -13,8 +14,10 @@
 //            as they hit a wrong note, or whatever they have when the time is up)
 //   reveal   who passed and who is out
 //
-// THE MELODY of round r is the first lengthFor(r) notes of one melody made from the seed, so it grows
-// by one note each round and the notes you already know come back first. The BEAT is new every round:
+// THE CHAIN of round r is the first lengthFor(r) notes of one chain made from the seed, so it grows
+// by one note each round and the notes you already know come back first. The chain opens with the
+// scale itself (SCALE_OPENING: Do Re Mi Fa Sol La Ti DO, as in the rules); after the 8th note the
+// new notes are picked at random. The BEAT is new every round:
 // the gaps between the notes are not fixed, and they get shorter and more uneven until HARD_ROUND,
 // where they are at their hardest (quick pairs, held notes, no steady pulse). Later rounds stay that
 // hard and only get longer.
@@ -22,10 +25,11 @@
 // DETAILS (decisions, change them here):
 //  - Only the notes count, not the rhythm you play them in (but the time you take is kept: it
 //    decides the winner if several players survive to the end).
-//  - If NOBODY passes a round, nobody is out and the round is played again with a new melody (up to
-//    MAX_REDOS times in a game); after that everybody is out and the game is a draw.
-//  - After ROUND_CAP rounds the game ends: the players still in clear it, and the one with the least
-//    total time wins (an exact tie is a draw).
+//  - If NOBODY passes a round, nobody is out and the round is played again: the same chain, with a
+//    new beat (up to MAX_REDOS times in a game); after that everybody is out and the game is a draw.
+//  - ROUND_CAP is only a safety net (the game is meant to go on until one player is left). If it is
+//    ever reached, the players still in clear the game and the one with the least total time wins
+//    (an exact tie is a draw).
 //
 // Like Fortune and Xibalba, the HOST's phone is the only one that runs the game: players send one
 // "move" per round (what they played) and the host applies it with `apply`, calls `tick` a few times
@@ -37,9 +41,10 @@ import { makeRng } from './schulte';
 // ----------------------------------------------------------- tuning ----
 export const TILES = 8;
 export const NOTE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti', 'DO'];
-export const START_LENGTH = 3; // notes in round 1
+export const START_LENGTH = 4; // notes in round 1 (Do Re Mi Fa)
+export const SCALE_OPENING = true; // the chain opens with Do Re Mi Fa Sol La Ti DO; false = all random
 export const HARD_ROUND = 8; // from this round on the beat is at its hardest
-export const ROUND_CAP = 12;
+export const ROUND_CAP = 100; // a safety net, the game is meant to go on until one player is left
 export const MAX_REDOS = 2;
 export const LISTEN_LEAD_MS = 1500; // the quiet before the piano starts
 export const LISTEN_TAIL_MS = 1000; // the quiet after the last note
@@ -63,15 +68,31 @@ export type Plan = {
 
 // The melody and the beat of a round. The same seed, round and redo always give the same plan, so
 // every phone can play it without being sent it.
+const planCache = new Map<string, Plan>();
 export function planFor(seed: string, round: number, redo: number): Plan {
+  const key = `${seed}|${round}|${redo}`;
+  const hit = planCache.get(key);
+  if (hit) return hit;
+  const plan = buildPlan(seed, round, redo);
+  if (planCache.size > 60) planCache.clear();
+  planCache.set(key, plan);
+  return plan;
+}
+
+function buildPlan(seed: string, round: number, redo: number): Plan {
   const len = lengthFor(round);
-  // one master melody per (seed, redo): it only gets longer, so earlier notes come back first
-  const mrnd = makeRng(`${seed}:piano:melody:${redo}`);
+  // one chain per seed: it only gets longer, so earlier notes come back first. A replayed round
+  // (redo) keeps the SAME chain and only gets a new beat.
+  const mrnd = makeRng(`${seed}:piano:melody`);
   const master: number[] = [];
   const max = lengthFor(ROUND_CAP);
   while (master.length < max) {
-    let n = Math.floor(mrnd() * TILES);
     const k = master.length;
+    if (SCALE_OPENING && k < TILES) {
+      master.push(k);
+      continue;
+    }
+    let n = Math.floor(mrnd() * TILES);
     if (k >= 2 && master[k - 1] === n && master[k - 2] === n) n = (n + 1 + Math.floor(mrnd() * (TILES - 1))) % TILES;
     master.push(n);
   }
@@ -318,4 +339,4 @@ export function pickWinner(results: Result[]): string | null {
 }
 
 export const describeResult = (r: Result) =>
-  r.finished ? `cleared the game in ${(r.totalMs / 1000).toFixed(1)}s of playing` : `out after ${r.score ?? 0} round${(r.score ?? 0) === 1 ? '' : 's'}`;
+  r.finished ? `last one standing after ${r.score ?? 0} rounds` : `out after ${r.score ?? 0} round${(r.score ?? 0) === 1 ? '' : 's'}`;

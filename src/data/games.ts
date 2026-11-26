@@ -330,14 +330,18 @@ export const GAMES: Game[] = [
     id: 'piano-tiles',
     name: 'Piano Tiles',
     domain: 'experience',
-    description: 'Play back the piano’s melody note for note. It gets longer every round.',
+    description: 'Repeat the piano’s chain of notes from the start. One new note is added every round.',
     difficulty: 'normal',
     rules: [
-      'A piano will play in a series of rounds.',
-      'Each player will have to play exactly the notes that the piano played, in order.',
-      'As the match goes on, the tune gets longer and longer.',
+      'A piano will play a chain of notes in a series of rounds.',
+      'Each player must play exactly the notes that the piano played, in order.',
+      'The chain starts with 4 notes. Every round, the same notes repeat from the start and one new note is added.',
     ],
-    clearConditions: ['The remaining players who survive the rounds clear the game.'],
+    // The 2 x 4 board of 8 white and black tiles (Do Re Mi Fa Sol La Ti DO), the chain opening with the
+    // scale, the beat getting faster and more uneven up to about the 8th round, only the notes counting
+    // (not your rhythm), and a round nobody passes being played again are hidden notes
+    // (game/pianoTiles.ts): NOT listed here on purpose.
+    clearConditions: ['The last player to survive wins the game.'],
   },
     {
     id: 'russian-roulette',
