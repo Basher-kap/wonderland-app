@@ -26,6 +26,13 @@ export const SOUNDS = {
     note7: require('../../assets/sounds/pianoTiles/piano-7.wav'),
     note8: require('../../assets/sounds/pianoTiles/piano-8.wav'),
   },
+  battleships: {
+    aim: require('../../assets/sounds/battleships/battleships-aim.wav'),
+    fire: require('../../assets/sounds/battleships/battleships-fire.wav'),
+    hitEnemy: require('../../assets/sounds/battleships/battleships-hit-enemy.wav'),
+    hitOwn: require('../../assets/sounds/battleships/battleships-hit-own.wav'),
+    miss: require('../../assets/sounds/battleships/battleships-miss.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

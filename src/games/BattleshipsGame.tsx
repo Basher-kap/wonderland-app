@@ -20,6 +20,7 @@ import {
   withShips,
 } from '../game/battleships';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { AWNING_H, Ballista, Mark, Stone, Trireme, displayWeight, FONT_DISPLAY, roma } from '../gameThemes/battleships';
 import type { MarkOutcome } from '../gameThemes/battleships';
 import type { GameProps } from './types';
@@ -55,6 +56,7 @@ const CAPTION_H = 62;
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
 export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('battleships'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [sel, setSel] = useState<number[]>([]); // my ships while placing
   const [ready, setReady] = useState(false); // I pressed Ready (my placement was sent)
@@ -178,6 +180,38 @@ export function BattleshipsGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.phase, st?.winner]);
+
+  // SOUNDS. Every phone hears the same moments, from the shared state.
+  // 1) A new turn begins: the cannon swings round (full volume on my turn, quiet on somebody else's).
+  const aimKey = st?.phase === 'aiming' ? `${st.rev}:${st.current}` : '';
+  useEffect(() => {
+    if (!aimKey || !st) return;
+    play('aim', { volume: st.current === uid ? 1 : 0.35 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aimKey]);
+
+  // 2) A shot is made: the cannon fires, then what it did (enemy hit, own ship hit, or into the water).
+  //    The shots already there when this phone joined (or restarted) are not played again.
+  const seenShots = useRef<number | null>(null);
+  const soundTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const shotCount = st ? st.shots.length : -1;
+  useEffect(() => {
+    if (!st) return;
+    if (seenShots.current === null) {
+      seenShots.current = st.shots.length;
+      return;
+    }
+    for (let i = seenShots.current; i < st.shots.length; i++) {
+      const shot = st.shots[i];
+      if (shot.cell === null) continue; // too slow: no shot, no sound
+      const after = shot.outcome === 'miss' ? 'miss' : shot.outcome === 'own' ? 'hitOwn' : 'hitEnemy'; // neutral counts as a hit
+      play('fire');
+      soundTimers.current.push(setTimeout(() => play(after), 450)); // the shell takes a moment to land
+    }
+    seenShots.current = st.shots.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shotCount]);
+  useEffect(() => () => soundTimers.current.forEach(clearTimeout), []);
 
   const send = (kind: 'place' | 'shoot', extra: { cells?: number[]; cell?: number } = {}) => {
     const r = roomRef.current;
