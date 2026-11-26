@@ -9,7 +9,7 @@ import { Platform, Vibration } from 'react-native';
 // THE GUNSHOT is meant to be a jumpscare. Lower BANG_VOLUME (0 to 1) if it is too much.
 export const BANG_VOLUME = 0.8;
 
-export type SfxName = 'load' | 'spin' | 'close' | 'click' | 'bang';
+export type SfxName = 'load' | 'spin' | 'close' | 'click' | 'bang' | 'shield';
 
 let ctx: any = null;
 
@@ -83,13 +83,20 @@ export function playSfx(name: SfxName) {
         burst(c, 0.09, 0.02, 'highpass', 1800, 0.35, 4);
         break;
       case 'spin': {
-        let t = 0;
-        for (let i = 0; i < 26; i++) {
-          burst(c, t, 0.012, 'bandpass', 3000, 0.22, 4);
-          t += 0.035 + i * 0.006;
+        // the plate closes, then a fast ratchet while the cylinder spins and slows down
+        burst(c, 0, 0.04, 'lowpass', 900, 0.4, 5);
+        let t = 0.4;
+        for (let i = 0; i < 30; i++) {
+          burst(c, t, 0.01, 'bandpass', 3000, 0.22, 4);
+          t += 0.02 + i * 0.0035;
         }
         break;
       }
+      case 'shield': // the shield force: a shimmering rising hum
+        tone(c, 0, 0.7, 'sine', 380, 1500, 0.12);
+        tone(c, 0.05, 0.7, 'triangle', 570, 2200, 0.06);
+        tone(c, 0.35, 0.5, 'sine', 1800, 2600, 0.05);
+        break;
       case 'load':
         tone(c, 0, 0.09, 'triangle', 2400, 1800, 0.1);
         burst(c, 0, 0.02, 'highpass', 4000, 0.18, 4);

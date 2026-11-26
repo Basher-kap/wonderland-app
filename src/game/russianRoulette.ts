@@ -1,16 +1,20 @@
 // Russian Roulette: pure rules, no React, no Firebase.
 //
-// Every player has ONE life. Each round a number of live bullets (bulletsFor) is placed at the centre of
-// the screen; every player loads them into the chambers of their own revolver (6 chambers, they choose
-// which) and spins the cylinder. The cylinder closes by itself and the player then has to aim: at
-// another player, or at themselves. When the time limit is reached the gun fires by itself.
+// Every player has ONE life. A round has two timed parts:
+//  1. LOAD (LOAD_MS = 10 s): a number of live bullets (bulletsFor) is placed at the centre of the screen
+//     and every player loads them into the chambers of their own revolver (6 chambers, they choose which).
+//     Then the cylinder is CLOSED and SPUN, fast: from the moment it closes nobody can see the chambers.
+//     A player who has not spun when the 10 s are up gets the missing bullets put in random chambers and
+//     the cylinder is spun for them.
+//  2. AIM (AIM_MS = 30 s): every player decides to shoot another player or themselves. A player who has
+//     not decided in time is DEFENSELESS: their gun does not fire and they have no protection.
 // Whether a gun fires a live bullet or a blank is decided by the SPIN: a random chamber ends up under
 // the hammer, and it is live when a bullet was loaded in it (so a gun with n live bullets fires a live
 // one n times out of 6, wherever the player put them).
 //
 // WHAT A SHOT DOES (all the guns of a round fire together, then the results are shown one by one):
-//  - A blank does nothing. A blank fired at yourself PROTECTS you: you cannot be hit by anybody's
-//    live bullet in that round.
+//  - A blank does nothing. A blank fired at yourself PROTECTS you (the shield force): you cannot be hit by
+//    anybody's live bullet in that round.
 //  - A live bullet fired at yourself kills you.
 //  - A live bullet fired at another player kills them, unless they are protected.
 //  The last player alive wins. If everybody dies in the same round, or more than one player survives
@@ -20,8 +24,7 @@
 // so every shot kills and nobody can protect themselves any more).
 //
 // DECISIONS (change them here):
-//  - A player who does not aim before the time is up fires at THEMSELVES (DEFAULT_AIM). One who has not
-//    loaded or spun by then gets random chambers loaded.
+//  - A player who does not decide before the AIM time is up is DEFENSELESS ('idle'): no shot, no protection.
 //  - The first aim is final: pressing a target pulls the trigger (it stays hidden until the reveal).
 //  - A target who is no longer in the game (forfeited) counts as 'self'.
 //  - A player who forfeits the game leaves at once.
@@ -35,13 +38,14 @@ import { makeRng } from './schulte';
 // ----------------------------------------------------------- tuning ----
 export const CHAMBERS = 6;
 export const MAX_ROUNDS = 12;
-export const PLAY_MS = 35000; // load, spin, aim: then the gun fires by itself
-export const MIN_PLAY_MS = 3000; // even if everybody has fired, a round lasts at least this long
+export const LOAD_MS = 10000; // fill the cylinder (it is then closed and spun)
+export const MIN_LOAD_MS = 1500; // even if everybody has spun, the loading lasts at least this long
+export const AIM_MS = 30000; // decide who to shoot
+export const MIN_AIM_MS = 3000; // even if everybody has fired, the aiming lasts at least this long
 export const REVEAL_LEAD_MS = 1600; // before the first shot
 export const SHOT_MS = 3200; // for each shot
 export const SHOT_RESULT_AT = 1800; // ... the result lands this long after the shot starts
 export const REVEAL_TAIL_MS = 3400; // after the last shot (who is out, the next round)
-export const DEFAULT_AIM = 'self';
 
 export type Aim = string; // 'self' or the uid of another player
 
@@ -54,14 +58,14 @@ export const popcount = (n: number) => {
 };
 
 // ------------------------------------------------------------ state ----
-export type Phase = 'play' | 'reveal' | 'over';
-export type Outcome = 'click' | 'shielded' | 'suicide' | 'hit' | 'blocked';
+export type Phase = 'load' | 'aim' | 'reveal' | 'over';
+export type Outcome = 'click' | 'shielded' | 'suicide' | 'hit' | 'blocked' | 'idle';
 
 export type Shot = {
   uid: string;
   aim: Aim; // 'self' or the target's uid
   live: boolean;
-  auto: boolean; // the gun fired by itself (the player did not aim in time)
+  auto: boolean; // the player did not decide in time: defenseless, the gun did not fire ('idle')
   outcome: Outcome;
 };
 
@@ -83,7 +87,7 @@ export type State = {
   round: number;
   bullets: number; // live bullets of this round
   phase: Phase;
-  spun: string[]; // who has loaded and spun (not WHICH chambers)
+  spun: string[]; // who has loaded, closed and spun the cylinder (not WHICH chambers)
   fired: string[]; // who has aimed (not at whom)
   reveal: Reveal | null;
   winner: string | null;
@@ -126,7 +130,7 @@ export function autoMask(n: number, rand: () => number): number {
 }
 
 function startRound(s: State, now: number, rand: () => number) {
-  s.phase = 'play';
+  s.phase = 'load';
   s.bullets = bulletsFor(s.round);
   s.spun = [];
   s.fired = [];
@@ -135,7 +139,21 @@ function startRound(s: State, now: number, rand: () => number) {
   s.spins = Object.fromEntries(s.alive.map((id) => [id, Math.floor(rand() * CHAMBERS)]));
   s.reveal = null;
   s.pickFrom = now;
-  s.endsAt = now + PLAY_MS;
+  s.endsAt = now + LOAD_MS;
+  s.rev += 1;
+}
+
+// The loading is over: whoever has not spun gets random chambers loaded and a spin; then everybody aims.
+function startAim(s: State, now: number, rand: () => number) {
+  for (const id of s.alive) {
+    if (s.masks[id] === undefined) {
+      s.masks[id] = autoMask(s.bullets, rand);
+      s.spun.push(id);
+    }
+  }
+  s.phase = 'aim';
+  s.pickFrom = now;
+  s.endsAt = now + AIM_MS;
   s.rev += 1;
 }
 
@@ -149,7 +167,7 @@ export function newGame(order: string[], seed: string, now: number, rand: () => 
     alive: order.slice(),
     round: 1,
     bullets: 1,
-    phase: 'play',
+    phase: 'load',
     spun: [],
     fired: [],
     reveal: null,
@@ -163,15 +181,16 @@ export function newGame(order: string[], seed: string, now: number, rand: () => 
     aims: {},
   };
   startRound(s, now, rand);
-  s.remainingMs = PLAY_MS;
+  s.remainingMs = LOAD_MS;
   return s;
 }
 
 // ------------------------------------------------------------ moves ----
 export function apply(state: State, move: Move): State {
-  if (state.phase !== 'play' || move.rev !== state.rev || !state.alive.includes(move.uid)) return state;
+  if (move.rev !== state.rev || !state.alive.includes(move.uid)) return state;
 
   if (move.kind === 'load') {
+    if (state.phase !== 'load') return state;
     if (state.masks[move.uid] !== undefined) return state; // a spin cannot be redone
     if (!Number.isInteger(move.mask) || move.mask < 0 || move.mask >= 1 << CHAMBERS) return state;
     if (popcount(move.mask) !== state.bullets) return state;
@@ -181,8 +200,8 @@ export function apply(state: State, move: Move): State {
     return s;
   }
 
-  // Aiming: only after the spin, and the first aim is final.
-  if (state.masks[move.uid] === undefined || state.aims[move.uid] !== undefined) return state;
+  // Aiming: only in the aiming part (everybody has spun by then), and the first aim is final.
+  if (state.phase !== 'aim' || state.masks[move.uid] === undefined || state.aims[move.uid] !== undefined) return state;
   const ok = move.target === 'self' || (move.target !== move.uid && state.alive.includes(move.target));
   if (!ok) return state;
   const s = edit(state);
@@ -198,16 +217,18 @@ function fireAll(s: State, rand: () => number): Reveal {
   const info = s.alive.map((id) => {
     const mask = s.masks[id] ?? autoMask(bullets, rand);
     const asked = s.aims[id];
-    let aim: Aim = asked ?? DEFAULT_AIM;
+    let aim: Aim = asked ?? 'self';
     if (aim !== 'self' && !s.alive.includes(aim)) aim = 'self';
     const spin = s.spins[id] ?? Math.floor(rand() * CHAMBERS);
     return { uid: id, aim, auto: asked === undefined, live: ((mask >> spin) & 1) === 1 };
   });
-  const protectedIds = new Set(info.filter((i) => i.aim === 'self' && !i.live).map((i) => i.uid));
+  // Only a blank that was AIMED at yourself protects. A defenseless player (no decision) has no protection.
+  const protectedIds = new Set(info.filter((i) => !i.auto && i.aim === 'self' && !i.live).map((i) => i.uid));
   const dead = new Set<string>();
   const shots: Shot[] = info.map((i) => {
     let outcome: Outcome;
-    if (!i.live) outcome = i.aim === 'self' ? 'shielded' : 'click';
+    if (i.auto) outcome = 'idle';
+    else if (!i.live) outcome = i.aim === 'self' ? 'shielded' : 'click';
     else if (i.aim === 'self') {
       outcome = 'suicide';
       dead.add(i.uid);
@@ -216,7 +237,7 @@ function fireAll(s: State, rand: () => number): Reveal {
       outcome = 'hit';
       dead.add(i.aim);
     }
-    return { uid: i.uid, aim: i.aim, live: i.live, auto: i.auto, outcome };
+    return { uid: i.uid, aim: i.aim, live: i.auto ? false : i.live, auto: i.auto, outcome };
   });
   return {
     round: s.round,
@@ -271,7 +292,7 @@ function dropPlayer(state: State, uid: string): State {
   delete s.spins[uid];
   delete s.aims[uid];
   // During the reveal the round is already settled: afterReveal decides what happens next.
-  if (s.alive.length <= 1 && s.phase === 'play') over(s);
+  if (s.alive.length <= 1 && (s.phase === 'load' || s.phase === 'aim')) over(s);
   return s;
 }
 
@@ -280,8 +301,15 @@ export function tick(state: State, now: number, left: string[] = [], rand: () =>
   if (state.phase === 'over') return state;
   for (const id of left) if (state.order.includes(id) && !state.gone.includes(id)) return dropPlayer(state, id);
 
-  if (state.phase === 'play') {
-    const allFired = state.alive.every((id) => state.fired.includes(id)) && now >= state.pickFrom + MIN_PLAY_MS;
+  if (state.phase === 'load') {
+    const allSpun = state.alive.every((id) => state.spun.includes(id)) && now >= state.pickFrom + MIN_LOAD_MS;
+    if (!allSpun && now < state.endsAt) return state;
+    const s = edit(state);
+    startAim(s, now, rand);
+    return s;
+  }
+  if (state.phase === 'aim') {
+    const allFired = state.alive.every((id) => state.fired.includes(id)) && now >= state.pickFrom + MIN_AIM_MS;
     if (!allFired && now < state.endsAt) return state;
     const s = edit(state);
     resolve(s, now, rand);

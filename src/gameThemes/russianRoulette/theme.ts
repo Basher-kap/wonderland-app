@@ -1,14 +1,5 @@
 import { Platform } from 'react-native';
 
-/**
- * Russian Roulette theme: a secret underground Black Market gambling den. Dim industrial lamps swinging
- * over a brick wall, smoke drifting through the air, a worn wooden table with metal studs and the dark
- * silhouettes of the other gamblers. Black, dark red and muted gold. The revolver's cylinder is the
- * hero of the screen (Cylinder.tsx). Everything is drawn in code, so it stays sharp at any size.
- *
- * FONT: condensed system fonts. Set FONT_DEN after loading a font with useFonts() and the whole
- * game follows.
- */
 export const FONT_DEN = Platform.select({
   ios: 'Futura-CondensedExtraBold',
   android: 'sans-serif-condensed',
@@ -36,6 +27,16 @@ export const den = {
   brass: '#C9A24D',
   copper: '#B5602F',
   panel: 'rgba(12,8,7,0.82)',
+} as const;
+
+// The shield force: a blue-green field that protects the player who aimed a blank at themselves. It is
+// the only cool colour in the den (everything else is black, dark red and gold), so it reads at once.
+export const shieldColors = {
+  teal: '#19F0D2',
+  blue: '#1AA9FF',
+  deep: '#06454F',
+  glow: 'rgba(25,240,210,0.32)',
+  text: '#BFFFF4',
 } as const;
 
 export const CHAMBER_COUNT = 6;

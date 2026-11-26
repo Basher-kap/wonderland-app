@@ -337,10 +337,6 @@ export const GAMES: Game[] = [
       'Each player must play exactly the notes that the piano played, in order.',
       'The chain starts with 4 notes. Every round, the same notes repeat from the start and one new note is added.',
     ],
-    // The 2 x 4 board of 8 white and black tiles (Do Re Mi Fa Sol La Ti DO), the chain opening with the
-    // scale, the beat getting faster and more uneven up to about the 8th round, only the notes counting
-    // (not your rhythm), and a round nobody passes being played again are hidden notes
-    // (game/pianoTiles.ts): NOT listed here on purpose.
     clearConditions: ['The last player to survive wins the game.'],
   },
     {

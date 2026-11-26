@@ -1,16 +1,13 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Stop } from 'react-native-svg';
 import { CHAMBER_COUNT, den } from './theme';
 
-// The revolver's six-chamber cylinder, the hero of the screen. Chamber 0 is under the hammer (the
-// marker at the top). While loading you tap a chamber to put a bullet in it (or take it out again).
-// `spinKey` going up spins it (fast, then slowing down); when it stops `onSpinEnd` is called and, with
-// `closed`, a steel plate shuts over the chambers: nobody, not even the owner, can see which chamber
-// stopped under the hammer.
 const C = 100; // centre of the 200 x 200 drawing
 const RING = 56; // distance of a chamber from the centre
 const HOLE = 21;
+const PLATE_MS = 350; // the plate closing
+const SPIN_MS = 1300; // a fast spin
 
 const chamberPos = (i: number) => {
   const a = ((i * 360) / CHAMBER_COUNT - 90) * (Math.PI / 180);
@@ -44,6 +41,8 @@ export function Cylinder(props: {
   const rot = useRef(new Animated.Value(0)).current;
   const deg = useRef(0);
   const plate = useRef(new Animated.Value(closed ? 1 : 0)).current;
+  // Once the plate is shut the bullets are not drawn any more.
+  const [hidden, setHidden] = useState(closed);
   const pulse = useRef(new Animated.Value(0)).current;
   const lastKey = useRef(spinKey);
   const endRef = useRef(onSpinEnd);
@@ -52,15 +51,24 @@ export function Cylinder(props: {
   useEffect(() => {
     if (spinKey === lastKey.current) return;
     lastKey.current = spinKey;
-    const to = deg.current + (still ? 90 : 1440 + Math.floor(Math.random() * 360));
+    const to = deg.current + (still ? 90 : 1800 + Math.floor(Math.random() * 360));
     deg.current = to;
-    Animated.timing(rot, { toValue: to, duration: still ? 250 : 2400, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(({ finished }) => {
+    Animated.sequence([
+      Animated.delay(still ? 0 : PLATE_MS + 40), // the plate closes first
+      Animated.timing(rot, { toValue: to, duration: still ? 250 : SPIN_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start(({ finished }) => {
       if (finished) endRef.current?.();
     });
-  }, [spinKey, still, rot]);
+  });
 
   useEffect(() => {
-    Animated.timing(plate, { toValue: closed ? 1 : 0, duration: still ? 1 : 350, useNativeDriver: true }).start();
+    Animated.timing(plate, { toValue: closed ? 1 : 0, duration: still ? 1 : PLATE_MS, useNativeDriver: true }).start();
+    if (!closed) {
+      setHidden(false);
+      return;
+    }
+    const id = setTimeout(() => setHidden(true), still ? 1 : PLATE_MS);
+    return () => clearTimeout(id);
   }, [closed, still, plate]);
 
   useEffect(() => {
@@ -105,7 +113,7 @@ export function Cylinder(props: {
               <G key={i}>
                 <Circle cx={p.x} cy={p.y} r={HOLE} fill="#050303" stroke={den.steelLight} strokeWidth={2} />
                 <Circle cx={p.x} cy={p.y} r={HOLE - 4} fill="#0E0908" />
-                {loaded[i] && <BulletFace x={p.x} y={p.y} />}
+                {loaded[i] && !hidden && <BulletFace x={p.x} y={p.y} />}
                 {!closed && onChamber && <Circle cx={p.x} cy={p.y} r={HOLE + 6} fill="transparent" onPress={() => onChamber(i)} />}
               </G>
             );

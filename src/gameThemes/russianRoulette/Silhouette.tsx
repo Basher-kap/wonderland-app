@@ -1,10 +1,10 @@
 import React from 'react';
 import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
-import { den } from './theme';
+import { den, shieldColors } from './theme';
 
 // A mysterious gambler, only a silhouette against the lamp light. Five shapes (hat, bald, hood, cap, slicked
 // hair); a player keeps theirs for the whole game. `dead` crosses them out; `aimed` puts a red ring on them.
-export function Silhouette({ size = 44, variant, dead, aimed }: { size?: number; variant: number; dead?: boolean; aimed?: boolean }) {
+export function Silhouette({ size = 44, variant, dead, aimed, shield }: { size?: number; variant: number; dead?: boolean; aimed?: boolean; shield?: boolean }) {
   const rim = dead ? den.blood : den.goldDim;
   const fill = dead ? '#1A0A0B' : '#0A0605';
   const head = (() => {
@@ -45,6 +45,13 @@ export function Silhouette({ size = 44, variant, dead, aimed }: { size?: number;
       {head}
       {dead && <Path d="M16 18 L44 52 M44 18 L16 52" stroke={den.bloodBright} strokeWidth={3.5} strokeLinecap="round" />}
       {aimed && <Circle cx={30} cy={34} r={28} fill="none" stroke={den.bloodBright} strokeWidth={2.5} strokeDasharray="6 4" />}
+      {shield && (
+        <G>
+          <Circle cx={30} cy={36} r={31} fill={shieldColors.glow} />
+          <Circle cx={30} cy={36} r={30} fill="none" stroke={shieldColors.teal} strokeWidth={2.5} />
+          <Circle cx={30} cy={36} r={25} fill="none" stroke={shieldColors.blue} strokeWidth={1} strokeDasharray="3 3" />
+        </G>
+      )}
     </Svg>
   );
 }

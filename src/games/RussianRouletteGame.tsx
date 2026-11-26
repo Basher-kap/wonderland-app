@@ -17,34 +17,14 @@ import {
 import type { Move } from '../game/russianRoulette';
 import * as api from '../lib/api';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
-import { Blackout, Cylinder, den, FONT_DEN, GunFlash, playSfx, Shake, SILHOUETTES } from '../gameThemes/russianRoulette';
-import { AimPanel, deadIds, OverPanel, resolvedAt, Roster, ShotStage, Tray, TopBar, Waiting } from './RouletteStages';
+import { Blackout, Cylinder, den, FONT_DEN, GunFlash, playSfx, Shake, ShieldField, SILHOUETTES } from '../gameThemes/russianRoulette';
+import { AimPanel, deadIds, OverPanel, resolvedAt, Roster, ShotStage, shieldedIds, Tray, TopBar, Waiting } from './RouletteStages';
 import type { GameProps } from './types';
-
-// Russian Roulette: every player has one life. Each round some live bullets (1 in rounds 1-2, 2 in
-// rounds 3-4 ... all 6 in rounds 11-12) are put at the centre of the screen; every player loads them
-// into their own revolver, spins the cylinder, and then chooses to shoot another player or themselves.
-// When the time is up the gun fires by itself. A live bullet kills its target, unless the target
-// fired a blank at themselves in that round (which protects). The last player alive wins.
-//
-// All the rules live in src/game/russianRoulette.ts. The (lobby) HOST's phone is the only one that
-// runs the game: it listens to everybody's moves (saved in lobbies/{code}/roulette), applies them and
-// saves the state, which every phone shows. Which chambers were loaded, where each spin stopped and who
-// aimed at whom are NOT in the saved state until the reveal, and the other phones only listen to that
-// state. If the lobby host forfeits, or closes the app during the game, the others cannot continue
-// (known limit, same as Fortune and Xibalba). The forfeit buttons are GameScreen's.
-//
-// LOOK: a Black Market gambling den (src/gameThemes/russianRoulette/): the six-chamber cylinder is the
-// centre of the screen; the shots are shown one by one, a live one is a jumpscare (a flash, a shake, a
-// gunshot where the platform has sound or vibration); a player who is shot sees a glimpse of the light
-// fade into a black screen.
-// Hidden notes kept here on purpose, not on the game screen: where a spin stops is random (so a gun
-// with n live bullets fires a live one n times out of 6), a gun that was not aimed in time fires at its
-// owner, and a draw happens when nobody or several players survive all the rounds.
 
 const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (VoiceButton): keep clear
 const SAVE_GAP_MS = 250; // the lobby host saves the state at most this often
 const FINISH_DELAY_MS = 4500;
+const AUTO_SPIN_AT_MS = 700; // this close to the end of the loading, a cylinder not yet spun is filled and spun for you
 
 type Ui = 'load' | 'spinning' | 'closed';
 
@@ -57,12 +37,18 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
   const [aimed, setAimed] = useState<string | null>(null);
   const [flash, setFlash] = useState(0);
   const [shake, setShake] = useState(0);
+  const [shieldOn, setShieldOn] = useState(false); // the shield force is over my screen
+  const [shieldK, setShieldK] = useState(0);
   const [, setFrame] = useState(0); // re-render a few times per second for the countdown
   const reduce = useReduceMotion();
   const receivedAt = useRef(Date.now());
   const startedAt = useRef(Date.now());
   const finished = useRef(false);
   const lastResolved = useRef({ rev: -1, n: 0 });
+  const stRef = useRef<State | null>(null);
+  const uiRef = useRef<Ui>('load');
+  const chambersRef = useRef<boolean[]>([]);
+  const spinRef = useRef<(mask: number) => void>(() => {});
   const roomRef = useRef(room);
   roomRef.current = room;
   const host = useRef<{
@@ -179,29 +165,71 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearInterval(id);
   }, []);
 
-  // A new round or phase: an empty cylinder, nothing aimed yet.
-  useEffect(() => {
-    setUi('load');
-    setChambers(Array.from({ length: CHAMBERS }, () => false));
-    setAimed(null);
-  }, [st?.rev]);
+  stRef.current = st;
+  uiRef.current = ui;
+  chambersRef.current = chambers;
 
-  // The shots of the reveal: every live one is a jumpscare (a flash, a shake, a gunshot); a blank is a click.
+  // A new round starts with an empty, open cylinder. When the aiming starts, a cylinder I have not spun yet
+  // is closed and spun for me (the host has already filled it, see game/russianRoulette.ts).
+  useEffect(() => {
+    if (!st) return;
+    if (st.phase === 'load') {
+      setUi('load');
+      setChambers(Array.from({ length: CHAMBERS }, () => false));
+      setAimed(null);
+    } else if (st.phase === 'aim') {
+      setAimed(null);
+      if (uiRef.current === 'load') {
+        setUi('spinning');
+        setSpinKey((k) => k + 1);
+        playSfx('spin');
+      }
+    }
+  }, [st?.rev]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Nearly out of time for loading: fill the missing bullets at random and spin.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = stRef.current;
+      if (!s || s.phase !== 'load' || uiRef.current !== 'load' || !s.alive.includes(uid) || s.spun.includes(uid)) return;
+      if (remainingNow(s, receivedAt.current, Date.now()) > AUTO_SPIN_AT_MS) return;
+      const open = chambersRef.current.map((on, i) => (on ? -1 : i)).filter((i) => i >= 0);
+      const need = s.bullets - chambersRef.current.filter(Boolean).length;
+      const picked = open.sort(() => Math.random() - 0.5).slice(0, Math.max(0, need));
+      const next = chambersRef.current.slice();
+      picked.forEach((i) => (next[i] = true));
+      setChambers(next);
+      spinRef.current(next.reduce((m, on, i) => (on ? m | (1 << i) : m), 0));
+    }, 150);
+    return () => clearInterval(id);
+  }, [uid]);
+
+  // The shots of the reveal: every live one is a jumpscare (a flash, a shake, a gunshot); a blank is a click;
+  // a shield (my blank at myself, or a bullet deflected by it) switches the blue-green shield force on.
   const resolvedNow = st && st.phase === 'reveal' && st.reveal ? resolvedAt(st.reveal, revealMs(st.reveal) - remainingNow(st, receivedAt.current, Date.now())) : 0;
   useEffect(() => {
     if (!st || st.phase !== 'reveal' || !st.reveal) {
       lastResolved.current = { rev: st?.rev ?? -1, n: 0 };
+      setShieldOn(false);
       return;
     }
-    if (lastResolved.current.rev !== st.rev) lastResolved.current = { rev: st.rev, n: 0 };
+    if (lastResolved.current.rev !== st.rev) {
+      lastResolved.current = { rev: st.rev, n: 0 };
+      setShieldOn(false);
+    }
     for (let i = lastResolved.current.n; i < resolvedNow; i++) {
       const shot = st.reveal.shots[i];
       if (shot.live) {
         setFlash((k) => k + 1);
         setShake((k) => k + 1);
         playSfx('bang');
-      } else {
+      } else if (shot.outcome === 'click') {
         playSfx('click');
+      }
+      if ((shot.outcome === 'shielded' && shot.uid === uid) || (shot.outcome === 'blocked' && shot.aim === uid)) {
+        setShieldOn(true);
+        setShieldK((k) => k + 1);
+        playSfx('shield');
       }
     }
     lastResolved.current.n = resolvedNow;
@@ -240,11 +268,13 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
   const left = remainingNow(st, receivedAt.current, Date.now());
   const secs = Math.max(0, Math.ceil(left / 1000));
   const alive = st.alive.includes(uid);
-  const playing = st.phase === 'play';
+  const loading = st.phase === 'load';
+  const aiming = st.phase === 'aim';
+  const timed = loading || aiming;
   const fired = st.fired.includes(uid);
   const loadedCount = chambers.filter(Boolean).length;
   // after a restart of this screen the host may already know my spin: the cylinder is closed
-  const shownUi: Ui = ui === 'load' && st.spun.includes(uid) ? 'closed' : ui;
+  const shownUi: Ui = loading ? (ui === 'load' && st.spun.includes(uid) ? 'closed' : ui) : ui === 'load' ? 'spinning' : ui;
   const elapsed = st.phase === 'reveal' && st.reveal ? revealMs(st.reveal) - left : 0;
 
   // Is my screen black? After the shot that killed me has landed, and for good from then on.
@@ -262,7 +292,7 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     api.sendRouletteMove(room.code, { matchId: room.matchId, roundNo: room.roundNo }, { rev: st.rev, ...move });
 
   const toggleChamber = (i: number) => {
-    if (!playing || !alive || shownUi !== 'load') return;
+    if (!loading || !alive || shownUi !== 'load') return;
     setChambers((c) => {
       const next = c.slice();
       if (next[i]) next[i] = false;
@@ -273,10 +303,9 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     });
   };
 
-  const spin = () => {
-    if (!playing || shownUi !== 'load' || loadedCount !== st.bullets) return;
-    const mask = chambers.reduce((m, on, i) => (on ? m | (1 << i) : m), 0);
-    if (popcount(mask) !== st.bullets) return;
+  // Close the cylinder and spin it (fast). The chambers are sent to the host, nobody else sees them.
+  const spinWith = (mask: number) => {
+    if (!loading || shownUi !== 'load' || popcount(mask) !== st.bullets) return;
     setUi('spinning');
     setSpinKey((k) => k + 1);
     playSfx('spin');
@@ -285,9 +314,14 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
       console.warn('loading failed', e);
     });
   };
+  spinRef.current = spinWith;
+  const spin = () => {
+    if (loadedCount !== st.bullets) return;
+    spinWith(chambers.reduce((m, on, i) => (on ? m | (1 << i) : m), 0));
+  };
 
   const aim = (target: string) => {
-    if (!playing || shownUi !== 'closed' || fired || aimed !== null) return;
+    if (!aiming || shownUi !== 'closed' || fired || aimed !== null) return;
     setAimed(target);
     sendMove({ kind: 'aim', target }).catch((e) => {
       setAimed(null);
@@ -295,26 +329,27 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     });
   };
 
-  const cylSize = Math.max(110, Math.min(area.w * 0.78, area.h * (playing ? (shownUi === 'closed' ? 0.4 : 0.64) : 0.34), 260));
+  const cylSize = Math.max(110, Math.min(area.w * 0.78, area.h * (loading ? (shownUi === 'load' ? 0.62 : 0.5) : aiming ? 0.34 : 0.3), 260));
   const survivors = st.reveal ? st.reveal.survivors.length : st.alive.length;
   const nextBullets = st.reveal && survivors > 1 && st.round < MAX_ROUNDS ? bulletsFor(st.round + 1) : null;
   const deadNow = st.phase === 'reveal' && st.reveal ? deadIds(st.reveal, resolvedNow) : null;
+  const shieldedNow = st.phase === 'reveal' && st.reveal ? shieldedIds(st.reveal, resolvedNow) : new Set<string>();
 
   return (
     <Shake k={shake} still={reduce}>
       <View style={styles.root}>
-        <TopBar st={st} secs={secs} timed={playing} marginRight={MIC_SPACE} />
+        <TopBar st={st} secs={secs} timed={timed} marginRight={MIC_SPACE} />
 
         <View style={styles.hero} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-          {st.phase === 'play' && (
+          {timed && (
             <View style={styles.center}>
               {alive ? (
                 <>
                   <Cylinder
                     size={cylSize}
                     loaded={chambers}
-                    closed={shownUi === 'closed'}
-                    onChamber={shownUi === 'load' ? toggleChamber : undefined}
+                    closed={shownUi !== 'load'}
+                    onChamber={shownUi === 'load' && loading ? toggleChamber : undefined}
                     spinKey={spinKey}
                     onSpinEnd={() => {
                       setUi('closed');
@@ -322,10 +357,11 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
                     }}
                     still={reduce}
                   />
-                  {shownUi === 'load' && <Tray total={st.bullets} loaded={loadedCount} canSpin={loadedCount === st.bullets} onSpin={spin} />}
+                  {loading && shownUi === 'load' && <Tray total={st.bullets} loaded={loadedCount} canSpin={loadedCount === st.bullets} onSpin={spin} />}
                   {shownUi === 'spinning' && <Text style={styles.hint}>Spinning…</Text>}
-                  {shownUi === 'closed' && !fired && aimed === null && <AimPanel st={st} n={n} onAim={aim} />}
-                  {shownUi === 'closed' && (fired || aimed !== null) && <Waiting st={st} target={aimed} n={n} />}
+                  {loading && shownUi === 'closed' && <Text style={styles.hint}>Sealed. Waiting for the others to finish loading…</Text>}
+                  {aiming && shownUi === 'closed' && !fired && aimed === null && <AimPanel st={st} n={n} onAim={aim} />}
+                  {aiming && shownUi === 'closed' && (fired || aimed !== null) && <Waiting st={st} target={aimed} n={n} />}
                 </>
               ) : (
                 <Text style={styles.hint}>You are out. The round goes on…</Text>
@@ -344,10 +380,11 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
           )}
         </View>
 
-        <Roster st={st} n={n} shown={deadNow} />
+        <Roster st={st} n={n} shown={deadNow} shielded={shieldedNow} />
         {st.lastLeft && st.phase !== 'over' && <Text style={styles.note}>{name(st.lastLeft)} left the den.</Text>}
       </View>
 
+      <ShieldField on={shieldOn && alive} k={shieldK} still={reduce} />
       <GunFlash k={flash} still={reduce} />
       <Blackout active={black} still={reduce}>
         <Text style={styles.blackText}>YOU ARE OUT</Text>
