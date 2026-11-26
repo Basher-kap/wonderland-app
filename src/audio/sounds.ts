@@ -39,6 +39,13 @@ export const SOUNDS = {
     rackOpen: require('../../assets/sounds/karuta/karuta-rack-open.wav'),
     rackClose: require('../../assets/sounds/karuta/karuta-rack-close.wav'),
   },
+  fortune: {
+    // 'turnVoice' = the announcer saying "Ikkaime, Sutaato". The file here is a PLACEHOLDER gong: replace it with your recording.
+    turnVoice: require('../../assets/sounds/fortune/fortune-turn-voice.wav'),
+    templeChoose: require('../../assets/sounds/fortune/fortune-temple-choose.wav'),
+    correct: require('../../assets/sounds/fortune/fortune-correct.wav'),
+    wrong: require('../../assets/sounds/fortune/fortune-wrong.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

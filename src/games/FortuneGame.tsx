@@ -20,6 +20,7 @@ import {
   TIERS,
 } from '../game/fortune';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { ShrineIcon, FONT_FORTUNE, fortune as p, TIER_INK } from '../gameThemes/fortune';
 import type { GameProps } from './types';
 
@@ -45,6 +46,7 @@ import type { GameProps } from './types';
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
 export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('fortune'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [text, setText] = useState('');
   const [, setFrame] = useState(0); // re-render a few times per second for the countdowns
@@ -160,6 +162,33 @@ export function FortuneGame({ seed, uid, onFinish, room }: GameProps) {
     slide.setValue(-300);
     Animated.timing(slide, { toValue: 0, duration: 350, useNativeDriver: true }).start();
   }, [st?.phase, st?.rev, slide]);
+
+  // SOUNDS from the shared state (every phone hears the same moments).
+  // 1) The temple is choosing a player: ticks at the speed of the highlight, then a bell as it lands.
+  //    Skipped when this phone joins late in the choosing, or when only one player is left (no roulette).
+  const choosingKey = st?.phase === 'choosing' ? `choosing:${st.rev}` : '';
+  useEffect(() => {
+    if (!choosingKey || !st || st.alive.length < 2) return;
+    if (remainingNow(st, receivedAt.current, Date.now()) > 3000) play('templeChoose');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choosingKey]);
+
+  // 2) A player has been chosen: the announcer ("Ikkaime, Sutaato") calls the turn.
+  const turnKey = st?.phase === 'temple' ? `temple:${st.rev}` : '';
+  useEffect(() => {
+    if (turnKey) play('turnVoice');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnKey]);
+
+  // 3) The answer is judged: a happy chime for a correct answer (a bonus slip counts), a buzzer for
+  //    a wrong one, no answer, or no draw.
+  const revealKey = st?.phase === 'reveal' && st.result ? `reveal:${st.rev}` : '';
+  useEffect(() => {
+    if (!revealKey || !st?.result) return;
+    const k = st.result.kind;
+    play(k === 'correct' || k === 'daikichi' ? 'correct' : 'wrong');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
 
   // The game is over: after a moment everybody reports. Only the last player alive "finished".
   useEffect(() => {
