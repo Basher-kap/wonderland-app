@@ -15,6 +15,7 @@ import {
 } from '../game/territory';
 import type { Move } from '../game/territory';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { FONT_DISPLAY, glade as g, kingdomOf, Orb } from '../gameThemes/colorTerritory';
 import type { GameProps } from './types';
@@ -47,6 +48,8 @@ const MIN_ORB = 26;
 const MAX_ORB = 54;
 
 export function ColorTerritoryGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('colorTerritory'); // loads the sounds now, frees them when the game closes
+  const prevOwners = useRef<number[] | null>(null); // who owned each orb in the previous update
   const [st, setSt] = useState<State | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 }); // the space the glade may take
   const [, setFrame] = useState(0); // re-render a few times per second for the clock
@@ -195,6 +198,30 @@ export function ColorTerritoryGame({ seed, uid, onFinish, room }: GameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.phase, st?.winner]);
 
+  // Sounds that follow the game: one of my orbs taken by a rival, the last 10 seconds, and the end.
+  useEffect(() => {
+    if (!st) return;
+    const mine = st.order.indexOf(uid);
+    const before = prevOwners.current;
+    prevOwners.current = st.owners;
+    if (!before || mine < 0 || st.phase !== 'play') return;
+    if (st.owners.some((o, i) => before[i] === mine && o !== mine)) play('stolen');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev]);
+  const secs = st && st.phase === 'play' ? Math.ceil(remainingNow(st, receivedAt.current, Date.now()) / 1000) : 0;
+  useEffect(() => {
+    if (secs > 0 && secs <= 10) play('tick', { volume: 0.5 + 0.05 * (10 - secs) }); // louder as the time runs out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secs]);
+  useEffect(() => {
+    if (st?.phase !== 'over') return;
+    play('timeUp');
+    if (st.winner !== uid) return;
+    const id = setTimeout(() => play('win'), 1100);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.phase]);
+
   const spots = useMemo(() => layoutFor(seed), [seed]);
 
   // The glade fits the space left, never scrolls. Its circles are as big as the closest two allow.
@@ -255,6 +282,7 @@ export function ColorTerritoryGame({ seed, uid, onFinish, room }: GameProps) {
     const mineNow = (t && Date.now() - t < PENDING_MS ? myIdx : s.owners[cell]) === myIdx;
     if (mineNow) return; // already mine: nothing to do
     pending.current[cell] = Date.now();
+    play('claim');
     setFrame((f) => f + 1);
     api
       .sendTerritoryMove(room.code, { matchId: room.matchId, roundNo: room.roundNo }, { rev: s.rev, cell })

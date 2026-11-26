@@ -17,6 +17,7 @@ import {
 import type { Move } from '../game/pleasure';
 import * as api from '../lib/api';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
+import { useGameSounds } from '../audio';
 import { Bear, Confetti, FONT_SHOW, playSfx, SFX_CAPTIONS, SfxPop, show, Telop } from '../gameThemes/pleasure';
 import type { Mood, SfxName } from '../gameThemes/pleasure';
 import { AskScreen, DrawScreen, GuessScreen, OverScreen, RevealScreen } from './PleasureScreens';
@@ -71,6 +72,7 @@ export function PleasureGame({ seed, uid, onFinish, room }: GameProps) {
   const [sentText, setSentText] = useState<string | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
   const [typing, setTyping] = useState(false);
+  useGameSounds('pleasure'); // loads the show's sounds now, frees them when the game closes (they play via playSfx)
   const [ev, setEv] = useState<{ k: number; name: SfxName }>({ k: 0, name: 'pop' });
   const [confetti, setConfetti] = useState(0);
   const [, setFrame] = useState(0); // re-render a few times per second for the countdown

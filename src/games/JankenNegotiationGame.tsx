@@ -27,6 +27,7 @@ import {
   WAIT_REVEAL_MS,
 } from '../game/janken';
 import type { JankenDoc, PromiseKind, SetChoice, Throw } from '../game/janken';
+import { useGameSounds } from '../audio';
 import { court as c, FONT_COURT } from '../gameThemes/janken';
 import type { GameProps } from './types';
 
@@ -56,6 +57,7 @@ const EMPTY: Mine = { initial: '', offers: [], acc: [], rej: [] };
 
 export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) {
   const { width } = useWindowDimensions();
+  const { play } = useGameSounds('janken'); // loads the sounds now, frees them when the game closes
   const practice = !room;
   const players = room ? room.playerIds : [uid, BOT];
   const out = room ? room.out : [];
@@ -218,6 +220,26 @@ export function JankenNegotiationGame({ seed, uid, onFinish, room }: GameProps) 
       }, REVEAL_MS);
       return () => clearTimeout(stop);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, k]);
+
+  // ---- sounds: the 3-2-1, the gavel that opens and closes the negotiation, the reveal, and the verdict of my round
+  useEffect(() => {
+    const ids: ReturnType<typeof setTimeout>[] = [];
+    if (phase === 'count') {
+      play('count');
+      ids.push(setTimeout(() => play('count'), COUNTDOWN_MS / 3), setTimeout(() => play('count'), (COUNTDOWN_MS / 3) * 2));
+    } else if (phase === 'negotiate') {
+      play('gavel'); // the session opens
+    } else if (phase === 'final') {
+      play('gavel'); // the negotiation is closed
+      for (let s = 1; s < FINAL_MS / 1000; s++) ids.push(setTimeout(() => play('count', { volume: 0.6 }), s * 1000)); // the last seconds tick
+    } else if (phase === 'reveal') {
+      play('reveal');
+      const mineLine = now.lines.find((l) => l.k === k && (l.a === uid || l.b === uid));
+      if (mineLine) ids.push(setTimeout(() => play(mineLine.winner === uid ? 'win' : mineLine.winner ? 'lose' : 'gavel'), 1600)); // a draw: just the gavel
+    }
+    return () => ids.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, k]);
 

@@ -49,6 +49,26 @@ function tone(out, at, sec, type, f0, f1, vol) {
   }
   add(out, at, x, 1);
 }
+// A steady tone (no exponential decay): short attack, constant level, fades out over the last 30 %. For drones/hums.
+function hold(out, at, sec, type, f0, f1, vol, atk = 0.03) {
+  const n = Math.floor(SR * sec), x = new Float32Array(n);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / n, f = f0 * Math.pow(Math.max(1, f1) / f0, t);
+    phase += (2 * Math.PI * f) / SR;
+    const p = phase % (2 * Math.PI);
+    const s = type === 'triangle' ? (2 / Math.PI) * Math.asin(Math.sin(phase))
+      : type === 'saw' ? p / Math.PI - 1
+      : type === 'square' ? (p < Math.PI ? 1 : -1)
+      : Math.sin(phase);
+    x[i] = s * vol * Math.min(1, i / SR / atk) * Math.min(1, (1 - t) / 0.3);
+  }
+  add(out, at, x, 1);
+}
+// Soft clipping: makes a sound denser, louder and angrier (g = how hard it is pushed, 1 = barely).
+function drive(out, g) {
+  for (let i = 0; i < out.length; i++) out[i] = Math.tanh(out[i] * g);
+}
 function save(dir, file, data) {
   let peak = 0;
   for (const v of data) peak = Math.max(peak, Math.abs(v));
@@ -64,4 +84,4 @@ function save(dir, file, data) {
   fs.writeFileSync(full, pcm);
   console.log(`${dir}/${file}`, (pcm.length / 1024).toFixed(0) + ' KB', (data.length / SR).toFixed(2) + ' s', 'peak', peak.toFixed(2));
 }
-module.exports = { SR, buf, biquad, add, burst, tone, save };
+module.exports = { SR, buf, biquad, add, burst, tone, hold, drive, save };

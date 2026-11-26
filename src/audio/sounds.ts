@@ -131,6 +131,29 @@ export const SOUNDS = {
     warn: require('../../assets/sounds/inversion/inversion-warn.wav'),
     out: require('../../assets/sounds/inversion/inversion-out.wav'),
   },
+  janken: {
+    count: require('../../assets/sounds/janken/janken-count.wav'),
+    gavel: require('../../assets/sounds/janken/janken-gavel.wav'),
+    reveal: require('../../assets/sounds/janken/janken-reveal.wav'),
+    win: require('../../assets/sounds/janken/janken-win.wav'),
+    lose: require('../../assets/sounds/janken/janken-lose.wav'),
+  },
+  pleasure: {
+    pop: require('../../assets/sounds/pleasure/pleasure-pop.wav'),
+    quiz: require('../../assets/sounds/pleasure/pleasure-quiz.wav'),
+    drum: require('../../assets/sounds/pleasure/pleasure-drum.wav'),
+    fanfare: require('../../assets/sounds/pleasure/pleasure-fanfare.wav'),
+    pinpon: require('../../assets/sounds/pleasure/pleasure-pinpon.wav'),
+    bubu: require('../../assets/sounds/pleasure/pleasure-bubu.wav'),
+    win: require('../../assets/sounds/pleasure/pleasure-win.wav'),
+  },
+  colorTerritory: {
+    claim: require('../../assets/sounds/colorTerritory/territory-claim.wav'),
+    stolen: require('../../assets/sounds/colorTerritory/territory-stolen.wav'),
+    tick: require('../../assets/sounds/colorTerritory/territory-tick.wav'),
+    timeUp: require('../../assets/sounds/colorTerritory/territory-timeup.wav'),
+    win: require('../../assets/sounds/colorTerritory/territory-win.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;
