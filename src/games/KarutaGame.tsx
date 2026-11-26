@@ -12,39 +12,14 @@ import {
   withAdvance,
 } from '../game/karuta';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { TatamiBackground, FONT_KARUTA, washitsu as w } from '../gameThemes/karuta';
 import type { GameProps } from './types';
-
-// Karuta: 26 letter cards are dealt equally; the leftover cards are void. A floating target card
-// appears after a random time (within 15 s) and everybody races to take it from any rack. A wrong
-// card is a penalty (you receive it); a correct card taken from somebody else's rack lets you send
-// one of your own cards to them. The first player with an empty rack clears the game.
-//
-// All the rules live in src/game/karuta.ts. The HOST's phone is the only one that runs the game:
-// it applies everybody's moves (saved in lobbies/{code}/karuta) and saves the state (without the
-// secret advance grabs), which every phone shows. If the host forfeits the game the others cannot
-// continue (known limit, same as Battleships and Fortune). The forfeit buttons are GameScreen's.
-//
-// LOOK: a traditional room at the end of a summer day (gameThemes/karuta/theme.ts). The open doors, the
-// wind chime, the tatami floor and the rules dialogs are in gameThemes/karuta/TatamiBackground.tsx and
-// gameThemes/karuta/intro.tsx. This screen draws its own background because GameScreen gives a full-screen game
-// the whole screen.
-//
-// Layout (hidden notes, not in the rules window): top to bottom: the status line, the target card
-// slot (FIXED at the top, the target always appears in the same place), the latest events, then the
-// other players' racks stacked vertically (each rack is a collapsible row that extends from the left
-// or the right edge, alternating; its cards are in ONE horizontal line), and MY rack, the only one
-// that stays open, in one single line fitting the screen width, pinned to the bottom. While
-// memorizing all racks are open (to memorize them); after that only ONE rack can be open at a time; every time a new target starts to count down, the racks that were
-// open collapse again (players can open them again).
 
 const PLAYER_COLORS = ['#EF9F27', '#5DCAA5', '#AFA9EC', '#F09595', '#7DB8F0', '#E8D44D', '#C792EA', '#8BD17C'];
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
-// A letter card of a given width (the height follows). Defined outside KarutaGame on purpose: the
-// board re-renders several times a second, and a component created inside would be remounted every
-// time (taps would be lost).
 function Card({ letter, width, tint, onPress, disabled, marked, glow }: {
   letter: string;
   width: number;
@@ -79,6 +54,7 @@ const fitWidth = (avail: number, count: number, gap: number, max: number) =>
   Math.max(8, Math.min(max, Math.floor((avail - gap * Math.max(0, count - 1)) / Math.max(1, count))));
 
 export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('karuta'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({}); // which other racks are expanded
   const [pick, setPick] = useState<{ no: number; owner: string; card: string } | null>(null); // my grab for the current target
@@ -194,9 +170,37 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
   const openKey = st ? (st.phase === 'memorize' ? 'memorize' : `t${st.targetNo}`) : '';
   useEffect(() => {
     if (!st || !openKey) return;
+    // Racks opening for the memorizing, or collapsing for a new target (one sound for all of them).
+    if (openKey === 'memorize') play('rackOpen');
+    else if (Object.values(open).some(Boolean)) play('rackClose');
     setOpen(openKey === 'memorize' ? Object.fromEntries(st.order.map((id) => [id, true])) : {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openKey]);
+
+  // SOUNDS from the shared state (every phone hears the same moments).
+  // The floating target card appears.
+  const liveKey = st?.phase === 'live' ? `live:${st.targetNo}` : '';
+  useEffect(() => {
+    if (liveKey) play('target');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveKey]);
+
+  // Somebody else grabbed a card (right or wrong, or the system took it): a slap. My own grabs sound
+  // the moment I press (see `grab`), so they are skipped here. What was already there when this phone
+  // joined is not played again.
+  const seenEvent = useRef<number | null>(null);
+  const eventNo = st ? st.eventNo : -1;
+  useEffect(() => {
+    if (!st) return;
+    if (seenEvent.current === null) {
+      seenEvent.current = st.eventNo;
+      return;
+    }
+    const fresh = st.events.filter((e) => e.n > (seenEvent.current as number));
+    seenEvent.current = st.eventNo;
+    if (fresh.some((e) => (e.kind === 'took' || e.kind === 'wrong') && e.by !== uid)) play('grab', { volume: 0.6 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventNo]);
 
   // The game is over: after a moment everybody reports. Only the winner "finished".
   useEffect(() => {
@@ -260,6 +264,7 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
 
   const grab = (owner: string, card: string) => {
     if (!canGrab) return;
+    play('grab'); // my own slap, right away
     setPick({ no: st.targetNo, owner, card });
     send('grab', { owner, card });
   };
@@ -327,7 +332,10 @@ export function KarutaGame({ seed, uid, onFinish, room }: GameProps) {
       >
         <Pressable
           // Only one rack can be open: opening this one closes every other rack.
-          onPress={() => setOpen((o) => (o[id] ? {} : { [id]: true }))}
+          onPress={() => {
+            play(open[id] ? 'rackClose' : 'rackOpen');
+            setOpen((o) => (o[id] ? {} : { [id]: true }));
+          }}
           accessibilityRole="button"
           accessibilityLabel={`${isOpen ? 'Collapse' : 'Open'} ${name(id)}'s rack`}
           style={[styles.rackTab, { width: TAB_W }]}

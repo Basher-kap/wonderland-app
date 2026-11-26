@@ -33,6 +33,12 @@ export const SOUNDS = {
     hitOwn: require('../../assets/sounds/battleships/battleships-hit-own.wav'),
     miss: require('../../assets/sounds/battleships/battleships-miss.wav'),
   },
+  karuta: {
+    target: require('../../assets/sounds/karuta/karuta-target.wav'),
+    grab: require('../../assets/sounds/karuta/karuta-grab.wav'),
+    rackOpen: require('../../assets/sounds/karuta/karuta-rack-open.wav'),
+    rackClose: require('../../assets/sounds/karuta/karuta-rack-close.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;
