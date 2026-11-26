@@ -16,6 +16,7 @@ import {
 } from '../game/russianRoulette';
 import type { Move } from '../game/russianRoulette';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { Blackout, Cylinder, den, FONT_DEN, GunFlash, playSfx, Shake, ShieldField, SILHOUETTES } from '../gameThemes/russianRoulette';
 import { AimPanel, deadIds, OverPanel, resolvedAt, Roster, ShotStage, shieldedIds, Tray, TopBar, Waiting } from './RouletteStages';
@@ -29,6 +30,7 @@ const AUTO_SPIN_AT_MS = 700; // this close to the end of the loading, a cylinder
 type Ui = 'load' | 'spinning' | 'closed';
 
 export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
+  useGameSounds('russianRoulette'); // loads the den's sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
   const [ui, setUi] = useState<Ui>('load');

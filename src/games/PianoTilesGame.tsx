@@ -48,14 +48,14 @@ import type { GameProps } from './types';
 // a round nobody passes is played again, and the fastest survivor wins if several clear the game.
 
 const SOUNDS = [
-  require('../../assets/sounds/piano-1.wav'),
-  require('../../assets/sounds/piano-2.wav'),
-  require('../../assets/sounds/piano-3.wav'),
-  require('../../assets/sounds/piano-4.wav'),
-  require('../../assets/sounds/piano-5.wav'),
-  require('../../assets/sounds/piano-6.wav'),
-  require('../../assets/sounds/piano-7.wav'),
-  require('../../assets/sounds/piano-8.wav'),
+  require('../../assets/sounds/pianoTiles/piano-1.wav'),
+  require('../../assets/sounds/pianoTiles/piano-2.wav'),
+  require('../../assets/sounds/pianoTiles/piano-3.wav'),
+  require('../../assets/sounds/pianoTiles/piano-4.wav'),
+  require('../../assets/sounds/pianoTiles/piano-5.wav'),
+  require('../../assets/sounds/pianoTiles/piano-6.wav'),
+  require('../../assets/sounds/pianoTiles/piano-7.wav'),
+  require('../../assets/sounds/pianoTiles/piano-8.wav'),
 ];
 
 const PAD = 10;

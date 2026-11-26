@@ -1,10 +1,12 @@
 import { Platform, Vibration } from 'react-native';
+import { playSound } from '../../audio';
 
-// Sounds of the den. The project has no audio library installed yet, so for now the sounds are played with
-// the Web Audio API where it exists (Expo web / browsers). On phones the gunshot is a strong vibration
-// (React Native's own Vibration) and everything else is silent: the game shows the same moments with
-// light, shake and captions. To get real sound on phones, install expo-audio and play your own files
-// from `playSfx` below: it is the only place to change.
+// Sounds of the den.
+//  - Browsers (Expo web): synthesized live with the Web Audio API (below).
+//  - Phones: React Native has no Web Audio, so the sounds are the files in assets/sounds/russianRoulette/,
+//    registered in src/audio/sounds.ts and played through src/audio (expo-audio). They were rendered by
+//    scripts/make-roulette-sfx.cjs; replace them with your own recordings under the same names.
+//    The gunshot also vibrates the phone. The game loads them in advance with useGameSounds('russianRoulette').
 //
 // THE GUNSHOT is meant to be a jumpscare. Lower BANG_VOLUME (0 to 1) if it is too much.
 export const BANG_VOLUME = 0.8;
@@ -70,6 +72,10 @@ export function playSfx(name: SfxName) {
   try {
     if (name === 'bang') Vibration.vibrate(Platform.OS === 'android' ? [0, 90, 40, 180] : 400);
     if (name === 'click' && Platform.OS === 'android') Vibration.vibrate(12);
+    if (Platform.OS !== 'web') {
+      playSound('russianRoulette', name, { volume: name === 'bang' ? Math.min(1, BANG_VOLUME + 0.2) : 1 });
+      return;
+    }
     const c = audio();
     if (!c) return;
     switch (name) {
