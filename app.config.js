@@ -12,9 +12,16 @@ module.exports = ({ config }) => {
 
   const localFile = variant.suffix === '' ? './google-services.json' : `./google-services.${key}.json`;
 
-  // Keep any plugins already in app.json, and add expo-audio once.
+// Keep any plugins already in app.json, and add expo-audio and expo-image-picker once each.
   const plugins = config.plugins ?? [];
-  const withAudio = plugins.includes('expo-audio') ? plugins : [...plugins, 'expo-audio'];
+  const has = (name) => plugins.some((p) => (Array.isArray(p) ? p[0] : p) === name);
+  const withAudio = [
+    ...plugins,
+    ...(has('expo-audio') ? [] : ['expo-audio']),
+    ...(has('expo-image-picker')
+      ? []
+      : [['expo-image-picker', { photosPermission: 'WONDERLAND lets you choose a profile picture from your photos.' }]]),
+  ];
 
   return {
     ...config,
