@@ -49,27 +49,28 @@ function tone(out, at, sec, type, f0, f1, vol) {
   }
   add(out, at, x, 1);
 }
-// A steady tone (no exponential decay): short attack, constant level, fades out over the last 30 %. For drones/hums.
-function hold(out, at, sec, type, f0, f1, vol, atk = 0.03) {
+// A note or drone with a slow attack and release (sine, optional vibrato in Hz/depth, optional glide f0 -> f1).
+function swell(out, at, sec, f0, f1, vol, attack = 0.3, vibHz = 0, vibDepth = 0) {
   const n = Math.floor(SR * sec), x = new Float32Array(n);
   let phase = 0;
   for (let i = 0; i < n; i++) {
-    const t = i / n, f = f0 * Math.pow(Math.max(1, f1) / f0, t);
+    const t = i / n, tt = i / SR;
+    const f = (f0 * Math.pow(f1 / f0, t)) * (1 + (vibHz ? vibDepth * Math.sin(2 * Math.PI * vibHz * tt) : 0));
     phase += (2 * Math.PI * f) / SR;
-    const p = phase % (2 * Math.PI);
-    const s = type === 'triangle' ? (2 / Math.PI) * Math.asin(Math.sin(phase))
-      : type === 'saw' ? p / Math.PI - 1
-      : type === 'square' ? (p < Math.PI ? 1 : -1)
-      : Math.sin(phase);
-    x[i] = s * vol * Math.min(1, i / SR / atk) * Math.min(1, (1 - t) / 0.3);
+    const env = Math.min(1, tt / attack) * Math.min(1, (sec - tt) / (attack * 1.5));
+    x[i] = Math.sin(phase) * vol * env;
   }
   add(out, at, x, 1);
 }
-// Soft clipping: makes a sound denser, louder and angrier (g = how hard it is pushed, 1 = barely).
-function drive(out, g) {
-  for (let i = 0; i < out.length; i++) out[i] = Math.tanh(out[i] * g);
+// Filtered noise shaped by env(t01) -> gain, for rumbles, whooshes and breath.
+function noiseEnv(out, at, sec, type, freq, vol, env) {
+  const n = Math.floor(SR * sec), x = new Float32Array(n);
+  for (let i = 0; i < n; i++) x[i] = (Math.random() * 2 - 1) * env(i / n);
+  add(out, at, biquad(x, type, freq), vol);
 }
-function save(dir, file, data) {
+function save(dir, file, data, boost = 1) {
+  // boost > 1 makes a quiet sound louder (up to a peak of 0.95); louder ones are always scaled down to 0.95
+  if (boost !== 1) for (let i = 0; i < data.length; i++) data[i] *= boost;
   let peak = 0;
   for (const v of data) peak = Math.max(peak, Math.abs(v));
   const g = peak > 0.95 ? 0.95 / peak : 1;
@@ -84,4 +85,4 @@ function save(dir, file, data) {
   fs.writeFileSync(full, pcm);
   console.log(`${dir}/${file}`, (pcm.length / 1024).toFixed(0) + ' KB', (data.length / SR).toFixed(2) + ' s', 'peak', peak.toFixed(2));
 }
-module.exports = { SR, buf, biquad, add, burst, tone, hold, drive, save };
+module.exports = { SR, buf, biquad, add, burst, tone, swell, noiseEnv, save };

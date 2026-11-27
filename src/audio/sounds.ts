@@ -172,6 +172,19 @@ export const SOUNDS = {
     point: require('../../assets/sounds/beautyContest/beauty-point.wav'),
     notice: require('../../assets/sounds/beautyContest/beauty-notice.wav'),
   },
+  xibalba: {
+    step: require('../../assets/sounds/xibalba/xibalba-step.wav'),
+    danger: require('../../assets/sounds/xibalba/xibalba-danger.wav'),
+    drumroll: require('../../assets/sounds/xibalba/xibalba-drumroll.wav'),
+    safe: require('../../assets/sounds/xibalba/xibalba-safe.wav'),
+    trapSpikes: require('../../assets/sounds/xibalba/xibalba-trap-spikes.wav'),
+    trapCrumble: require('../../assets/sounds/xibalba/xibalba-trap-crumble.wav'),
+    trapFire: require('../../assets/sounds/xibalba/xibalba-trap-fire.wav'),
+    trapExplode: require('../../assets/sounds/xibalba/xibalba-trap-explode.wav'),
+    trapBoulder: require('../../assets/sounds/xibalba/xibalba-trap-boulder.wav'),
+    fall: require('../../assets/sounds/xibalba/xibalba-fall.wav'),
+    survivor: require('../../assets/sounds/xibalba/xibalba-survivor.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

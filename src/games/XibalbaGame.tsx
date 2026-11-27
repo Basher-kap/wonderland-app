@@ -12,6 +12,7 @@ import {
   tick,
 } from '../game/xibalba';
 import * as api from '../lib/api';
+import { useGameSounds } from '../audio';
 import { MayaGlyph, cave as c, FONT_XIBALBA } from '../gameThemes/xibalba';
 import type { GameProps } from './types';
 
@@ -42,7 +43,16 @@ const PAD = 10;
 
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
+// Which trap a false tile is: the same for the same tile on every phone (no randomness, so everybody hears the same one).
+const TRAP_SOUNDS = ['trapSpikes', 'trapCrumble', 'trapFire', 'trapExplode', 'trapBoulder'] as const;
+function trapIndex(seed: string, setNo: number, row: number, col: number): number {
+  let h = 7;
+  for (const ch of `${seed}:${setNo}:${row}:${col}`) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
+  return h % TRAP_SOUNDS.length;
+}
+
 export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('xibalba'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [choice, setChoice] = useState<number | null>(null);
   const [boardW, setBoardW] = useState(300);
@@ -157,6 +167,49 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
     sent.current = '';
   }, [st?.rev]);
 
+  // SOUNDS from the shared state (every phone hears the same moments).
+  const leftMs = st ? remainingNow(st, receivedAt.current, Date.now()) : 0;
+
+  // 1) A new step starts: the danger cue (taiko, drone and flute). Skipped when this phone joins late in the step.
+  const pickKey = st?.phase === 'pick' ? `pick:${st.rev}` : '';
+  useEffect(() => {
+    if (pickKey && leftMs > 7000) play('danger');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickKey]);
+
+  // 2) The last 2.4 seconds of the pick time: the drumroll, which ends with its big hit as the steps are revealed.
+  const rollKey = st?.phase === 'pick' && leftMs <= 2400 ? `roll:${st.rev}` : '';
+  useEffect(() => {
+    if (rollKey) play('drumroll');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rollKey]);
+
+  // 3) The steps are revealed: a safe step holds (quiet unless it is mine); every tile that was a trap plays its own
+  //    trap (spikes, crumbling, fire, explosion or boulder, always the same one for the same tile on every phone),
+  //    and then the fall.
+  const revealKey = st?.phase === 'reveal' && st.reveal ? `reveal:${st.rev}` : '';
+  useEffect(() => {
+    if (!revealKey || !st?.reveal || leftMs < 2500) return;
+    const r = st.reveal;
+    const mineStep = r.steps.find((x) => x.uid === uid);
+    if (r.steps.some((x) => x.safe)) play('safe', { volume: mineStep?.safe ? 1 : 0.5 });
+    const trapCols = [...new Set(r.steps.filter((x) => !x.safe && x.col !== null).map((x) => x.col as number))].slice(0, 3);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    trapCols.forEach((col, i) => {
+      timers.push(setTimeout(() => play(TRAP_SOUNDS[trapIndex(st.seed, r.setNo, r.row, col)]), 250 + i * 300));
+    });
+    if (r.fell.length > 0) timers.push(setTimeout(() => play('fall'), 250 + trapCols.length * 300 + 300));
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
+
+  // 4) Only one player is left standing.
+  const overKey = st?.phase === 'over' && st.winner ? `over:${st.rev}` : '';
+  useEffect(() => {
+    if (overKey) play('survivor');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overKey]);
+
   // The game is over: after a moment everybody reports. Only the last player left "finished".
   useEffect(() => {
     if (st?.phase !== 'over' || finished.current) return;
@@ -198,6 +251,7 @@ export function XibalbaGame({ seed, uid, onFinish, room }: GameProps) {
 
   const pick = (col: number) => {
     if (!canPick) return;
+    play('step'); // my footstep on the tile I chose
     setChoice(col);
     const key = `${st.rev}:${col}`;
     if (sent.current === key) return;
