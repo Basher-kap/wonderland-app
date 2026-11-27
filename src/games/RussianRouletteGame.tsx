@@ -384,7 +384,6 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
               <Text style={styles.countdownText}>{secs}</Text>
             </View>
           )}
-
           {st.phase === 'reveal' && st.reveal && (
             <View style={styles.center}>
               <ShotStage rev={st.reveal} elapsed={elapsed} n={n} cylSize={Math.min(96, cylSize)} still={reduce} survivors={survivors} nextBullets={nextBullets} />
@@ -419,9 +418,9 @@ const styles = StyleSheet.create({
   waitingTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 20, letterSpacing: 1, textAlign: 'center' },
   waitingText: { color: den.bone, fontFamily: FONT_DEN, fontSize: 15, textAlign: 'center' },
   hero: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   countdown: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   countdownText: { color: den.bloodBright, fontFamily: FONT_DEN, fontSize: 120, opacity: 0.55 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   hint: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 16, letterSpacing: 1, textAlign: 'center' },
   note: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 12, textAlign: 'center' },
   blackText: { color: '#3A0A0D', fontFamily: FONT_DEN, fontSize: 30, letterSpacing: 4 },

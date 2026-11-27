@@ -5,9 +5,6 @@ import type { Reveal, Shot, State } from '../game/russianRoulette';
 import { BulletFace, Cylinder, den, FONT_DEN, shieldColors, Silhouette } from '../gameThemes/russianRoulette';
 import Svg from 'react-native-svg';
 
-// The pieces of the Russian Roulette screen (RussianRouletteGame.tsx puts them together): the top bar
-// with the live-bullet indicator, the bullet tray and SPIN button, the aim buttons, the roster of
-// gamblers, the reveal of the shots one by one, and the end of the game.
 export type Names = { uid: string; who: (id: string) => string; variant: (id: string) => number };
 
 // ---------------------------------------------------------- top bar ----
@@ -66,7 +63,7 @@ export function Tray(props: { total: number; loaded: number; canSpin: boolean; o
           </View>
         ))}
       </View>
-      <Text style={styles.trayText}>{left > 0 ? `Tap a chamber to load a bullet (${left} left)` : 'All loaded. Spin and close it!'}</Text>
+      <Text style={styles.trayText}>{left > 0 ? `Tap a chamber to load a bullet (${left} left)` : 'All loaded. Close it and spin!'}</Text>
       <Pressable
         onPress={onSpin}
         disabled={!canSpin}
@@ -294,13 +291,13 @@ const styles = StyleSheet.create({
   aim: { gap: 8 },
   aimTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 15, letterSpacing: 3, textAlign: 'center' },
   aimSelf: { backgroundColor: den.panel, borderColor: den.gold, borderWidth: 2, borderRadius: 4, alignItems: 'center', paddingVertical: 8 },
-  aimOn: { backgroundColor: den.bloodDark, borderColor: den.bloodBright },
   aimSelfText: { color: den.gold, fontFamily: FONT_DEN, fontSize: 18, letterSpacing: 3 },
   aimSelfSub: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11 },
   aimNote: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11, textAlign: 'center' },
   aimGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   aimBtn: { width: '48.8%', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: den.panel, borderColor: den.blood, borderWidth: 2, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5 },
   aimName: { flex: 1, color: den.bone, fontFamily: FONT_DEN, fontSize: 14 },
+  aimOn: { backgroundColor: den.bloodDark, borderColor: den.bloodBright },
 
   roster: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
   gambler: { width: 58, alignItems: 'center' },
