@@ -31,8 +31,8 @@ import type { GameProps } from './types';
 // and does not use up an attempt.
 //
 // RACE: nobody waits for anybody. A player who guessed the word, or used 5 attempts, sees the answer for
-// a moment and then goes straight on to the next word. The first player to guess ALL the words ends the
-// game (registry: endsOnResult); if nobody does, the most points wins. In a lobby each player's progress
+// a moment and then goes straight on to the next word. The game lasts until every player has finished
+// all the levels; the most points wins (a tie goes to the shorter total time). In a lobby each player's progress
 // (levels done) is shown under the header, from `room.stages`.
 //
 // After the 3rd level the player's result (points + time) is reported with onFinish. Points are

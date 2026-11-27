@@ -4,7 +4,6 @@ import {
   extraPoints as wordleExtraPoints,
   LEVEL_COUNT,
   LEVEL_NAMES,
-  MAX_EXTRA as WORDLE_MAX_POINTS,
   pickAnswer,
   pickWinner as pickMostPoints,
   solvedCount,
@@ -101,9 +100,8 @@ export const GAME_MODULES: Record<string, GameModule> = {
     pickWinner: pickMostPoints,
     describe: (r) => (r.finished ? `guessed ${solvedCount(r.score ?? 0)} of ${LEVEL_COUNT} words` : 'did not finish'),
     multiStage: true,
-    // The game ends as soon as the first player guesses ALL the words (every level solved = the
-    // maximum points).
-    endsOnResult: (r) => r.finished && (r.score ?? 0) >= WORDLE_MAX_POINTS,
+    // No early end: the round lasts until every player has finished all the levels (or forfeited),
+    // so a perfect finish by one player does not cut the others off.
     extraPoints: wordleExtraPoints,
     summary: (seed) =>
       'The words were:\n' +
