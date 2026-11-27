@@ -80,20 +80,20 @@ export function Tray(props: { total: number; loaded: number; canSpin: boolean; o
 }
 
 // ------------------------------------------------------------- aim ----
-export function AimPanel(props: { st: State; n: Names; onAim: (target: string) => void }) {
-  const { st, n, onAim } = props;
+export function AimPanel(props: { st: State; n: Names; selected: string | null; onAim: (target: string) => void }) {
+  const { st, n, selected, onAim } = props;
   const others = st.alive.filter((id) => id !== n.uid);
   return (
     <View style={styles.aim}>
-      <Text style={styles.aimTitle}>WHO DO YOU SHOOT?</Text>
-      <Pressable onPress={() => onAim('self')} accessibilityRole="button" style={({ pressed }) => [styles.aimSelf, pressed && { opacity: 0.7 }]}>
+      <Text style={styles.aimTitle}>{selected === null ? 'WHO DO YOU SHOOT?' : 'LOCKED ON. CHANGE IT IF YOU LIKE'}</Text>
+      <Pressable onPress={() => onAim('self')} accessibilityRole="button" style={({ pressed }) => [styles.aimSelf, selected === 'self' && styles.aimOn, pressed && { opacity: 0.7 }]}>
         <Text style={styles.aimSelfText}>MYSELF</Text>
         <Text style={styles.aimSelfSub}>aiming yourself grants protection</Text>
       </Pressable>
-      <Text style={styles.aimNote}>No decision in time and you are defenseless: no shot, no protection.</Text>
+      <Text style={styles.aimNote}>Every trigger is pulled at the same time when the clock runs out. No decision and you are defenseless: no shot, no protection.</Text>
       <View style={styles.aimGrid}>
         {others.map((id) => (
-          <Pressable key={id} onPress={() => onAim(id)} accessibilityRole="button" accessibilityLabel={`Shoot ${n.who(id)}`} style={({ pressed }) => [styles.aimBtn, pressed && { backgroundColor: den.bloodDark }]}>
+          <Pressable key={id} onPress={() => onAim(id)} accessibilityRole="button" accessibilityLabel={`Shoot ${n.who(id)}`} style={({ pressed }) => [styles.aimBtn, selected === id && styles.aimOn, pressed && { backgroundColor: den.bloodDark }]}>
             <Silhouette size={26} variant={n.variant(id)} />
             <Text style={styles.aimName} numberOfLines={1}>
               {n.who(id)}
@@ -101,21 +101,6 @@ export function AimPanel(props: { st: State; n: Names; onAim: (target: string) =
           </Pressable>
         ))}
       </View>
-    </View>
-  );
-}
-
-// You have pulled the trigger and wait for the others.
-export function Waiting({ st, target, n }: { st: State; target: string | null; n: Names }) {
-  return (
-    <View style={styles.waiting}>
-      <Text style={styles.waitingHead}>TRIGGER PULLED</Text>
-      <Text style={styles.waitingText}>
-        You aimed at {target === 'self' || target === null ? 'yourself' : n.who(target)}. It is final.
-      </Text>
-      <Text style={styles.waitingText}>
-        {st.fired.length} of {st.alive.length} have fired
-      </Text>
     </View>
   );
 }
@@ -128,14 +113,14 @@ export function Roster({ st, n, shown, shielded }: { st: State; n: Names; shown:
         .filter((id) => !st.gone.includes(id))
         .map((id) => {
           const dead = shown ? shown.has(id) || (!st.alive.includes(id) && !st.reveal?.shots.some((s) => s.uid === id)) : !st.alive.includes(id);
-          const ready = st.phase === 'aim' && st.fired.includes(id);
+          const ready = st.phase === 'aim' && st.aimed.includes(id);
           return (
             <View key={id} style={styles.gambler}>
               <Silhouette size={34} variant={n.variant(id)} dead={dead} shield={!dead && shielded.has(id)} />
               <Text style={[styles.gamblerName, id === n.uid && { color: den.gold }, dead && { color: den.boneMuted, textDecorationLine: 'line-through' }]} numberOfLines={1}>
                 {id === n.uid ? 'You' : n.who(id)}
               </Text>
-              <Text style={styles.gamblerState}>{dead ? 'OUT' : shielded.has(id) ? 'SHIELD' : ready ? 'READY' : st.phase === 'load' && st.spun.includes(id) ? 'SPUN' : ' '}</Text>
+              <Text style={styles.gamblerState}>{dead ? 'OUT' : shielded.has(id) ? 'SHIELD' : ready ? 'AIMED' : st.phase === 'load' && st.spun.includes(id) ? 'SPUN' : ' '}</Text>
             </View>
           );
         })}
@@ -196,13 +181,19 @@ export function ShotStage(props: { rev: Reveal; elapsed: number; n: Names; cylSi
   const landed = shot !== null && elapsed >= shotResultAt(idx);
   const dead = deadIds(rev, resolved);
 
-  let head = 'THE GUNS ARE LOADED…';
+  let head = 'ALL TRIGGERS PULLED!';
   if (finished) head = rev.dead.length > 0 ? `${rev.dead.length} ELIMINATED` : 'NOBODY FELL';
   else if (shot) head = `SHOT ${idx + 1} OF ${total}`;
 
   return (
     <View style={styles.stage}>
       <Text style={styles.stageHead}>{head}</Text>
+      {idx === -1 && !finished && (
+        <View style={styles.caption}>
+          <Text style={styles.bang}>FIRE!</Text>
+          <Text style={styles.captionSub}>Every gun fired at the same moment. Now the results…</Text>
+        </View>
+      )}
       {shot && !finished && (
         <>
           <View style={styles.duel}>
@@ -303,16 +294,13 @@ const styles = StyleSheet.create({
   aim: { gap: 8 },
   aimTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 15, letterSpacing: 3, textAlign: 'center' },
   aimSelf: { backgroundColor: den.panel, borderColor: den.gold, borderWidth: 2, borderRadius: 4, alignItems: 'center', paddingVertical: 8 },
+  aimOn: { backgroundColor: den.bloodDark, borderColor: den.bloodBright },
   aimSelfText: { color: den.gold, fontFamily: FONT_DEN, fontSize: 18, letterSpacing: 3 },
   aimSelfSub: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11 },
   aimNote: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11, textAlign: 'center' },
   aimGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   aimBtn: { width: '48.8%', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: den.panel, borderColor: den.blood, borderWidth: 2, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5 },
   aimName: { flex: 1, color: den.bone, fontFamily: FONT_DEN, fontSize: 14 },
-
-  waiting: { alignItems: 'center', gap: 4, paddingVertical: 8 },
-  waitingHead: { color: den.bloodBright, fontFamily: FONT_DEN, fontSize: 20, letterSpacing: 3 },
-  waitingText: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 13, textAlign: 'center' },
 
   roster: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
   gambler: { width: 58, alignItems: 'center' },

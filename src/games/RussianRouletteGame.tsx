@@ -19,7 +19,7 @@ import * as api from '../lib/api';
 import { useGameSounds } from '../audio';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { Blackout, Cylinder, den, FONT_DEN, GunFlash, playSfx, Shake, ShieldField, SILHOUETTES } from '../gameThemes/russianRoulette';
-import { AimPanel, deadIds, OverPanel, resolvedAt, Roster, ShotStage, shieldedIds, Tray, TopBar, Waiting } from './RouletteStages';
+import { AimPanel, deadIds, OverPanel, resolvedAt, Roster, ShotStage, shieldedIds, Tray, TopBar } from './RouletteStages';
 import type { GameProps } from './types';
 
 const MIC_SPACE = 128; // the lobby's mic pill floats in the top-right corner (VoiceButton): keep clear
@@ -206,6 +206,15 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     return () => clearInterval(id);
   }, [uid]);
 
+  // The last 3 seconds before the triggers: a tick each second. Then every trigger is pulled at once.
+  const aimSecs = st && st.phase === 'aim' ? Math.ceil(remainingNow(st, receivedAt.current, Date.now()) / 1000) : 0;
+  useEffect(() => {
+    if (aimSecs >= 1 && aimSecs <= 3) playSfx('click');
+  }, [aimSecs]);
+  useEffect(() => {
+    if (st?.phase === 'reveal') playSfx('trigger');
+  }, [st?.rev]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The shots of the reveal: every live one is a jumpscare (a flash, a shake, a gunshot); a blank is a click;
   // a shield (my blank at myself, or a bullet deflected by it) switches the blue-green shield force on.
   const resolvedNow = st && st.phase === 'reveal' && st.reveal ? resolvedAt(st.reveal, revealMs(st.reveal) - remainingNow(st, receivedAt.current, Date.now())) : 0;
@@ -273,7 +282,6 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
   const loading = st.phase === 'load';
   const aiming = st.phase === 'aim';
   const timed = loading || aiming;
-  const fired = st.fired.includes(uid);
   const loadedCount = chambers.filter(Boolean).length;
   // after a restart of this screen the host may already know my spin: the cylinder is closed
   const shownUi: Ui = loading ? (ui === 'load' && st.spun.includes(uid) ? 'closed' : ui) : ui === 'load' ? 'spinning' : ui;
@@ -322,11 +330,13 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
     spinWith(chambers.reduce((m, on, i) => (on ? m | (1 << i) : m), 0));
   };
 
+  // Aiming is not firing: the target can be changed until the time is up, then every trigger is pulled together.
   const aim = (target: string) => {
-    if (!aiming || shownUi !== 'closed' || fired || aimed !== null) return;
+    if (!aiming || shownUi !== 'closed' || aimed === target) return;
+    const before = aimed;
     setAimed(target);
     sendMove({ kind: 'aim', target }).catch((e) => {
-      setAimed(null);
+      setAimed(before);
       console.warn('aiming failed', e);
     });
   };
@@ -362,14 +372,19 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
                   {loading && shownUi === 'load' && <Tray total={st.bullets} loaded={loadedCount} canSpin={loadedCount === st.bullets} onSpin={spin} />}
                   {shownUi === 'spinning' && <Text style={styles.hint}>Spinning…</Text>}
                   {loading && shownUi === 'closed' && <Text style={styles.hint}>Sealed. Waiting for the others to finish loading…</Text>}
-                  {aiming && shownUi === 'closed' && !fired && aimed === null && <AimPanel st={st} n={n} onAim={aim} />}
-                  {aiming && shownUi === 'closed' && (fired || aimed !== null) && <Waiting st={st} target={aimed} n={n} />}
+                  {aiming && shownUi === 'closed' && <AimPanel st={st} n={n} selected={aimed} onAim={aim} />}
                 </>
               ) : (
                 <Text style={styles.hint}>You are out. The round goes on…</Text>
               )}
             </View>
           )}
+          {aiming && alive && secs >= 1 && secs <= 3 && (
+            <View pointerEvents="none" style={styles.countdown}>
+              <Text style={styles.countdownText}>{secs}</Text>
+            </View>
+          )}
+
           {st.phase === 'reveal' && st.reveal && (
             <View style={styles.center}>
               <ShotStage rev={st.reveal} elapsed={elapsed} n={n} cylSize={Math.min(96, cylSize)} still={reduce} survivors={survivors} nextBullets={nextBullets} />
@@ -404,6 +419,8 @@ const styles = StyleSheet.create({
   waitingTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 20, letterSpacing: 1, textAlign: 'center' },
   waitingText: { color: den.bone, fontFamily: FONT_DEN, fontSize: 15, textAlign: 'center' },
   hero: { flex: 1 },
+  countdown: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  countdownText: { color: den.bloodBright, fontFamily: FONT_DEN, fontSize: 120, opacity: 0.55 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   hint: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 16, letterSpacing: 1, textAlign: 'center' },
   note: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 12, textAlign: 'center' },

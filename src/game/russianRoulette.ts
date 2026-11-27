@@ -6,8 +6,9 @@
 //     Then the cylinder is CLOSED and SPUN, fast: from the moment it closes nobody can see the chambers.
 //     A player who has not spun when the 10 s are up gets the missing bullets put in random chambers and
 //     the cylinder is spun for them.
-//  2. AIM (AIM_MS = 30 s): every player decides to shoot another player or themselves. A player who has
-//     not decided in time is DEFENSELESS: their gun does not fire and they have no protection.
+//  2. AIM (30 s): every player chooses to shoot another player or themselves, and can change their mind
+//     until the time is up; then ALL THE TRIGGERS ARE PULLED AT THE SAME TIME. A player who has not
+//     decided by then is DEFENSELESS: their gun does not fire and they have no protection.
 // Whether a gun fires a live bullet or a blank is decided by the SPIN: a random chamber ends up under
 // the hammer, and it is live when a bullet was loaded in it (so a gun with n live bullets fires a live
 // one n times out of 6, wherever the player put them).
@@ -25,7 +26,8 @@
 //
 // DECISIONS (change them here):
 //  - A player who does not decide before the AIM time is up is DEFENSELESS ('idle'): no shot, no protection.
-//  - The first aim is final: pressing a target pulls the trigger (it stays hidden until the reveal).
+//  - Aiming is not firing: a player can change their target until the time is up (the last one counts, it
+//    stays hidden until the reveal). The round never ends early: the triggers are pulled when AIM_MS is over.
 //  - A target who is no longer in the game (forfeited) counts as 'self'.
 //  - A player who forfeits the game leaves at once.
 //
@@ -41,7 +43,6 @@ export const MAX_ROUNDS = 12;
 export const LOAD_MS = 10000; // fill the cylinder (it is then closed and spun)
 export const MIN_LOAD_MS = 1500; // even if everybody has spun, the loading lasts at least this long
 export const AIM_MS = 30000; // decide who to shoot
-export const MIN_AIM_MS = 3000; // even if everybody has fired, the aiming lasts at least this long
 export const REVEAL_LEAD_MS = 1600; // before the first shot
 export const SHOT_MS = 3200; // for each shot
 export const SHOT_RESULT_AT = 1800; // ... the result lands this long after the shot starts
@@ -88,7 +89,7 @@ export type State = {
   bullets: number; // live bullets of this round
   phase: Phase;
   spun: string[]; // who has loaded, closed and spun the cylinder (not WHICH chambers)
-  fired: string[]; // who has aimed (not at whom)
+  aimed: string[]; // who has chosen a target so far (not whom)
   reveal: Reveal | null;
   winner: string | null;
   lastLeft: string | null;
@@ -99,13 +100,14 @@ export type State = {
   masks: Record<string, number>; // the loaded chambers, as bits 0-5
   spins: Record<string, number>; // the chamber under the hammer after the spin
   aims: Record<string, Aim>;
+  aimAt: Record<string, number>; // the newest aim move already applied, per player
 };
 
 export type Move =
   | { kind: 'load'; uid: string; rev: number; mask: number; at: number }
   | { kind: 'aim'; uid: string; rev: number; target: Aim; at: number };
 
-export const publicState = (s: State): State => ({ ...s, masks: {}, spins: {}, aims: {} });
+export const publicState = (s: State): State => ({ ...s, masks: {}, spins: {}, aims: {}, aimAt: {} });
 
 function edit(s: State): State {
   const c: State = JSON.parse(JSON.stringify(s));
@@ -133,9 +135,10 @@ function startRound(s: State, now: number, rand: () => number) {
   s.phase = 'load';
   s.bullets = bulletsFor(s.round);
   s.spun = [];
-  s.fired = [];
+  s.aimed = [];
   s.masks = {};
   s.aims = {};
+  s.aimAt = {};
   s.spins = Object.fromEntries(s.alive.map((id) => [id, Math.floor(rand() * CHAMBERS)]));
   s.reveal = null;
   s.pickFrom = now;
@@ -169,7 +172,7 @@ export function newGame(order: string[], seed: string, now: number, rand: () => 
     bullets: 1,
     phase: 'load',
     spun: [],
-    fired: [],
+    aimed: [],
     reveal: null,
     winner: null,
     lastLeft: null,
@@ -179,6 +182,7 @@ export function newGame(order: string[], seed: string, now: number, rand: () => 
     masks: {},
     spins: {},
     aims: {},
+    aimAt: {},
   };
   startRound(s, now, rand);
   s.remainingMs = LOAD_MS;
@@ -200,13 +204,16 @@ export function apply(state: State, move: Move): State {
     return s;
   }
 
-  // Aiming: only in the aiming part (everybody has spun by then), and the first aim is final.
-  if (state.phase !== 'aim' || state.masks[move.uid] === undefined || state.aims[move.uid] !== undefined) return state;
+  // Aiming: only in the aiming part (everybody has spun by then). It can be changed until the time is up:
+  // the newest move counts.
+  if (state.phase !== 'aim' || state.masks[move.uid] === undefined) return state;
   const ok = move.target === 'self' || (move.target !== move.uid && state.alive.includes(move.target));
   if (!ok) return state;
+  if (move.at <= (state.aimAt[move.uid] ?? 0) || state.aims[move.uid] === move.target) return state;
   const s = edit(state);
   s.aims[move.uid] = move.target;
-  s.fired.push(move.uid);
+  s.aimAt[move.uid] = move.at;
+  if (!s.aimed.includes(move.uid)) s.aimed.push(move.uid);
   return s;
 }
 
@@ -260,6 +267,7 @@ function resolve(s: State, now: number, rand: () => number) {
   s.masks = {};
   s.spins = {};
   s.aims = {};
+  s.aimAt = {};
   s.phase = 'reveal';
   s.endsAt = now + revealMs(reveal);
   s.rev += 1;
@@ -287,10 +295,11 @@ function dropPlayer(state: State, uid: string): State {
   s.lastLeft = uid;
   s.alive = s.alive.filter((id) => id !== uid);
   s.spun = s.spun.filter((id) => id !== uid);
-  s.fired = s.fired.filter((id) => id !== uid);
+  s.aimed = s.aimed.filter((id) => id !== uid);
   delete s.masks[uid];
   delete s.spins[uid];
   delete s.aims[uid];
+  delete s.aimAt[uid];
   // During the reveal the round is already settled: afterReveal decides what happens next.
   if (s.alive.length <= 1 && (s.phase === 'load' || s.phase === 'aim')) over(s);
   return s;
@@ -309,8 +318,8 @@ export function tick(state: State, now: number, left: string[] = [], rand: () =>
     return s;
   }
   if (state.phase === 'aim') {
-    const allFired = state.alive.every((id) => state.fired.includes(id)) && now >= state.pickFrom + MIN_AIM_MS;
-    if (!allFired && now < state.endsAt) return state;
+    // Nobody pulls the trigger early: all the guns fire together when the time is up.
+    if (now < state.endsAt) return state;
     const s = edit(state);
     resolve(s, now, rand);
     return s;

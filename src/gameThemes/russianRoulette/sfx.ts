@@ -11,7 +11,7 @@ import { playSound } from '../../audio';
 // THE GUNSHOT is meant to be a jumpscare. Lower BANG_VOLUME (0 to 1) if it is too much.
 export const BANG_VOLUME = 0.8;
 
-export type SfxName = 'load' | 'spin' | 'close' | 'click' | 'bang' | 'shield';
+export type SfxName = 'load' | 'spin' | 'close' | 'click' | 'bang' | 'shield' | 'trigger';
 
 let ctx: any = null;
 
@@ -72,8 +72,9 @@ export function playSfx(name: SfxName) {
   try {
     if (name === 'bang') Vibration.vibrate(Platform.OS === 'android' ? [0, 90, 40, 180] : 400);
     if (name === 'click' && Platform.OS === 'android') Vibration.vibrate(12);
+    if (name === 'trigger') Vibration.vibrate(40);
     if (Platform.OS !== 'web') {
-      playSound('russianRoulette', name, { volume: name === 'bang' ? Math.min(1, BANG_VOLUME + 0.2) : 1 });
+      if (name !== 'trigger') playSound('russianRoulette', name, { volume: name === 'bang' ? Math.min(1, BANG_VOLUME + 0.2) : 1 });
       return;
     }
     const c = audio();
@@ -98,6 +99,10 @@ export function playSfx(name: SfxName) {
         }
         break;
       }
+      case 'trigger': // every hammer falls at the same moment
+        for (let i = 0; i < 4; i++) burst(c, i * 0.012, 0.02, 'highpass', 2000 + i * 400, 0.5, 4);
+        tone(c, 0, 0.12, 'sine', 140, 60, 0.35);
+        break;
       case 'shield': // the shield force: a shimmering rising hum
         tone(c, 0, 0.7, 'sine', 380, 1500, 0.12);
         tone(c, 0.05, 0.7, 'triangle', 570, 2200, 0.06);

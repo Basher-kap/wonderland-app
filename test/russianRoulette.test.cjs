@@ -33,8 +33,7 @@ function loaded(s, masks = {}) {
 function round(s, masks, aims, skip = []) {
   s = loaded(s, masks);
   for (const id of s.alive) if (!skip.includes(id)) s = r.apply(s, aim(s, id, aims[id] ?? 'self'));
-  const now = skip.length ? s.endsAt : s.pickFrom + r.MIN_AIM_MS;
-  const out = r.tick(s, now, [], zero);
+  const out = r.tick(s, s.endsAt, [], zero);
   assert.equal(out.phase, 'reveal');
   return out;
 }
@@ -104,14 +103,18 @@ test('auto-loaded masks always hold the right number of bullets', () => {
   for (let n = 1; n <= 6; n++) for (let k = 0; k < 20; k++) assert.equal(r.popcount(r.autoMask(n, Math.random)), n);
 });
 
-test('aiming: only at somebody else or yourself, and the first aim is final', () => {
+test('aiming: only at somebody else or yourself, and the newest target counts', () => {
   let s = loaded(game());
   assert.equal(r.apply(s, aim(s, 'a', 'a')), s);
   assert.equal(r.apply(s, aim(s, 'a', 'zzz')), s);
   s = r.apply(s, aim(s, 'a', 'b'));
   assert.equal(s.aims.a, 'b');
-  assert.deepEqual(s.fired, ['a']);
-  assert.equal(r.apply(s, aim(s, 'a', 'c')), s);
+  assert.deepEqual(s.aimed, ['a']);
+  const older = { ...aim(s, 'a', 'c'), at: s.aimAt.a };
+  assert.equal(r.apply(s, older), s);
+  s = r.apply(s, aim(s, 'a', 'c'));
+  assert.equal(s.aims.a, 'c');
+  assert.deepEqual(s.aimed, ['a']);
 });
 
 test('a load move is ignored once the aiming has started', () => {
@@ -126,7 +129,8 @@ test('the hidden things are not in the public state', () => {
   assert.deepEqual(p.masks, {});
   assert.deepEqual(p.spins, {});
   assert.deepEqual(p.aims, {});
-  assert.deepEqual(p.fired, ['a']);
+  assert.deepEqual(p.aimAt, {});
+  assert.deepEqual(p.aimed, ['a']);
   assert.deepEqual([...p.spun].sort(), ['a', 'b', 'c']);
 });
 
@@ -183,11 +187,11 @@ test('a defenseless player never kills anybody, even with a live chamber', () =>
   assert.deepEqual(s.reveal.dead.sort(), ['b', 'c']); // b and c shot themselves with live bullets
 });
 
-test('the aiming ends early when everybody has fired (after the minimum time)', () => {
+test('the aiming always lasts the full 30 seconds, even after everybody has aimed', () => {
   let s = loaded(game(['a', 'b']));
   for (const id of ['a', 'b']) s = r.apply(s, aim(s, id, 'self'));
-  assert.equal(r.tick(s, s.pickFrom + r.MIN_AIM_MS - 1, [], zero), s);
-  assert.equal(r.tick(s, s.pickFrom + r.MIN_AIM_MS, [], zero).phase, 'reveal');
+  assert.equal(r.tick(s, s.endsAt - 1, [], zero), s);
+  assert.equal(r.tick(s, s.endsAt, [], zero).phase, 'reveal');
 });
 
 test('a move for an old round is ignored', () => {
@@ -199,7 +203,7 @@ test('a move for an old round is ignored', () => {
 
 test('the reveal lasts longer with more shooters, and the next round starts with the loading', () => {
   const s = round(game(), {}, {});
-  assert.equal(s.endsAt - (s.pickFrom + r.MIN_AIM_MS), r.revealMs(s.reveal));
+  assert.equal(s.endsAt - (s.pickFrom + r.AIM_MS), r.revealMs(s.reveal));
   assert.ok(r.revealMs({ shots: [1, 2, 3, 4] }) > r.revealMs({ shots: [1, 2] }));
   const n = next(s);
   assert.equal(n.phase, 'load');
