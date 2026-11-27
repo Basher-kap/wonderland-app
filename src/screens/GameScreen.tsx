@@ -16,17 +16,6 @@ import { isDemoMode } from '../lib/firebase';
 import { radius, space } from '../theme';
 import type { RootStackParamList } from '../navigation';
 
-// One round, as every player sees it:
-//   1. the intro dialogs (RoundIntro): domain + difficulty, Japanese name, rule, clear condition
-//   2. "waiting for the others": everybody has to finish reading; when ALL are ready the host's
-//      phone sets round.go and every phone counts 3-2-1, so the timers start together
-//   3. the game itself (games/registry.ts), which reports this player's result when done. A game
-//      with several levels (Wordle) gets `room` so it can wait for the others between levels
-//   4. waiting for the others; the HOST's phone then asks the game who won (and each player's
-//      extra points) and ends the round. The game's summary (Wordle: the words) is shown to all
-// While a round is being played there is no way out (no Back button, swipe or Android back).
-// Games that are not built yet (no entry in the registry) still use the temporary host buttons.
-// Without a lobby (opened from the Home list) the game is a solo practice run.
 export function GameScreen() {
   const navigation = useNavigation();
   const { params } = useRoute<RouteProp<RootStackParamList, 'Game'>>();
@@ -167,11 +156,15 @@ export function GameScreen() {
     if (!needsStart || !introDone || !lobby || !round || !code) return;
     if (readySent.current === roundKey) return;
     readySent.current = roundKey;
+    // Already marked ready for this round (after an app reload or rejoining the lobby): the rules refuse to
+    // write the same mark twice, and there is nothing left to tell the lobby.
+    if (ready.some((r) => r.uid === uid && r.matchId === lobby.matchId && r.roundNo === round.no)) return;
     api.markReady(code, { matchId: lobby.matchId, roundNo: round.no }).catch((e) => {
-      readySent.current = null;
+      // A refusal by the rules will not change by asking again (that was a loop on every lobby update).
+      if ((e as { code?: string })?.code !== 'permission-denied') readySent.current = null;
       console.warn('ready failed', e);
     });
-  }, [needsStart, introDone, lobby, round, code, roundKey]);
+  }, [needsStart, introDone, lobby, round, code, roundKey, ready, uid]);
 
   // 2. HOST: everybody is ready, so start the boards.
   useEffect(() => {
