@@ -6,10 +6,11 @@ export const MAX_ROUNDS = 12;
 export const LOAD_MS = 10000; // fill the cylinder (it is then closed and spun)
 export const MIN_LOAD_MS = 1500; // even if everybody has spun, the loading lasts at least this long
 export const AIM_MS = 30000; // decide who to shoot
-export const REVEAL_LEAD_MS = 1600; // before the first shot
-export const SHOT_MS = 3200; // for each shot
-export const SHOT_RESULT_AT = 1800; // ... the result lands this long after the shot starts
-export const REVEAL_TAIL_MS = 3400; // after the last shot (who is out, the next round)
+export const REVEAL_LEAD_MS = 1600; // before the volley
+export const SHOT_MS = 3200; // the volley: ALL the guns fire together and are shown on one screen
+export const SHOT_RESULT_AT = 1800; // ... the results land this long after the volley starts
+export const READ_MS_PER_EXTRA_SHOT = 400; // a bigger table has more lines to read
+export const REVEAL_TAIL_MS = 3400; // after the volley (who is out, the next round)
 
 export type Aim = string; // 'self' or the uid of another player
 
@@ -218,10 +219,12 @@ function fireAll(s: State, rand: () => number): Reveal {
   };
 }
 
-export const revealMs = (r: Pick<Reveal, 'shots'>) => REVEAL_LEAD_MS + r.shots.length * SHOT_MS + REVEAL_TAIL_MS;
-// When shot i starts, and when its result lands, in ms from the start of the reveal.
-export const shotStart = (i: number) => REVEAL_LEAD_MS + i * SHOT_MS;
-export const shotResultAt = (i: number) => shotStart(i) + SHOT_RESULT_AT;
+export const revealMs = (r: Pick<Reveal, 'shots'>) =>
+  REVEAL_LEAD_MS + SHOT_MS + Math.max(0, r.shots.length - 1) * READ_MS_PER_EXTRA_SHOT + REVEAL_TAIL_MS;
+// All the guns fire at the same moment: every shot starts, and its result lands, at the same time
+// (ms from the start of the reveal). `_i` is kept so the callers did not have to change.
+export const shotStart = (_i: number = 0) => REVEAL_LEAD_MS;
+export const shotResultAt = (_i: number = 0) => shotStart() + SHOT_RESULT_AT;
 
 function resolve(s: State, now: number, rand: () => number) {
   const reveal = fireAll(s, rand);

@@ -201,7 +201,7 @@ test('a move for an old round is ignored', () => {
   assert.equal(r.apply(n, old), n);
 });
 
-test('the reveal lasts longer with more shooters, and the next round starts with the loading', () => {
+test('the reveal is one volley: a little longer with more shooters, and the next round starts with the loading', () => {
   const s = round(game(), {}, {});
   assert.equal(s.endsAt - (s.pickFrom + r.AIM_MS), r.revealMs(s.reveal));
   assert.ok(r.revealMs({ shots: [1, 2, 3, 4] }) > r.revealMs({ shots: [1, 2] }));
@@ -213,8 +213,13 @@ test('the reveal lasts longer with more shooters, and the next round starts with
   assert.equal(r.tick(n, n.endsAt - 1, [], zero), n);
 });
 
-test('shot times are in order', () => {
-  for (let i = 0; i < 5; i++) assert.ok(r.shotResultAt(i) > r.shotStart(i) && r.shotStart(i + 1) > r.shotResultAt(i));
+test('all the guns fire at the same moment: every shot starts and lands together', () => {
+  for (let i = 0; i < 5; i++) {
+    assert.equal(r.shotStart(i), r.shotStart(0));
+    assert.equal(r.shotResultAt(i), r.shotResultAt(0));
+    assert.ok(r.shotResultAt(i) > r.shotStart(i));
+  }
+  assert.ok(r.revealMs({ shots: [1, 2] }) < r.REVEAL_LEAD_MS + 2 * r.SHOT_MS + r.REVEAL_TAIL_MS, 'not one shot after another');
 });
 
 test('a player dying alone leaves the other as the winner', () => {

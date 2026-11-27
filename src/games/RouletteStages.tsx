@@ -1,10 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { CHAMBERS, MAX_ROUNDS, REVEAL_LEAD_MS, SHOT_MS, shotResultAt } from '../game/russianRoulette';
+import { CHAMBERS, MAX_ROUNDS, READ_MS_PER_EXTRA_SHOT, SHOT_MS, shotResultAt, shotStart } from '../game/russianRoulette';
 import type { Reveal, Shot, State } from '../game/russianRoulette';
 import { BulletFace, Cylinder, den, FONT_DEN, shieldColors, Silhouette } from '../gameThemes/russianRoulette';
 import Svg from 'react-native-svg';
 
+// The pieces of the Russian Roulette screen (RussianRouletteGame.tsx puts them together): the top bar
+// with the live-bullet indicator, the bullet tray and SPIN button, the aim buttons, the roster of
+// gamblers, the reveal of the shots (all together), and the end of the game.
 export type Names = { uid: string; who: (id: string) => string; variant: (id: string) => number };
 
 // ---------------------------------------------------------- top bar ----
@@ -63,7 +66,7 @@ export function Tray(props: { total: number; loaded: number; canSpin: boolean; o
           </View>
         ))}
       </View>
-      <Text style={styles.trayText}>{left > 0 ? `Tap a chamber to load a bullet (${left} left)` : 'All loaded. Close it and spin!'}</Text>
+      <Text style={styles.trayText}>{left > 0 ? `Tap a chamber to load a bullet (${left} left)` : 'All loaded. Spin and close it!'}</Text>
       <Pressable
         onPress={onSpin}
         disabled={!canSpin}
@@ -172,61 +175,58 @@ export function ShotStage(props: { rev: Reveal; elapsed: number; n: Names; cylSi
   const { rev, elapsed, n, cylSize, still, survivors, nextBullets } = props;
   const total = rev.shots.length;
   const resolved = resolvedAt(rev, elapsed);
-  const idx = elapsed < REVEAL_LEAD_MS ? -1 : Math.min(total - 1, Math.floor((elapsed - REVEAL_LEAD_MS) / SHOT_MS));
-  const finished = elapsed >= REVEAL_LEAD_MS + total * SHOT_MS;
-  const shot = idx >= 0 ? rev.shots[idx] : null;
-  const landed = shot !== null && elapsed >= shotResultAt(idx);
+  const fired = elapsed >= shotStart();
+  const landed = elapsed >= shotResultAt();
+  const finished = elapsed >= shotStart() + SHOT_MS + Math.max(0, total - 1) * READ_MS_PER_EXTRA_SHOT;
   const dead = deadIds(rev, resolved);
+  const size = total <= 3 ? 46 : total <= 5 ? 38 : 30; // eight rows must still fit on one screen
 
   let head = 'ALL TRIGGERS PULLED!';
   if (finished) head = rev.dead.length > 0 ? `${rev.dead.length} ELIMINATED` : 'NOBODY FELL';
-  else if (shot) head = `SHOT ${idx + 1} OF ${total}`;
 
   return (
     <View style={styles.stage}>
       <Text style={styles.stageHead}>{head}</Text>
-      {idx === -1 && !finished && (
+      {!fired && (
         <View style={styles.caption}>
           <Text style={styles.bang}>FIRE!</Text>
-          <Text style={styles.captionSub}>Every gun fired at the same moment. Now the results…</Text>
+          <Text style={styles.captionSub}>Every gun fires at the same moment…</Text>
         </View>
       )}
-      {shot && !finished && (
+      {fired && !finished && (
         <>
-          <View style={styles.duel}>
-            <View style={styles.duelSide}>
-              <Silhouette size={58} variant={n.variant(shot.uid)} dead={landed && dead.has(shot.uid)} shield={landed && shot.outcome === 'shielded'} />
-              <Text style={styles.duelName} numberOfLines={1}>
-                {n.who(shot.uid)}
-              </Text>
-            </View>
-            <View style={styles.duelMid}>
-              <Cylinder size={cylSize} loaded={[]} closed spinKey={0} still={still} tense={!landed} />
-              <Text style={styles.arrow}>{shot.aim === 'self' ? '↺' : '→'}</Text>
-            </View>
-            <View style={styles.duelSide}>
-              {shot.aim === 'self' ? (
-                <View style={{ height: 58 * 1.15 }} />
-              ) : (
-                <Silhouette size={58} variant={n.variant(shot.aim)} dead={landed && dead.has(shot.aim)} aimed={!landed} shield={landed && shot.outcome === 'blocked'} />
-              )}
-              <Text style={styles.duelName} numberOfLines={1}>
-                {shot.aim === 'self' ? 'themself' : n.who(shot.aim)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.caption}>
-            {!landed ? (
-              <Text style={styles.suspense}>…</Text>
-            ) : shot.outcome === 'blocked' || shot.outcome === 'shielded' ? (
-              <Text style={styles.shield}>{shot.outcome === 'blocked' ? 'BLOCKED!' : 'SHIELD!'}</Text>
-            ) : shot.outcome === 'idle' ? (
-              <Text style={styles.click}>silence.</Text>
-            ) : shot.live ? (
-              <Text style={styles.bang}>BANG!</Text>
-            ) : (
-              <Text style={styles.click}>click.</Text>
-            )}
+          {total <= 3 && <Cylinder size={cylSize} loaded={[]} closed spinKey={0} still={still} tense={!landed} />}
+          <View style={styles.volley}>
+            {rev.shots.map((shot, i) => {
+              const verdict =
+                !landed ? '…' : shot.outcome === 'blocked' ? 'BLOCKED!' : shot.outcome === 'shielded' ? 'SHIELD!' : shot.outcome === 'idle' ? 'silence.' : shot.live ? 'BANG!' : 'click.';
+              const verdictStyle =
+                !landed ? styles.volleySuspense : shot.outcome === 'blocked' || shot.outcome === 'shielded' ? styles.volleyShield : shot.live ? styles.volleyBang : styles.volleyClick;
+              return (
+                <View key={`${shot.uid}:${i}`} style={styles.volleyRow}>
+                  <View style={styles.volleySide}>
+                    <Silhouette size={size} variant={n.variant(shot.uid)} dead={landed && dead.has(shot.uid)} shield={landed && shot.outcome === 'shielded'} />
+                    <Text style={styles.volleyName} numberOfLines={1}>
+                      {n.who(shot.uid)}
+                    </Text>
+                  </View>
+                  <Text style={styles.volleyArrow}>{shot.aim === 'self' ? '↺' : '→'}</Text>
+                  <View style={styles.volleySide}>
+                    {shot.aim === 'self' ? (
+                      <View style={{ height: size * 1.15 }} />
+                    ) : (
+                      <Silhouette size={size} variant={n.variant(shot.aim)} dead={landed && dead.has(shot.aim)} aimed={!landed} shield={landed && shot.outcome === 'blocked'} />
+                    )}
+                    <Text style={styles.volleyName} numberOfLines={1}>
+                      {shot.aim === 'self' ? 'themself' : n.who(shot.aim)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.volleyVerdict, verdictStyle]} numberOfLines={1}>
+                    {verdict}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         </>
       )}
@@ -291,13 +291,13 @@ const styles = StyleSheet.create({
   aim: { gap: 8 },
   aimTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 15, letterSpacing: 3, textAlign: 'center' },
   aimSelf: { backgroundColor: den.panel, borderColor: den.gold, borderWidth: 2, borderRadius: 4, alignItems: 'center', paddingVertical: 8 },
+  aimOn: { backgroundColor: den.bloodDark, borderColor: den.bloodBright },
   aimSelfText: { color: den.gold, fontFamily: FONT_DEN, fontSize: 18, letterSpacing: 3 },
   aimSelfSub: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11 },
   aimNote: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 11, textAlign: 'center' },
   aimGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   aimBtn: { width: '48.8%', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: den.panel, borderColor: den.blood, borderWidth: 2, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 5 },
   aimName: { flex: 1, color: den.bone, fontFamily: FONT_DEN, fontSize: 14 },
-  aimOn: { backgroundColor: den.bloodDark, borderColor: den.bloodBright },
 
   roster: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
   gambler: { width: 58, alignItems: 'center' },
@@ -306,6 +306,16 @@ const styles = StyleSheet.create({
 
   stage: { alignItems: 'center', gap: 8 },
   stageHead: { color: den.gold, fontFamily: FONT_DEN, fontSize: 16, letterSpacing: 3 },
+  volley: { alignSelf: 'stretch', gap: 4 },
+  volleyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  volleySide: { width: 70, alignItems: 'center' },
+  volleyName: { color: den.bone, fontFamily: FONT_DEN, fontSize: 11, maxWidth: 70 },
+  volleyArrow: { color: den.bloodBright, fontFamily: FONT_DEN, fontSize: 22 },
+  volleyVerdict: { flex: 1, textAlign: 'right', fontFamily: FONT_DEN, fontSize: 20, letterSpacing: 2 },
+  volleySuspense: { color: den.boneMuted },
+  volleyShield: { color: shieldColors.teal },
+  volleyBang: { color: den.bloodBright },
+  volleyClick: { color: den.bone },
   duel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
   duelSide: { width: 82, alignItems: 'center' },
   duelName: { color: den.bone, fontFamily: FONT_DEN, fontSize: 13, maxWidth: 82 },

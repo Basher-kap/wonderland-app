@@ -228,16 +228,18 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
       lastResolved.current = { rev: st.rev, n: 0 };
       setShieldOn(false);
     }
-    for (let i = lastResolved.current.n; i < resolvedNow; i++) {
-      const shot = st.reveal.shots[i];
-      if (shot.live) {
+    // All the guns fire together, so the whole volley lands at once: ONE bang (flash, shake, gunshot) if
+    // any bullet was live, else one click, and the shield once if it protects me.
+    const fresh = st.reveal.shots.slice(lastResolved.current.n, resolvedNow);
+    if (fresh.length > 0) {
+      if (fresh.some((s) => s.live)) {
         setFlash((k) => k + 1);
         setShake((k) => k + 1);
         playSfx('bang');
-      } else if (shot.outcome === 'click') {
+      } else if (fresh.some((s) => s.outcome === 'click')) {
         playSfx('click');
       }
-      if ((shot.outcome === 'shielded' && shot.uid === uid) || (shot.outcome === 'blocked' && shot.aim === uid)) {
+      if (fresh.some((s) => (s.outcome === 'shielded' && s.uid === uid) || (s.outcome === 'blocked' && s.aim === uid))) {
         setShieldOn(true);
         setShieldK((k) => k + 1);
         playSfx('shield');
@@ -384,6 +386,7 @@ export function RussianRouletteGame({ seed, uid, onFinish, room }: GameProps) {
               <Text style={styles.countdownText}>{secs}</Text>
             </View>
           )}
+
           {st.phase === 'reveal' && st.reveal && (
             <View style={styles.center}>
               <ShotStage rev={st.reveal} elapsed={elapsed} n={n} cylSize={Math.min(96, cylSize)} still={reduce} survivors={survivors} nextBullets={nextBullets} />
@@ -418,9 +421,9 @@ const styles = StyleSheet.create({
   waitingTitle: { color: den.gold, fontFamily: FONT_DEN, fontSize: 20, letterSpacing: 1, textAlign: 'center' },
   waitingText: { color: den.bone, fontFamily: FONT_DEN, fontSize: 15, textAlign: 'center' },
   hero: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   countdown: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   countdownText: { color: den.bloodBright, fontFamily: FONT_DEN, fontSize: 120, opacity: 0.55 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   hint: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 16, letterSpacing: 1, textAlign: 'center' },
   note: { color: den.boneMuted, fontFamily: FONT_DEN, fontSize: 12, textAlign: 'center' },
   blackText: { color: '#3A0A0D', fontFamily: FONT_DEN, fontSize: 30, letterSpacing: 4 },
