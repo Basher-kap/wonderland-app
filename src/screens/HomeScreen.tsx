@@ -3,9 +3,10 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { AppLogo, UsernameTutorialBubble, Button, DomainIcon, TicketChip } from '../components';
+import { Avatar, UsernameTutorialBubble, Button, DomainIcon, TicketChip } from '../components';
 import { useAuth } from '../context';
 import * as api from '../lib/api';
+import { myAvatarKey } from '../lib/avatars';
 import { isDemoMode } from '../lib/firebase';
 import { DOMAIN_ORDER, Domain, domainInfo, field, panel, space, typo } from '../theme';
 import type { RootStackParamList } from '../navigation';
@@ -24,7 +25,7 @@ const ABOUT: Record<Domain, string> = {
 
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { username, tickets } = useAuth();
+  const { uid, username, tickets } = useAuth();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -62,7 +63,7 @@ export function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.brand}>
-            <AppLogo size={46} />
+            <Avatar uid={myAvatarKey(uid)} name={username} size={46} />
             <View>
               <Text style={styles.hello}>Hi, {username}</Text>
               <Text style={styles.sub}>Ready to play?</Text>
