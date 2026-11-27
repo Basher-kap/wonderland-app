@@ -10,6 +10,8 @@ import type { SoundGame, SoundName } from './sounds';
 export type PlayOptions = {
   volume?: number; // 0 to 1, default 1
   restart?: boolean; // default true: a sound that is still playing starts again from 0
+  loop?: boolean; // repeat until stopSound() (background music). Default false
+  resume?: boolean; // carry on from where stopSound() left it instead of starting from 0 (music)
 };
 
 const players = new Map<string, AudioPlayer>();
@@ -50,11 +52,19 @@ export function playSound<G extends SoundGame>(game: G, name: SoundName<G>, opts
     const p = playerFor(game, name);
     if (!p) return;
     p.volume = Math.max(0, Math.min(1, opts.volume ?? 1));
-    if (opts.restart !== false || !p.playing) p.seekTo(0);
+    p.loop = opts.loop === true;
+    if (!opts.resume && (opts.restart !== false || !p.playing)) p.seekTo(0);
     p.play();
   } catch {
     // a sound that cannot play is never a problem for the game
   }
+}
+
+// Stop a sound that is playing (a loop, or a long sound). It stays where it was, so play(..., { resume: true })
+// carries on from there.
+export function stopSound<G extends SoundGame>(game: G, name: SoundName<G>) {
+  const p = players.get(keyOf(game, name));
+  if (p) safe(() => p.pause());
 }
 
 // Load every sound of a game before it is needed, so the first play (a gunshot!) has no delay.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { playSound, preloadSounds, releaseSounds } from './player';
+import { playSound, preloadSounds, releaseSounds, stopSound } from './player';
 import type { PlayOptions } from './player';
 import type { SoundGame, SoundName } from './sounds';
 
@@ -8,6 +8,7 @@ import type { SoundGame, SoundName } from './sounds';
 //
 //   const { play } = useGameSounds('russianRoulette');
 //   play('bang', { volume: 0.9 });
+//   play('music', { loop: true, resume: true }); ... stop('music'); // background music
 export function useGameSounds<G extends SoundGame>(game: G) {
   useEffect(() => {
     preloadSounds(game);
@@ -15,5 +16,6 @@ export function useGameSounds<G extends SoundGame>(game: G) {
   }, [game]);
 
   const play = useCallback((name: SoundName<G>, opts?: PlayOptions) => playSound(game, name, opts), [game]);
-  return { play };
+  const stop = useCallback((name: SoundName<G>) => stopSound(game, name), [game]);
+  return { play, stop };
 }

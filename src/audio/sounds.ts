@@ -154,6 +154,24 @@ export const SOUNDS = {
     timeUp: require('../../assets/sounds/colorTerritory/territory-timeup.wav'),
     win: require('../../assets/sounds/colorTerritory/territory-win.wav'),
   },
+  futureSugoroku: {
+    rewind: require('../../assets/sounds/futureSugoroku/sugoroku-rewind.wav'),
+    blink: require('../../assets/sounds/futureSugoroku/sugoroku-blink.wav'),
+    danger: require('../../assets/sounds/futureSugoroku/sugoroku-danger.wav'),
+    exit: require('../../assets/sounds/futureSugoroku/sugoroku-exit.wav'),
+  },
+  beautyContest: {
+    number: require('../../assets/sounds/beautyContest/beauty-number.wav'),
+    sum: require('../../assets/sounds/beautyContest/beauty-sum.wav'),
+    average: require('../../assets/sounds/beautyContest/beauty-average.wav'),
+    target: require('../../assets/sounds/beautyContest/beauty-target.wav'),
+    away: require('../../assets/sounds/beautyContest/beauty-away.wav'),
+    invalid: require('../../assets/sounds/beautyContest/beauty-invalid.wav'),
+    result: require('../../assets/sounds/beautyContest/beauty-result.wav'),
+    winner: require('../../assets/sounds/beautyContest/beauty-winner.wav'),
+    point: require('../../assets/sounds/beautyContest/beauty-point.wav'),
+    notice: require('../../assets/sounds/beautyContest/beauty-notice.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

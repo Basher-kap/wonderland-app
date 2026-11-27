@@ -13,6 +13,7 @@ import {
 } from '../game/beautyContest';
 import type { RuleId } from '../game/beautyContest';
 import { buildTimeline } from '../game/beautyReveal';
+import { useGameSounds } from '../audio';
 import * as api from '../lib/api';
 import { useReduceMotion } from '../components/ui/useReduceMotion';
 import { royal as c, FONT_ROYAL } from '../gameThemes/beautyContest';
@@ -44,6 +45,7 @@ import type { GameProps } from './types';
 const secondsLeft = (ms: number) => Math.max(0, Math.ceil(ms / 1000));
 
 export function BeautyContestGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('beautyContest'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [draft, setDraft] = useState('');
   const [lockedVal, setLockedVal] = useState<number | null>(null);
@@ -177,6 +179,37 @@ export function BeautyContestGame({ seed, uid, onFinish, room }: GameProps) {
     const fresh = now.filter((r) => !seenRules.current!.has(r));
     fresh.forEach((r) => seenRules.current!.add(r));
     setFreshRules(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev, st?.phase]);
+
+  // The sounds of the reveal, one for each step of the timeline (game/beautyReveal.ts): every contestant's number,
+  // the sum, the average, the target, the distances, the winner of the round (and a blinking "correct" for the
+  // player who was closest), the points lost, and a call when somebody is out or a new rule starts.
+  // Everything is scheduled once, when the reveal starts. A phone that joins late only gets what is still to come.
+  useEffect(() => {
+    if (st?.phase !== 'reveal' || !st.reveal) return;
+    const v = st.reveal;
+    const tl = buildTimeline(v);
+    const elapsed = Math.max(0, tl.totalMs - remainingNow(st, receivedAt.current, Date.now()));
+    const ids: ReturnType<typeof setTimeout>[] = [];
+    const at = (ms: number, fn: () => void) => {
+      if (ms >= elapsed - 50) ids.push(setTimeout(fn, Math.max(0, ms - elapsed)));
+    };
+    tl.playersAt.forEach((t, i) => v.rows[i].value !== null && at(t, () => play('number', { volume: 0.7 })));
+    tl.calc.forEach((line) => {
+      if (line.kind === 'sum') at(line.at, () => play('sum'));
+      else if (line.kind === 'average') at(line.at, () => play('average'));
+      else if (line.kind === 'target') at(line.at, () => play('target'));
+      else if (line.kind === 'invalid') at(line.at, () => play('invalid'));
+    });
+    tl.awayAt.forEach((t) => t >= 0 && at(t, () => play('away', { volume: 0.5 })));
+    if (v.reason !== 'nobody') {
+      at(tl.winnerAt, () => play('result'));
+      if (v.winners.includes(uid)) at(tl.winnerAt + 700, () => play('winner')); // the closest player blinks "correct"
+    }
+    tl.scoresAt.forEach((t, i) => v.rows[i].after < v.rows[i].before && at(t + 150, () => play('point', { volume: 0.6 })));
+    if (tl.noticeAt >= 0) at(tl.noticeAt, () => play('notice'));
+    return () => ids.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.rev, st?.phase]);
 

@@ -18,6 +18,7 @@ import {
   State,
   tick,
 } from '../game/futureSugoroku';
+import { useGameSounds } from '../audio';
 import * as api from '../lib/api';
 import { cosmos as c, FONT_SUGOROKU } from '../gameThemes/futureSugoroku';
 import type { GameProps } from './types';
@@ -62,6 +63,7 @@ function markerSpot(s: State, p: string, cell: number) {
 }
 
 export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play, stop } = useGameSounds('futureSugoroku'); // loads the sounds now, frees them when the game closes
   const [st, setSt] = useState<State | null>(null);
   const [choice, setChoice] = useState<number | null>(null); // the room whose note I am reading
   const [lockedCell, setLockedCell] = useState<number | null>(null); // the room I locked in
@@ -178,6 +180,27 @@ export function FutureSugorokuGame({ seed, uid, onFinish, room }: GameProps) {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion.current = v)).catch(() => {});
   }, []);
+
+  // While I choose a room: a slow, nostalgic loop of time rewinding. It stops when the turn is resolved and carries on
+  // from where it was in the next choosing phase.
+  const choosing = st?.phase === 'pick' && st.alive.includes(uid);
+  useEffect(() => {
+    if (choosing) play('rewind', { loop: true, resume: true, volume: 0.5 });
+    else stop('rewind');
+    return () => stop('rewind');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [choosing]);
+
+  // When the turn is resolved and the markers have glided to their rooms: a siren and wailing if I stepped into a bad
+  // room, the way out if I found it, and a plain blink for any other room.
+  useEffect(() => {
+    if (st?.phase !== 'reveal') return;
+    const mine = st.reveal?.steps.find((x) => x.uid === uid);
+    if (!mine || (!mine.moved && !mine.effect && !mine.escaped)) return;
+    const id = setTimeout(() => play(mine.escaped ? 'exit' : mine.effect === 'danger' ? 'danger' : 'blink'), MOVE_MS - 50);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev, st?.phase]);
 
   // A new turn (or phase): nothing is read or locked yet.
   useEffect(() => {
