@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NavigationContainerRefWithCurrent } from '@react-navigation/native';
+import { Avatar } from '../ui';
 import { useAuth } from '../../context';
 import * as api from '../../lib/api';
 import { isDemoMode } from '../../lib/firebase';
@@ -202,7 +203,10 @@ export function ChatBubble({ navRef, routeName }: Props) {
               const code = item.text.match(CODE_RE)?.[0];
               return (
                 <View style={[styles.msg, mine && styles.msgMine]}>
-                  <Text style={styles.msgName}>{mine ? 'You' : item.username}</Text>
+                  <View style={styles.msgHead}>
+                    <Avatar uid={item.uid} name={item.username} size={22} />
+                    <Text style={styles.msgName}>{mine ? 'You' : item.username}</Text>
+                  </View>
                   <Text style={styles.msgText}>{item.text}</Text>
                   {code && !mine && (
                     <Pressable onPress={() => joinFrom(code)} style={styles.joinChip}>
@@ -335,6 +339,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 4,
   },
+  msgHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
   msgName: { color: space.ice, fontSize: 11, fontWeight: '600' },
   msgText: { color: space.text, fontSize: 14 },
   joinChip: {
@@ -377,4 +382,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+});

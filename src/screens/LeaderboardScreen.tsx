@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DomainIcon, DomainStat } from '../components';
+import { Avatar, DomainIcon, DomainStat } from '../components';
 import { useAuth } from '../context';
 import { LADDERS, Track, nextTitle, titleFor } from '../data';
 import * as api from '../lib/api';
@@ -81,6 +81,7 @@ export function LeaderboardScreen() {
                 style={[styles.row, i < rows.length - 1 && rowDivider, r.uid === uid && styles.rowMe]}
               >
                 <Text style={[styles.rank, i === 0 && { color: space.amber }]}>{i + 1}</Text>
+                <Avatar uid={r.uid} name={r.username} size={40} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name}>
                     {r.username}
@@ -140,4 +141,4 @@ const styles = StyleSheet.create({
   ladder: { padding: 14 },
   ladderLabel: { ...typo.body, fontSize: 15, fontWeight: '600', marginBottom: 4 },
   ladderTitles: { ...typo.caption, lineHeight: 19 },
-});
+});

@@ -5,7 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import { Button, VoiceButton, SpaceBackground, SpaceHeader } from '../components';
+import { Avatar, Button, VoiceButton, SpaceBackground, SpaceHeader } from '../components';
 import { voice } from '../voice';
 import { useAuth } from '../context';
 import { GAMES } from '../data';
@@ -66,7 +66,7 @@ export function LobbyScreen() {
 
   const rows: Row[] = isDemoMode
     ? [username, ...DEMO_FRIENDS].map((name, i) => ({
-        id: String(i),
+        id: i === 0 ? uid ?? 'demo' : String(i),
         name,
         lives: 10,
         isHost: i === 0 ? params.host : !params.host && i === 1,
@@ -125,7 +125,10 @@ export function LobbyScreen() {
             renderItem={({ item }) => (
               <View style={styles.row}>
                 <View style={styles.nameBox}>
-                  <Text style={styles.name}>{item.name}</Text>
+                  <Avatar uid={item.id} name={item.name} size={34} />
+                  <Text style={styles.name} numberOfLines={1}>
+                    {item.name}
+                  </Text>
                   {item.isHost && (
                     <View style={styles.hostTag}>
                       <MaterialCommunityIcons name="crown-outline" size={14} color={space.amber} />
@@ -187,4 +190,4 @@ const styles = StyleSheet.create({
   lives: { color: colors.chance, fontSize: 16, fontWeight: '600' },
   footer: { padding: 20, gap: 10, marginTop: 'auto' },
   waiting: { ...typo.caption, textAlign: 'center' },
-});
+});

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, DomainIcon, useReduceMotion } from '../ui';
+import { Avatar, Button, DomainIcon, useReduceMotion } from '../ui';
 import { Glint, StarGlass } from './SpaceGlass';
 import { DOMAIN_ORDER, Domain, domainInfo, space } from '../../theme';
 import { START_LIVES } from '../../game';
@@ -269,7 +269,7 @@ function CrewRow({ p, index }: { p: Crew; index: number }) {
       ]}
     >
       <View style={[styles.crewRing, { borderColor: ring }, !out && p.me && styles.crewRingMe]}>
-        <Text style={[styles.crewInitial, { color: out ? space.textFaint : space.text }]}>{p.name.slice(0, 1).toUpperCase()}</Text>
+        <Avatar uid={p.id} name={p.name} size={25} style={out ? { opacity: 0.4 } : undefined} />
       </View>
       <Text style={[styles.crewName, { color: out ? space.textFaint : p.me ? space.amber : space.text }]} numberOfLines={1}>
         {p.name}
