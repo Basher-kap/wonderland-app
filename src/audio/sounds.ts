@@ -185,6 +185,18 @@ export const SOUNDS = {
     fall: require('../../assets/sounds/xibalba/xibalba-fall.wav'),
     survivor: require('../../assets/sounds/xibalba/xibalba-survivor.wav'),
   },
+  oldMaid: {
+    deal: require('../../assets/sounds/oldMaid/oldmaid-deal.wav'),
+    pick: require('../../assets/sounds/oldMaid/oldmaid-pick.wav'),
+    draw: require('../../assets/sounds/oldMaid/oldmaid-draw.wav'),
+    pair: require('../../assets/sounds/oldMaid/oldmaid-pair.wav'),
+    joker: require('../../assets/sounds/oldMaid/oldmaid-joker.wav'),
+    turn: require('../../assets/sounds/oldMaid/oldmaid-turn.wav'),
+    target: require('../../assets/sounds/oldMaid/oldmaid-target.wav'),
+    tick: require('../../assets/sounds/oldMaid/oldmaid-tick.wav'),
+    zap: require('../../assets/sounds/oldMaid/oldmaid-zap.wav'),
+    survive: require('../../assets/sounds/oldMaid/oldmaid-survive.wav'),
+  },
 } satisfies Record<string, Record<string, number>>;
 
 export type SoundGame = keyof typeof SOUNDS;

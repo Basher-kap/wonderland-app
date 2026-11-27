@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import {
   apply,
@@ -17,6 +17,7 @@ import {
   tick,
   withHands,
 } from '../game/oldMaid';
+import { useGameSounds } from '../audio';
 import * as omApi from '../lib/oldMaidApi';
 import type { OldMaidHandDoc, OldMaidSnapshot } from '../lib/oldMaidApi';
 import { Bench, Bunting, CARD_RATIO, CardBack, PlayingCard, ZapBolt } from '../gameThemes/oldMaid/OldMaidArt';
@@ -47,6 +48,9 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 type Hand = { v: number; cards: string[] } | null;
 
 export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
+  const { play } = useGameSounds('oldMaid'); // loads the sounds now, frees them when the game closes
+  const soundTimers = useRef<ReturnType<typeof setTimeout>[]>([]); // the sounds of one step follow each other
+  const heardTurn = useRef(-1); // the last step whose sounds were already played
   const [st, setSt] = useState<State | null>(null);
   const [handDoc, setHandDoc] = useState<Hand>(null);
   const [area, setArea] = useState({ w: 0, h: 0 });
@@ -208,6 +212,51 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st?.phase, st?.winner]);
 
+  // ---- Sounds. The deal; my turn (or: somebody is about to draw from ME); the last seconds of my turn.
+  useEffect(() => {
+    if (st?.phase === 'dealing') play('deal');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.phase]);
+  useEffect(() => {
+    if (st?.phase !== 'turn' || uid in st.out) return;
+    if (st.current === uid) play('turn');
+    else if (st.target === uid) play('target');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev, st?.phase]);
+  const turnSecs = st?.phase === 'turn' && st.current === uid ? Math.ceil(remainingNow(st, receivedAt.current, Date.now()) / 1000) : 0;
+  useEffect(() => {
+    if (turnSecs > 0 && turnSecs <= 5) play('tick', { volume: 0.6 + 0.08 * (5 - turnSecs) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnSecs]);
+  // What happened in a step (the card drawn, a pair thrown away, the Joker, somebody electrocuted), once per step,
+  // one sound after the other, then the survivor's sound when the game is over.
+  useEffect(() => {
+    if (!st || (st.phase !== 'result' && st.phase !== 'over')) return;
+    const ev = st.last;
+    const later = (ms: number, fn: () => void) => soundTimers.current.push(setTimeout(fn, ms));
+    if (ev && ev.n !== heardTurn.current) {
+      heardTurn.current = ev.n;
+      if (ev.kind === 'draw') play('draw');
+      if (ev.pair) later(350, () => play('pair'));
+      if (ev.joker) later(650, () => play('joker'));
+      if (ev.out.length > 0) {
+        later(1200, () => {
+          play('zap');
+          if (ev.out.some((o) => o.uid === uid)) {
+            try {
+              Vibration.vibrate([0, 300, 100, 300, 100, 500]);
+            } catch {
+              /* no vibration on this device */
+            }
+          }
+        });
+      }
+    }
+    if (st.phase === 'over' && st.winner === uid) later(ev && ev.out.length > 0 ? 4200 : 600, () => play('survive'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st?.rev, st?.phase]);
+  useEffect(() => () => soundTimers.current.forEach(clearTimeout), []);
+
   // A new turn: nothing is picked yet.
   useEffect(() => {
     setPicked(null);
@@ -219,6 +268,7 @@ export function OldMaidGame({ seed, uid, onFinish, room }: GameProps) {
     const key = `draw:${st.rev}`;
     if (sent.current === key) return;
     sent.current = key;
+    play('pick');
     setPicked(index);
     omApi.sendOldMaidMove(r.code, { matchId: r.matchId, roundNo: r.roundNo }, { rev: st.rev, index }).catch((e: unknown) => {
       sent.current = '';
