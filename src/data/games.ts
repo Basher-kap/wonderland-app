@@ -14,7 +14,11 @@ export type Game = {
   description: string;
   // Shown in the round intro dialogs. Anything missing shows "To be announced.".
   japaneseName?: string;
+  // optional dialog shown right BEFORE the Rule, with the heading "Question:"
+  question?: string[];
   rules?: string[];
+  // optional headingless dialog, shown right after the Rule (e.g. the colour key of Wordle)
+  mechanics?: string[];
   clearConditions?: string[];
   prohibitions?: string[]; // optional extra rule: "Prohibition: ..."
   additionalRules?: string[]; // optional extra dialog, shown after the Rule (and the Prohibition)
@@ -41,6 +45,8 @@ export const GAMES: Game[] = [
     rules: [
       'Each player must guess the same hidden word displayed on the screen.',
       'After each guess attempt, the letters will be color-coded:',
+    ],
+    mechanics: [
       '🟩 Green: the letter is correct and in the correct position.',
       '🟨 Yellow: the letter is included in the hidden word but is in the wrong position.',
       '⬜ Gray: the letter is not included in the hidden word.',
@@ -58,10 +64,8 @@ export const GAMES: Game[] = [
     description: 'Calculate the numbers shown on screen, then type the answer in time.',
     difficulty: 'easy',
     rules: [
-      'A number with an arithmetic symbol will briefly appear on the screen before disappearing.',
-      'This sequence will continue until the complete mathematical equation has been displayed.',
-      'Players must calculate the answer and enter it within the given time limit.',
-      'Players who fail to submit an answer within the time limit receive no points and lose a chance.',
+      'Players must calculate the disappearing numbers showing on the screen within a time limit.',
+      'This sequence will continue until the complete mathematical equation has been displayed.'
     ],
     clearConditions: [
       'Each player has only 3 chances to make a mistake.',
@@ -90,9 +94,6 @@ export const GAMES: Game[] = [
     additionalRules: [
       'There is a JUDGE button to judge if that player’s provided word is invalid or unrelated to the previous word.',
       'Players have to vote whether it should pass or fail.',
-      'OK results: continuation for the next player to provide a word.',
-      'DRAW results: the player remains; however, receiving another DRAW is automatically disqualifying.',
-      'NO results mean that the player is disqualified.',
       'Disqualified players can still also partake in voting.',
     ],
     clearConditions: ['The last remaining player wins the game.'],
@@ -108,20 +109,22 @@ export const GAMES: Game[] = [
       'Players must draw a fortune-telling paper out of 100 available slips.',
       'Each slip contains a question and the player must answer the question drawn.',
     ],
-    additionalRules: [
+    mechanics: [
       'The lives deducted from you and from the other players for an incorrect answer depend on the margin of error and on the luck drawn.',
       'Answering correctly will recover a bit of lives.',
     ],
     clearConditions: ['The player must survive at the end of the game.'],
   },
-
   {
     id: 'light-bulb',
     name: 'Light Bulb',
     domain: 'logic',
     description: 'Trace the tangled wires to find the one switch that turns on the light.',
     difficulty: 'easy',
-    rules: ['Which switch turns on the light?', 'You have only one attempt to switch the light.'],
+    question: [
+      'Which switch turns on the light?',
+    ],
+    rules: ['You have only one attempt to switch the light.'],
     clearConditions: ['The fastest player to switch on the light clears the game.'],
   },
     {
@@ -145,26 +148,27 @@ export const GAMES: Game[] = [
     rules: [
       'All players must choose a number between 0 and 100.',
       'Then the average of the numbers everyone selected is multiplied by 0.8.',
-      'The person whose number is the closest to that result is the winner. The remaining players each lose a point.',
-      'A new rule is introduced for every player eliminated when 4 remaining players are left.',
+      'The person whose number is the closest to that result is the winner and the remaining players each lose a point.'
+    ],
+    additionalRules: [
+      'A new rule is added for every player eliminated whenever the players are left.',
       'It is GAME OVER for the player who reaches -10 points.',
     ],
     clearConditions: ['A remaining player wins the game.'],
   },
-      {
+  {
     id: 'future-sugoroku',
     name: 'Future Sugoroku',
     domain: 'logic',
     description: 'Choose your next room from clues about the future and find the hidden exit before your Survival Points run out.',
     difficulty: 'hard',
     rules: [
-      'All players begin in the center of the table, and the exit lies somewhere around the outer edge.',
-      'Each player starts with 15 Survival Points, and the game has a maximum of 15 turns.',
-      'When a player chooses a room to move to, they cannot go back to their previous room.',
+      'Each player starts with 15 Survival Points, and the game has only 15 turns.',
+      'When a player chooses a room to move to, costs a point.',
       'Players can occupy the same room without any occupancy restrictions.',
     ],
-    additionalRules: [
-      'Every player who chooses a next room loses 1 point. You lose more points when your chosen room is aligned horizontally, vertically or diagonally with other players’ chosen rooms, depending on how many players are aligned.',
+    mechanics: [
+      'You lose more points when your chosen room is aligned horizontally, vertically or diagonally with other players’ chosen rooms, depending on how many players are aligned.',
       'The room you are about to choose shows a glimpse of the future that waits in the rooms after it.',
     ],
     clearConditions: ['The player who finds the exit of the maze clears the game.'],
@@ -176,10 +180,11 @@ export const GAMES: Game[] = [
     description: 'Guess a proper noun such as a brand, team or celebrity name.',
     difficulty: 'normal',
     rules: [
-      'A hidden word or name will be displayed as a series of blank spaces, with each blank representing one letter.',
-      'Players must guess the hidden word by selecting one letter at a time.',
+      'Players must guess the hidden word by selecting a correct letter one at a time.',
       'Correctly guessed letters will be revealed in their corresponding positions.',
       'Incorrect guesses will add a part to the Hangman drawing.',
+    ],
+    additionalRules: [
       'A player can get a clue; however, all other players will also receive it.',
     ],
     clearConditions: [
@@ -206,8 +211,7 @@ export const GAMES: Game[] = [
     description: 'Follow the instruction about the arrows, but do the opposite when INVERSED blinks.',
     difficulty: 'normal',
     rules: [
-      'Follow the instructions given unless there’s an INVERSION sign.',
-      'Make sure to click the correct button.',
+      'Follow the instructions given unless there’s an INVERSION sign.'
     ],
     clearConditions: [
       'Survive all the tasks given until you remain the last player.',
@@ -240,7 +244,7 @@ export const GAMES: Game[] = [
     description: 'Answer the bear’s personal questions, then guess the Host’s answers.',
     difficulty: 'easy',
     rules: [
-      'All players must answer the following question given honestly by a bear.',
+      'All players must answer the following question given honestly.',
       'At the end of the series of questions, all of the players will have the chance to guess the host’s answer.',
     ],
     clearConditions: [
@@ -257,7 +261,6 @@ export const GAMES: Game[] = [
     rules: ['Players must click or tap the white circles to claim them by changing their colors to their assigned colors.'],
     clearConditions: ['The player who owns the most circles when the time limit expires wins the game.'],
   },
-
   {
       id: 'battleships',
       name: 'Battleships',
@@ -265,9 +268,11 @@ export const GAMES: Game[] = [
       description: 'Hit hidden ships on the grid with limited bullets. Do not hit your own ship.',
       difficulty: 'easy',
       rules: [
-        'At the start of the game, each player has to place 7 battleships on a field.',
+        'All players have to place 7 battleships on a field.',
         'Each player has 5 bullets to shoot the enemy’s battleships.',
         'Missing a target loses a bullet.',
+      ],
+      mechanics: [
         'Be careful not to hit your own battleship.',
       ],
       clearConditions: ['Players remaining with their battleship clear the game.'],
@@ -279,7 +284,7 @@ export const GAMES: Game[] = [
     description: 'Cross the trapped floor one line at a time. One wrong tile and you fall.',
     difficulty: 'normal',
     rules: [
-      'Each player will have to step one line at a time, simultaneously. You are not allowed to skip two or more lines ahead, but you can pick any tile on the next line.',
+      'Each player will have to step a tile in one line',
       'Be careful not to step on the wrong tile. The further you go, the higher the chance you will fall.',
       'Players can step on the same tile.',
     ],
@@ -296,14 +301,13 @@ export const GAMES: Game[] = [
     description: 'Grab the called card from any rack before your opponents do. Empty your rack to win.',
     difficulty: 'hard',
     rules: [
-      'Each player receives an equal number of cards, placed on their own card rack. All players’ cards remain visible to everyone.',
+      'Each player receives an equal number of cards, placed on their own card rack.',
       'A floating target card appears on the screen. Players must quickly identify and get that card from any rack before their opponents do.',
       'Once a card on your rack is taken away, the player who took it sends one of their own cards to your rack as a penalty to you.',
     ],
     additionalRules: [
       'However, if you take the wrong card, you are penalized by receiving that card.',
-      'Players may take a card in advance, before the floating target card appears.',
-      'Everyone is given 45 seconds to memorize the cards on the other players’ racks.',
+      'Players may take a card in advance, before the floating target card appears.'
     ],
     clearConditions: ['Players who have emptied their cards clear the game.'],
   },
@@ -334,8 +338,7 @@ export const GAMES: Game[] = [
     difficulty: 'normal',
     rules: [
       'A piano will play a chain of notes in a series of rounds.',
-      'Each player must play exactly the notes that the piano played, in order.',
-      'The chain starts with 4 notes. Every round, the same notes repeat from the start and one new note is added.',
+      'Each player must play exactly the notes that the piano played, in order.'
     ],
     clearConditions: ['The last player to survive wins the game.'],
   },
@@ -346,7 +349,6 @@ export const GAMES: Game[] = [
     description: 'Load the live bullets, spin the cylinder, then shoot a player or yourself.',
     difficulty: 'hard',
     rules: [
-      'Each player has only 1 life in a game.',
       'Each round has a number of live bullets to fill.',
       'All players have to load them into their cylinders and spin it.',
       'Players have to decide to shoot one of the other players or themselves.',

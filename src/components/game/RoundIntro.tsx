@@ -9,7 +9,9 @@ import { colors, domainInfo, radius } from '../../theme';
 // The dialogs shown, one after another, when a game is drawn:
 //   1. "Game of <Domain>" + "Difficulty: <level>"
 //   2. the game's name in Japanese
+//   2b. (only if the game has one) "Question: ..."
 //   3. "Rule: ..."
+//   3b. (only if the game has one) a second box with no heading: the mechanics
 //   4. (only if the game has one) "Example: ..."
 //   5. (only if the game has one) "Prohibition: ..."
 //   6. (only if the game has one) "Additional Rule: ..."
@@ -17,7 +19,7 @@ import { colors, domainInfo, radius } from '../../theme';
 // Steps 1 and 2 move on by themselves (tap to skip); the rule dialogs wait for a tap so
 // everybody can read them. After the last one, onDone() starts the game.
 
-type Step = { key: string; kind: 'title' | 'name' | 'lines'; heading?: string; lines?: string[] };
+type Step = { key: string; kind: 'title' | 'name' | 'lines'; heading?: string; lines?: string[]; plain?: boolean };
 
 const AUTO_MS = 2200;
 
@@ -31,7 +33,13 @@ export function buildSteps(game: Game, difficulty: Difficulty): Step[] {
       lines: [`Game of ${domainInfo[game.domain].label}`, `Difficulty: ${LABEL[difficulty]}`],
     },
     { key: 'name', kind: 'name', lines: [game.japaneseName ?? game.name] },
+    ...(game.question?.length
+      ? [{ key: 'question', kind: 'lines' as const, heading: 'Question', lines: game.question }]
+      : []),
     { key: 'rule', kind: 'lines', heading: 'Rule', lines: game.rules?.length ? game.rules : ['To be announced.'] },
+    ...(game.mechanics?.length
+      ? [{ key: 'mechanics', kind: 'lines' as const, lines: game.mechanics, plain: true }]
+      : []),
     ...(game.example?.length
       ? [{ key: 'example', kind: 'lines' as const, heading: 'Example', lines: game.example }]
       : []),
@@ -109,10 +117,12 @@ export function RoundIntro({
       {step.kind === 'name' && <Text style={[styles.huge, { color, fontFamily: look?.fontFamily }]}>{step.lines![0]}</Text>}
       {step.kind === 'lines' && (
         <View style={{ gap: 10 }}>
-          <Text style={[styles.heading, { color, fontFamily: look?.fontFamily }]}>{step.heading}:</Text>
+          {step.heading && (
+            <Text style={[styles.heading, { color, fontFamily: look?.fontFamily }]}>{step.heading}:</Text>
+          )}
           {step.lines!.map((line, i) => (
             <Text key={i} style={[styles.line, { color: textColor, fontFamily: look?.fontFamily }]}>
-              {step.lines!.length > 1 ? (
+              {step.lines!.length > 1 && !step.plain ? (
                 <>
                   <Text style={{ color: look ? look.bullet : textColor }}>•</Text>
                   {`  ${line}`}
